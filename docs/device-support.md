@@ -42,4 +42,6 @@ The current OnePlus 7 Pro module remains a tier-2 adapter. The HIDL service in
 Camera3-to-HIDL Device/Session implementation. The Android 12 CameraService
 patch under `aosp/cameraservice/android-12` performs app-scoped redirection
 from physical target IDs to these internal devices and carries the package
-identity in provider-owned session metadata.
+identity in provider-owned session metadata. Pre-connect capability queries
+are routed to the same internal ID, so advertised stream configurations match
+the device that will actually be opened.

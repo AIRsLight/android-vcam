@@ -15,6 +15,19 @@ session metadata. Injection happens in `Camera3Device`, so Camera1, Camera2,
 CameraX and NDK clients share the same route once CameraService has authenticated
 the caller.
 
+Capability queries follow the same route as connection. Scoped Camera2 clients
+receive the virtual device characteristics, while Camera1 info and legacy
+parameters come from a separate virtual shim cache. This prevents applications
+from selecting a physical-only resolution, format or frame-rate mode and then
+opening a virtual device that cannot satisfy it. Concurrent-session checks are
+routed as well.
+
+Android 12 does not attach a package name to every pre-connect capability
+query, so CameraService resolves the calling UID to its first package, matching
+the platform's existing NDK attribution fallback. Products that place unrelated
+applications under one shared UID must treat per-package pre-connect routing as
+unsupported or add an attribution-aware framework extension.
+
 ## Apply
 
 Place this repository somewhere inside the AOSP source tree, for example

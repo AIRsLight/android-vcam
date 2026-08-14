@@ -123,6 +123,8 @@ def main() -> None:
     for required_symbol in (
         "libvcam_route_core", "ScopedCameraRouter", "selectedCameraId",
         "kVcamClientPackageTag", "mClientPackageName",
+        "resolveScopedCameraId", "firstPackageNameForUid",
+        "routedConfigurations", "getLegacyParametersLazy(cameraId, selectedCameraId",
     ):
         if required_symbol not in cameraservice_patch:
             fail(f"Android 12 CameraService patch is missing: {required_symbol}")

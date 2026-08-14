@@ -18,6 +18,7 @@ def main() -> None:
         ROOT / "hal" / "Android.bp",
         ROOT / "hal" / "src" / "VirtualCamera.cpp",
         ROOT / "hal" / "src" / "VirtualCameraModule.cpp",
+        ROOT / "hal" / "src" / "VirtualCameraStandaloneModule.cpp",
         ROOT / "native" / "proxy_bootstrap.cpp",
         ROOT / "native" / "stream_provider.c",
         ROOT / "native" / "control_daemon.c",
@@ -29,8 +30,12 @@ def main() -> None:
         ROOT / "aosp" / "provider" / "hidl" / "Android.bp",
         ROOT / "aosp" / "provider" / "hidl" / "VcamProvider.cpp",
         ROOT / "aosp" / "provider" / "hidl" / "service.cpp",
+        ROOT / "aosp" / "provider" / "sepolicy" / "file_contexts",
         ROOT / "hal" / "include" / "vcam" / "FrameRenderer.h",
+        ROOT / "hal" / "include" / "vcam" / "RouteResolver.h",
         ROOT / "hal" / "src" / "FrameRenderer.cpp",
+        ROOT / "hal" / "src" / "RouteResolver.cpp",
+        ROOT / "tests" / "route_resolver_test.cpp",
         ROOT / "tools" / "create-module-zip.py",
         ROOT / "tools" / "probe-device.ps1",
         ROOT / "docs" / "device-support.md",
@@ -38,6 +43,10 @@ def main() -> None:
     for path in required:
         if not path.is_file():
             fail(f"missing required file: {path.relative_to(ROOT)}")
+
+    host_cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+    if "-UNDEBUG" not in host_cmake or "route_resolver_test" not in host_cmake:
+        fail("native assertions or route resolver test are not enabled")
 
     module = (ROOT / "apmodule" / "module.prop").read_text(encoding="utf-8")
     if not re.search(r"^id=android_vcam$", module, re.MULTILINE):
@@ -71,14 +80,30 @@ def main() -> None:
     )
     if "FrameRenderer frameRenderer_" not in virtual_camera_header:
         fail("HAL does not use the transport-neutral FrameRenderer")
+    if "partialResultCount_" not in virtual_camera_header or \
+            "result.partial_result = partialResultCount_" not in source:
+        fail("HAL frontend partial-result contract is not configurable")
+
+    hal_blueprint = (ROOT / "hal" / "Android.bp").read_text(encoding="utf-8")
+    if "VirtualCameraStandaloneModule.cpp" not in hal_blueprint or \
+            "VirtualCameraModule.cpp" in hal_blueprint:
+        fail("AOSP camera.vcam must use the standalone Camera3 module entrypoint")
 
     proxy = (ROOT / "native" / "proxy_bootstrap.cpp").read_text(encoding="utf-8")
     for required_symbol in (
-        "routes.tsv", "physical-0", "physical-1", "packageFrom",
+        "RouteResolver", "packageFrom",
         "providerForPackage", "gProxyModuleMethods",
     ):
         if required_symbol not in proxy:
             fail(f"OEM proxy is missing expected feature: {required_symbol}")
+    if "state->cameraId, 2" not in proxy:
+        fail("OEM proxy must preserve the physical camera's two-part result contract")
+    route_resolver = (ROOT / "hal" / "src" / "RouteResolver.cpp").read_text(
+        encoding="utf-8"
+    )
+    for required_symbol in ("routesPath", "physical-", "enabled", "frame.rgb"):
+        if required_symbol not in route_resolver:
+            fail(f"route resolver is missing expected feature: {required_symbol}")
 
     controller = (ROOT / "apmodule" / "vcamctl").read_text(encoding="utf-8")
     for command in (
@@ -95,10 +120,15 @@ def main() -> None:
         if required_symbol not in probe:
             fail(f"device probe is missing field: {required_symbol}")
 
-    provider = (ROOT / "aosp" / "provider" / "hidl" / "VcamProvider.cpp").read_text(
-        encoding="utf-8"
+    provider = "\n".join(
+        (ROOT / "aosp" / "provider" / "hidl" / name).read_text(encoding="utf-8")
+        for name in ("VcamProvider.h", "VcamProvider.cpp")
     )
-    for required_symbol in ("setCallback", "getCameraIdList"):
+    for required_symbol in (
+        "setCallback", "getCameraIdList", "CameraDevice", "camera.vcam",
+        "device@3.4/vcam/1000", "device@3.4/vcam/1001",
+        "ro.vendor.vcam.provider.enabled",
+    ):
         if required_symbol not in provider:
             fail(f"AOSP HIDL provider is missing symbol: {required_symbol}")
     provider_service = (ROOT / "aosp" / "provider" / "hidl" / "service.cpp").read_text(
@@ -106,6 +136,12 @@ def main() -> None:
     )
     if 'registerAsService("vcam/0")' not in provider_service:
         fail("AOSP HIDL provider does not register the vcam/0 instance")
+    vendor_tags = (ROOT / "hal" / "include" / "vcam" / "VendorTags.h").read_text(
+        encoding="utf-8"
+    )
+    for required_symbol in ("io.github.androidvcam", "clientPackage", "com.oplus"):
+        if required_symbol not in vendor_tags:
+            fail(f"frontend vendor-tag contract is missing: {required_symbol}")
 
     manager_manifest = (ROOT / "manager" / "AndroidManifest.xml").read_text(encoding="utf-8")
     manager_sources = "\n".join(

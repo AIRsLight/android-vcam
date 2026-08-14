@@ -21,6 +21,20 @@ all of them consume the same persistent providers, routes and source framing.
 `device-probe.sh` emits a normalized capability profile used to select a
 frontend or compatibility adapter. Unsupported combinations fail closed.
 
+On Android 8-12, the standalone `camera.vcam` Camera3 module is wrapped by
+AOSP's `camera.device@3.4-impl`; this keeps FMQ, buffer-cache, fence and gralloc
+ownership in the platform implementation. The `vcam/0` Provider uses public
+IDs 1000/1001 so it never collides with OEM IDs 0/1. Enumeration is disabled
+unless `ro.vendor.vcam.provider.enabled=true`.
+
+`RouteResolver` is shared by the OEM proxy and standalone module. The latter
+accepts `configureStreams` only when the framework-provided client package has
+a matching, enabled, non-physical provider in `routes.tsv`. Missing scope,
+invalid provider IDs and physical routes fail closed; CameraService must keep
+those sessions on the OEM provider. AOSP transports use the provider-owned
+`io.github.androidvcam.clientPackage` session tag, while the current OnePlus
+adapter retains its OEM-specific tag.
+
 ## Current OnePlus compatibility adapter
 
 ```text

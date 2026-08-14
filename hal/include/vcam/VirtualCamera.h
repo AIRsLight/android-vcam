@@ -16,12 +16,15 @@
 #include <system/camera_metadata.h>
 
 #include "vcam/FrameRenderer.h"
+#include "vcam/VendorTags.h"
 
 namespace vcam {
 
 class VirtualCamera final {
   public:
-    explicit VirtualCamera(int id);
+    explicit VirtualCamera(int id, uint32_t partialResultCount = 1,
+                           bool resolveScopedRoute = false,
+                           uint32_t clientPackageTag = kOplusPackageNameTag);
     ~VirtualCamera();
 
     VirtualCamera(const VirtualCamera&) = delete;
@@ -68,6 +71,9 @@ class VirtualCamera final {
     static camera3_device_ops_t operations_;
 
     const int id_;
+    const uint32_t partialResultCount_;
+    const bool resolveScopedRoute_;
+    const uint32_t clientPackageTag_;
     mutable std::mutex mutex_;
     camera3_device_t device_{};
     bool open_ = false;

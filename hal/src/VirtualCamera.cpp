@@ -26,6 +26,7 @@
 
 #include "vcam/MetadataBuilder.h"
 #include "vcam/Log.h"
+#include "vcam/RouteResolver.h"
 #include "vcam/VendorTags.h"
 
 namespace vcam {
@@ -70,16 +71,17 @@ void sleepForNs(uint64_t nanoseconds) {
     }
 }
 
-void logClientPackage(const camera_metadata_t* metadata, const char* source) {
+void logClientPackage(const camera_metadata_t* metadata, uint32_t packageTag,
+                      const char* source) {
     camera_metadata_ro_entry_t entry{};
     if (metadata == nullptr || find_camera_metadata_ro_entry(
-            metadata, kOplusPackageNameTag, &entry) != 0) {
+            metadata, packageTag, &entry) != 0) {
         const size_t count = metadata == nullptr ? 0 : get_camera_metadata_entry_count(metadata);
         ALOGI("Client package tag absent in %s (entries=%zu)", source, count);
         for (size_t i = 0; i < count; ++i) {
             camera_metadata_ro_entry_t candidate{};
             if (get_camera_metadata_ro_entry(metadata, i, &candidate) == 0 &&
-                    candidate.tag >= VENDOR_SECTION_START) {
+                    candidate.tag >= static_cast<uint32_t>(VENDOR_SECTION_START)) {
                 ALOGI("Vendor metadata in %s: tag=0x%08x type=%u count=%zu",
                       source, candidate.tag, candidate.type, candidate.count);
             }
@@ -97,6 +99,20 @@ void logClientPackage(const camera_metadata_t* metadata, const char* source) {
           source, entry.tag, entry.type, entry.count, value);
 }
 
+std::string clientPackageFrom(const camera_metadata_t* metadata,
+                              uint32_t packageTag) {
+    if (metadata == nullptr) return {};
+    camera_metadata_ro_entry_t entry{};
+    if (find_camera_metadata_ro_entry(
+                metadata, packageTag, &entry) != 0 ||
+            entry.count == 0 || entry.data.u8 == nullptr) {
+        return {};
+    }
+    size_t length = 0;
+    while (length < entry.count && entry.data.u8[length] != 0) ++length;
+    return std::string(reinterpret_cast<const char*>(entry.data.u8), length);
+}
+
 int waitForFence(int fd, int timeoutMs) {
     pollfd fence{fd, POLLIN, 0};
     int result;
@@ -109,7 +125,9 @@ int waitForFence(int fd, int timeoutMs) {
     return (fence.revents & (POLLIN | POLLERR | POLLHUP)) != 0 ? 0 : -EIO;
 }
 
-bool addStaticMetadata(MetadataBuilder* metadata, int cameraId) {
+bool addStaticMetadata(MetadataBuilder* metadata, int cameraId,
+                       uint32_t partialResultCountValue,
+                       uint32_t clientPackageTag) {
     const uint8_t aberrationModes[] = {ANDROID_COLOR_CORRECTION_ABERRATION_MODE_OFF};
     const uint8_t aeAntibanding[] = {ANDROID_CONTROL_AE_ANTIBANDING_MODE_OFF,
                                      ANDROID_CONTROL_AE_ANTIBANDING_MODE_AUTO};
@@ -141,7 +159,9 @@ bool addStaticMetadata(MetadataBuilder* metadata, int cameraId) {
     const uint8_t noiseModes[] = {ANDROID_NOISE_REDUCTION_MODE_OFF};
     const int32_t maxOutputStreams[] = {0, 3, 1};
     const uint8_t pipelineDepth[] = {4};
-    const int32_t partialResultCount[] = {1};
+    const int32_t partialResultCount[] = {
+            static_cast<int32_t>(partialResultCountValue),
+    };
     const uint8_t capabilities[] = {ANDROID_REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE};
 
     const int32_t requestKeys[] = {
@@ -168,10 +188,10 @@ bool addStaticMetadata(MetadataBuilder* metadata, int cameraId) {
             ANDROID_LENS_OPTICAL_STABILIZATION_MODE,
             ANDROID_NOISE_REDUCTION_MODE,
             ANDROID_SENSOR_FRAME_DURATION,
-            static_cast<int32_t>(kOplusPackageNameTag),
+            static_cast<int32_t>(clientPackageTag),
     };
     const int32_t sessionKeys[] = {
-            static_cast<int32_t>(kOplusPackageNameTag),
+            static_cast<int32_t>(clientPackageTag),
     };
     const int32_t resultKeys[] = {
             ANDROID_CONTROL_AE_MODE,
@@ -370,7 +390,13 @@ camera3_device_ops_t VirtualCamera::operations_ = {
         .reserved = {nullptr},
 };
 
-VirtualCamera::VirtualCamera(int id) : id_(id) {
+VirtualCamera::VirtualCamera(int id, uint32_t partialResultCount,
+                             bool resolveScopedRoute,
+                             uint32_t clientPackageTag)
+    : id_(id),
+      partialResultCount_(partialResultCount == 0 ? 1 : partialResultCount),
+      resolveScopedRoute_(resolveScopedRoute),
+      clientPackageTag_(clientPackageTag) {
     device_.common.tag = HARDWARE_DEVICE_TAG;
     device_.common.version = CAMERA_DEVICE_API_VERSION_3_5;
     device_.common.close = closeDevice;
@@ -529,7 +555,22 @@ int VirtualCamera::configureStreamsLocked(camera3_stream_configuration_t* config
     if (config->operation_mode != CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE) {
         return -EINVAL;
     }
-    logClientPackage(config->session_parameters, "session parameters");
+    logClientPackage(config->session_parameters, clientPackageTag_,
+                     "session parameters");
+    if (resolveScopedRoute_) {
+        const std::string packageName = clientPackageFrom(
+                config->session_parameters, clientPackageTag_);
+        const std::string provider = RouteResolver::providerForPackage(
+                packageName, id_);
+        if (RouteResolver::physicalIdFromProvider(provider) >= 0) {
+            ALOGE("Standalone route rejected camera=%d package='%s' provider='%s'",
+                  id_, packageName.c_str(), provider.c_str());
+            return -EACCES;
+        }
+        frameRenderer_.setSourcePath(RouteResolver::framePath(provider));
+        ALOGI("Standalone route camera=%d package='%s' provider='%s'",
+              id_, packageName.c_str(), provider.c_str());
+    }
     loadSourceConfigurationLocked();
 
     std::vector<camera3_stream_t*> accepted;
@@ -665,7 +706,7 @@ int VirtualCamera::processRequestLocked(camera3_capture_request_t* request) {
         ALOGI("First capture request camera=%d frame=%u outputs=%u settings=%d",
               id_, request->frame_number, request->num_output_buffers,
               request->settings != nullptr);
-        logClientPackage(request->settings, "first request");
+        logClientPackage(request->settings, clientPackageTag_, "first request");
         requestLogged_ = true;
     }
     if (request->settings != nullptr) {
@@ -708,12 +749,11 @@ int VirtualCamera::processRequestLocked(camera3_capture_request_t* request) {
     result.result = resultMetadata;
     result.num_output_buffers = static_cast<uint32_t>(outputs.size());
     result.output_buffers = outputs.data();
-    // The stock camera metadata on the target ROM advertises two partial
-    // results. This is the final (and only) result emitted by the virtual
-    // pipeline, so mark it with the advertised final partial-result index.
-    // Otherwise Camera3Device keeps every request in-flight indefinitely and
-    // consumers render a black surface.
-    result.partial_result = 2;
+    // This is the only result emitted by the virtual pipeline. Its index must
+    // match the static characteristics used by the frontend: the standalone
+    // AOSP module advertises one, while the OEM proxy inherits two from the
+    // physical target. A mismatch leaves the request in-flight indefinitely.
+    result.partial_result = partialResultCount_;
     if (!resultLogged_) {
         ALOGI("Sending first capture result camera=%d frame=%u outputs=%u",
               id_, result.frame_number, result.num_output_buffers);
@@ -987,7 +1027,8 @@ void VirtualCamera::notifyBufferError(uint32_t frameNumber,
 
 camera_metadata_t* VirtualCamera::buildStaticMetadata() const {
     MetadataBuilder metadata(192, 32768);
-    if (!addStaticMetadata(&metadata, id_)) {
+    if (!addStaticMetadata(&metadata, id_, partialResultCount_,
+                           clientPackageTag_)) {
         ALOGE("Unable to construct static metadata for camera %d", id_);
         return nullptr;
     }

@@ -25,3 +25,16 @@ cc_library_static {
     ],
     cpp_std: "c++17",
 }
+
+cc_library_static {
+    name: "libvcam_route_core",
+    vendor_available: true,
+    srcs: ["hal/src/RouteResolver.cpp"],
+    export_include_dirs: ["hal/include"],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    cpp_std: "c++17",
+}

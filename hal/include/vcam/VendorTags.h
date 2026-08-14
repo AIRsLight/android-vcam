@@ -20,4 +20,11 @@ constexpr uint32_t kOplusPackageNameTag = 0x80700001u;
 constexpr const char* kOplusPackageNameSection = "com.oplus";
 constexpr const char* kOplusPackageNameName = "packageName";
 
+// Provider-owned package routing contract used by the AOSP HIDL/AIDL
+// frontends. Provider-scoped vendor-tag descriptors allow this first vendor
+// section value to coexist with tags exposed by the OEM camera provider.
+constexpr uint32_t kVcamClientPackageTag = 0x80000000u;
+constexpr const char* kVcamClientPackageSection = "io.github.androidvcam";
+constexpr const char* kVcamClientPackageName = "clientPackage";
+
 }  // namespace vcam

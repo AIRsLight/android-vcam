@@ -64,6 +64,7 @@ add_library(vcam_proxy SHARED
     "${VCAM_ROOT}/hal/src/MetadataBuilder.cpp"
     "${VCAM_ROOT}/hal/src/PatternGenerator.cpp"
     "${VCAM_ROOT}/hal/src/RgbFrame.cpp"
+    "${VCAM_ROOT}/hal/src/RouteResolver.cpp"
     "${VCAM_ROOT}/hal/src/VirtualCamera.cpp"
 )
 set_target_properties(vcam_proxy PROPERTIES OUTPUT_NAME vcam_proxy)
@@ -90,11 +91,11 @@ target_link_libraries(vcam_proxy PRIVATE
 add_library(camera_vcam SHARED
     "${VCAM_ROOT}/hal/src/FrameRenderer.cpp"
     "${VCAM_ROOT}/hal/src/MetadataBuilder.cpp"
-    "${VCAM_ROOT}/hal/src/OriginalHal.cpp"
     "${VCAM_ROOT}/hal/src/PatternGenerator.cpp"
     "${VCAM_ROOT}/hal/src/RgbFrame.cpp"
+    "${VCAM_ROOT}/hal/src/RouteResolver.cpp"
     "${VCAM_ROOT}/hal/src/VirtualCamera.cpp"
-    "${VCAM_ROOT}/hal/src/VirtualCameraModule.cpp"
+    "${VCAM_ROOT}/hal/src/VirtualCameraStandaloneModule.cpp"
 )
 set_target_properties(camera_vcam PROPERTIES
     OUTPUT_NAME camera.vcam
@@ -106,7 +107,7 @@ target_include_directories(camera_vcam PRIVATE
     ${PLATFORM_INCLUDE_DIRS}
 )
 target_compile_options(camera_vcam PRIVATE
-    -Wall -Wextra -Wno-gnu-designator -fvisibility=hidden
+    -Wall -Wextra -Werror -Wno-gnu-designator -fvisibility=hidden
 )
 target_link_options(camera_vcam PRIVATE
     "-Wl,-z,defs"
@@ -124,7 +125,7 @@ install(TARGETS camera_vcam LIBRARY DESTINATION .)
 
 add_executable(vcam_smoke_loader smoke_loader.c)
 target_include_directories(vcam_smoke_loader PRIVATE ${PLATFORM_INCLUDE_DIRS})
-target_link_libraries(vcam_smoke_loader PRIVATE dl)
+target_link_libraries(vcam_smoke_loader PRIVATE camera_metadata_abi dl)
 
 add_executable(vcam_frame_publisher frame_publisher.c)
 set_target_properties(vcam_frame_publisher PROPERTIES OUTPUT_NAME vcam-publisher)

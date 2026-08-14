@@ -7,7 +7,6 @@
 #include <android/log.h>
 #include <dlfcn.h>
 #include <errno.h>
-#include <unistd.h>
 #include <hardware/camera3.h>
 #include <hardware/camera_common.h>
 #include <hardware/hardware.h>
@@ -17,18 +16,16 @@
 
 #include <algorithm>
 #include <array>
-#include <fstream>
 #include <memory>
 #include <mutex>
 #include <string>
 
 #include "vcam/VirtualCamera.h"
+#include "vcam/RouteResolver.h"
 #include "vcam/VendorTags.h"
 
 namespace {
 
-constexpr const char* kRoutesPath = "/data/vendor/camera/vcam/routes.tsv";
-constexpr const char* kProvidersPath = "/data/vendor/camera/vcam/providers";
 constexpr size_t kMaxCameras = 16;
 
 enum class Backend { kUnconfigured, kPhysical, kVirtual };
@@ -88,59 +85,6 @@ std::string packageFrom(const camera_metadata_t* metadata) {
     size_t length = 0;
     while (length < entry.count && entry.data.u8[length] != 0) ++length;
     return std::string(reinterpret_cast<const char*>(entry.data.u8), length);
-}
-
-bool validProviderId(const std::string& value) {
-    if (value.empty() || value.size() > 64) return false;
-    for (const char character : value) {
-        const bool allowed = (character >= 'a' && character <= 'z') ||
-                (character >= 'A' && character <= 'Z') ||
-                (character >= '0' && character <= '9') || character == '.' ||
-                character == '_' || character == '-';
-        if (!allowed) return false;
-    }
-    return true;
-}
-
-std::string defaultPhysicalProvider(int cameraId) {
-    return "physical-" + std::to_string(cameraId);
-}
-
-std::string providerForPackage(const std::string& packageName, int cameraId) {
-    if (packageName.empty()) return defaultPhysicalProvider(cameraId);
-    std::ifstream input(kRoutesPath);
-    if (!input) return defaultPhysicalProvider(cameraId);
-    std::string line;
-    while (std::getline(input, line)) {
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        const size_t first = line.find('\t');
-        const size_t second = first == std::string::npos
-                ? std::string::npos : line.find('\t', first + 1);
-        if (first == std::string::npos || second == std::string::npos ||
-            line.substr(0, first) != packageName ||
-            line.substr(first + 1, second - first - 1) != std::to_string(cameraId)) {
-            continue;
-        }
-        const std::string provider = line.substr(second + 1);
-        if (!validProviderId(provider)) return defaultPhysicalProvider(cameraId);
-        if (provider == "physical-0" || provider == "physical-1") return provider;
-        const std::string enabled = std::string(kProvidersPath) + "/" +
-                provider + "/enabled";
-        return access(enabled.c_str(), R_OK) == 0
-                ? provider : defaultPhysicalProvider(cameraId);
-    }
-    return defaultPhysicalProvider(cameraId);
-}
-
-int physicalIdFromProvider(const std::string& provider) {
-    constexpr const char* prefix = "physical-";
-    if (provider.compare(0, strlen(prefix), prefix) != 0) return -1;
-    const char* value = provider.c_str() + strlen(prefix);
-    char* end = nullptr;
-    const long parsed = strtol(value, &end, 10);
-    return end != nullptr && *value != '\0' && *end == '\0' && parsed >= 0 &&
-                   parsed < static_cast<long>(kMaxCameras)
-            ? static_cast<int>(parsed) : -1;
 }
 
 bool appendKey(camera_metadata_t* metadata, uint32_t keyTag) {
@@ -305,7 +249,11 @@ int proxyOpen(const hw_module_t* module, const char* id, hw_device_t** out) {
     state->physicalRaw = physicalRaw;
     state->physical = reinterpret_cast<camera3_device_t*>(physicalRaw);
     state->physicalSourceId = state->cameraId;
-    state->virtualCamera = std::make_unique<vcam::VirtualCamera>(state->cameraId);
+    // The OEM static characteristics advertise two partial results. Keep the
+    // proxy result index aligned with those physical-camera characteristics;
+    // the standalone AOSP module uses VirtualCamera's default of one.
+    state->virtualCamera = std::make_unique<vcam::VirtualCamera>(
+            state->cameraId, 2);
     hw_device_t* virtualRaw = nullptr;
     const int virtualResult = state->virtualCamera->open(module, &virtualRaw);
     if (virtualResult != 0 || virtualRaw == nullptr) {
@@ -413,12 +361,14 @@ int proxyConfigure(const camera3_device_t* device,
     ProxyDevice* state = findDevice(device);
     if (state == nullptr || config == nullptr) return -EINVAL;
     const std::string packageName = packageFrom(config->session_parameters);
-    const std::string provider = providerForPackage(packageName, state->cameraId);
-    const int physicalSource = physicalIdFromProvider(provider);
+    const std::string provider = vcam::RouteResolver::providerForPackage(
+            packageName, state->cameraId);
+    const int physicalSource =
+            vcam::RouteResolver::physicalIdFromProvider(provider);
     const bool useVirtual = physicalSource < 0;
     if (useVirtual) {
-        state->virtualCamera->setSourcePath(std::string(kProvidersPath) + "/" +
-                                            provider + "/frame.rgb");
+        state->virtualCamera->setSourcePath(
+                vcam::RouteResolver::framePath(provider));
     }
     int result = 0;
     if (useVirtual) {

@@ -22,6 +22,9 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
   fixed viewport, draggable media, pinch zoom and continuous zoom control.
 - A module-owned `vcamd` daemon persists configuration independently of the
   manager and exposes only an authenticated, fixed-command local protocol.
+- A transport-neutral route resolver is shared by the OEM compatibility proxy
+  and the standalone AOSP Camera3 module; unscoped standalone sessions fail
+  closed.
 - Native FFmpeg 4.2.2 integration decodes local, HTTP, HTTP-HLS and RTSP input.
 - HTTPS video files are downloaded through the ROM's BoringSSL-enabled curl,
   then decoded in the background.

@@ -14,7 +14,7 @@ cc_library_shared {
         "src/PatternGenerator.cpp",
         "src/RgbFrame.cpp",
         "src/VirtualCamera.cpp",
-        "src/VirtualCameraModule.cpp",
+        "src/VirtualCameraStandaloneModule.cpp",
     ],
 
     local_include_dirs: ["include"],
@@ -25,7 +25,10 @@ cc_library_shared {
         "liblog",
     ],
 
-    static_libs: ["libjpeg_static_ndk"],
+    static_libs: [
+        "libjpeg_static_ndk",
+        "libvcam_route_core",
+    ],
 
     cflags: [
         "-Wall",

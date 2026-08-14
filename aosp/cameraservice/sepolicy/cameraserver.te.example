@@ -1,0 +1,6 @@
+# Android 12 AOSP CameraService reads only the VCAM route table and provider
+# enabled markers. Replace vendor_camera_data_file if the product uses another
+# label for /data/vendor/camera, and validate the rule against product
+# neverallows before removing the .example suffix.
+allow cameraserver vendor_camera_data_file:dir { getattr open read search };
+allow cameraserver vendor_camera_data_file:file { getattr open read };

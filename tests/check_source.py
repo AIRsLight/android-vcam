@@ -33,10 +33,15 @@ def main() -> None:
         ROOT / "aosp" / "provider" / "sepolicy" / "file_contexts",
         ROOT / "hal" / "include" / "vcam" / "FrameRenderer.h",
         ROOT / "hal" / "include" / "vcam" / "RouteResolver.h",
+        ROOT / "hal" / "include" / "vcam" / "ScopedCameraRouter.h",
         ROOT / "hal" / "src" / "FrameRenderer.cpp",
         ROOT / "hal" / "src" / "RouteResolver.cpp",
+        ROOT / "hal" / "src" / "ScopedCameraRouter.cpp",
         ROOT / "tests" / "route_resolver_test.cpp",
+        ROOT / "tests" / "scoped_camera_router_test.cpp",
+        ROOT / "aosp" / "cameraservice" / "android-12" / "frameworks-av.patch",
         ROOT / "tools" / "create-module-zip.py",
+        ROOT / "tools" / "apply-aosp-cameraservice-patch.ps1",
         ROOT / "tools" / "probe-device.ps1",
         ROOT / "docs" / "device-support.md",
     ]
@@ -45,7 +50,8 @@ def main() -> None:
             fail(f"missing required file: {path.relative_to(ROOT)}")
 
     host_cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
-    if "-UNDEBUG" not in host_cmake or "route_resolver_test" not in host_cmake:
+    if "-UNDEBUG" not in host_cmake or "route_resolver_test" not in host_cmake or \
+            "scoped_camera_router_test" not in host_cmake:
         fail("native assertions or route resolver test are not enabled")
 
     module = (ROOT / "apmodule" / "module.prop").read_text(encoding="utf-8")
@@ -104,6 +110,22 @@ def main() -> None:
     for required_symbol in ("routesPath", "physical-", "enabled", "frame.rgb"):
         if required_symbol not in route_resolver:
             fail(f"route resolver is missing expected feature: {required_symbol}")
+    scoped_router = "\n".join(path.read_text(encoding="utf-8") for path in (
+        ROOT / "hal" / "include" / "vcam" / "ScopedCameraRouter.h",
+        ROOT / "hal" / "src" / "ScopedCameraRouter.cpp",
+    ))
+    for required_symbol in ("1000", "1001", "configured", "available"):
+        if required_symbol not in scoped_router:
+            fail(f"scoped camera router is missing expected feature: {required_symbol}")
+    cameraservice_patch = (
+        ROOT / "aosp" / "cameraservice" / "android-12" / "frameworks-av.patch"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "libvcam_route_core", "ScopedCameraRouter", "selectedCameraId",
+        "kVcamClientPackageTag", "mClientPackageName",
+    ):
+        if required_symbol not in cameraservice_patch:
+            fail(f"Android 12 CameraService patch is missing: {required_symbol}")
 
     controller = (ROOT / "apmodule" / "vcamctl").read_text(encoding="utf-8")
     for command in (

@@ -17,6 +17,11 @@ back and front replacement targets. CameraService selects a VCAM session
 through its routing adapter while the OEM provider stays registered for
 physical fallbacks.
 
+The Android 12 routing adapter and its exact AOSP patch are under
+`aosp/cameraservice/android-12`. Internal IDs are removed from public counts,
+listener snapshots and status callbacks; direct app opens of those IDs are
+rejected.
+
 The AOSP routing adapter writes the provider-owned BYTE vendor tag
 `io.github.androidvcam.clientPackage` into session parameters. The standalone
 module resolves that package against the same `routes.tsv` used by the manager.
@@ -36,6 +41,9 @@ PRODUCT_PACKAGES += \
 # policy have been integrated and validated.
 PRODUCT_VENDOR_PROPERTIES += ro.vendor.vcam.provider.enabled=true
 ```
+
+Include `aosp/cameraservice/product/android_vcam.mk` instead of duplicating the
+package/property block when integrating the complete Android 12 path.
 
 The HIDL manifest fragment and init service are attached to the Soong module.
 Device policy must also include matching `hal_camera` service and binder rules;

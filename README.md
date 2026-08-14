@@ -25,6 +25,9 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
 - A transport-neutral route resolver is shared by the OEM compatibility proxy
   and the standalone AOSP Camera3 module; unscoped standalone sessions fail
   closed.
+- An Android 12 AOSP CameraService patch performs scoped redirection to hidden
+  provider IDs 1000/1001 and fails closed for configured but unavailable
+  providers.
 - Native FFmpeg 4.2.2 integration decodes local, HTTP, HTTP-HLS and RTSP input.
 - HTTPS video files are downloaded through the ROM's BoringSSL-enabled curl,
   then decoded in the background.

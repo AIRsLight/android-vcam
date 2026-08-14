@@ -8,6 +8,7 @@ add_library(vcam_pattern STATIC
     hal/src/FrameRenderer.cpp
     hal/src/PatternGenerator.cpp
     hal/src/RouteResolver.cpp
+    hal/src/ScopedCameraRouter.cpp
     hal/src/RgbFrame.cpp
 )
 target_include_directories(vcam_pattern PUBLIC hal/include)
@@ -32,11 +33,17 @@ add_executable(route_resolver_test
 )
 target_link_libraries(route_resolver_test PRIVATE vcam_pattern)
 
+add_executable(scoped_camera_router_test
+    tests/scoped_camera_router_test.cpp
+)
+target_link_libraries(scoped_camera_router_test PRIVATE vcam_pattern)
+
 foreach(test_target IN ITEMS
         pattern_generator_test
         rgb_frame_test
         frame_renderer_test
-        route_resolver_test)
+        route_resolver_test
+        scoped_camera_router_test)
     target_compile_options(${test_target} PRIVATE -UNDEBUG)
 endforeach()
 
@@ -45,3 +52,4 @@ add_test(NAME pattern_generator_test COMMAND pattern_generator_test)
 add_test(NAME rgb_frame_test COMMAND rgb_frame_test)
 add_test(NAME frame_renderer_test COMMAND frame_renderer_test)
 add_test(NAME route_resolver_test COMMAND route_resolver_test)
+add_test(NAME scoped_camera_router_test COMMAND scoped_camera_router_test)

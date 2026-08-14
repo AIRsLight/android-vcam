@@ -29,7 +29,10 @@ cc_library_static {
 cc_library_static {
     name: "libvcam_route_core",
     vendor_available: true,
-    srcs: ["hal/src/RouteResolver.cpp"],
+    srcs: [
+        "hal/src/RouteResolver.cpp",
+        "hal/src/ScopedCameraRouter.cpp",
+    ],
     export_include_dirs: ["hal/include"],
     cflags: [
         "-Wall",

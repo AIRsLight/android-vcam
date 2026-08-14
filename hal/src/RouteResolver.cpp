@@ -31,9 +31,19 @@ std::string RouteResolver::defaultPhysicalProvider(int cameraId) {
 std::string RouteResolver::providerForPackage(
         const std::string& packageName, int cameraId,
         const std::string& routesPath, const std::string& providersPath) {
-    if (packageName.empty()) return defaultPhysicalProvider(cameraId);
+    const ProviderSelection selection = resolveProviderForPackage(
+            packageName, cameraId, routesPath, providersPath);
+    return selection.available
+            ? selection.providerId : defaultPhysicalProvider(cameraId);
+}
+
+ProviderSelection RouteResolver::resolveProviderForPackage(
+        const std::string& packageName, int cameraId,
+        const std::string& routesPath, const std::string& providersPath) {
+    const std::string fallback = defaultPhysicalProvider(cameraId);
+    if (packageName.empty()) return {fallback, false, true};
     std::ifstream input(routesPath);
-    if (!input) return defaultPhysicalProvider(cameraId);
+    if (!input) return {fallback, false, true};
     std::string line;
     while (std::getline(input, line)) {
         if (!line.empty() && line.back() == '\r') line.pop_back();
@@ -47,13 +57,14 @@ std::string RouteResolver::providerForPackage(
             continue;
         }
         const std::string provider = line.substr(second + 1);
-        if (!validProviderId(provider)) return defaultPhysicalProvider(cameraId);
-        if (physicalIdFromProvider(provider) >= 0) return provider;
+        if (!validProviderId(provider)) return {provider, true, false};
+        if (physicalIdFromProvider(provider) >= 0) {
+            return {provider, true, true};
+        }
         const std::string enabled = providersPath + "/" + provider + "/enabled";
-        return access(enabled.c_str(), R_OK) == 0
-                ? provider : defaultPhysicalProvider(cameraId);
+        return {provider, true, access(enabled.c_str(), R_OK) == 0};
     }
-    return defaultPhysicalProvider(cameraId);
+    return {fallback, false, true};
 }
 
 int RouteResolver::physicalIdFromProvider(const std::string& provider) {

@@ -39,5 +39,7 @@ with. Unknown builds must fail closed and leave physical cameras untouched.
 The current OnePlus 7 Pro module remains a tier-2 adapter. The HIDL service in
 `aosp/provider/hidl` is the first tier-1 implementation: it registers
 `vcam/0`, exposes collision-free virtual IDs 1000/1001 and relies on AOSP's
-Camera3-to-HIDL Device/Session implementation. App-scoped redirection from
-physical target IDs to these devices remains a CameraService integration task.
+Camera3-to-HIDL Device/Session implementation. The Android 12 CameraService
+patch under `aosp/cameraservice/android-12` performs app-scoped redirection
+from physical target IDs to these internal devices and carries the package
+identity in provider-owned session metadata.

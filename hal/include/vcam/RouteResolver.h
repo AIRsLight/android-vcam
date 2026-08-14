@@ -8,6 +8,12 @@
 
 namespace vcam {
 
+struct ProviderSelection {
+    std::string providerId;
+    bool configured = false;
+    bool available = true;
+};
+
 class RouteResolver final {
   public:
     static constexpr const char* kDefaultRoutesPath =
@@ -16,6 +22,10 @@ class RouteResolver final {
             "/data/vendor/camera/vcam/providers";
 
     static std::string providerForPackage(
+            const std::string& packageName, int cameraId,
+            const std::string& routesPath = kDefaultRoutesPath,
+            const std::string& providersPath = kDefaultProvidersPath);
+    static ProviderSelection resolveProviderForPackage(
             const std::string& packageName, int cameraId,
             const std::string& routesPath = kDefaultRoutesPath,
             const std::string& providersPath = kDefaultProvidersPath);

@@ -1,0 +1,557 @@
+#!/system/bin/sh
+
+MODDIR=${0%/*}
+STATE_DIR="/data/adb/android_vcam"
+PROVIDER_STATE_DIR="$STATE_DIR/providers"
+FRAME_DIR="/data/vendor/camera/vcam"
+PROVIDER_FRAME_DIR="$FRAME_DIR/providers"
+ROUTES_FILE="$FRAME_DIR/routes.tsv"
+
+find_publisher() {
+    for candidate in \
+        "$MODDIR/vendor/bin/vcam-publisher" \
+        "$MODDIR/system/vendor/bin/vcam-publisher"; do
+        if [ -x "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+find_runner() {
+    [ -x "$MODDIR/provider-runner.sh" ] && {
+        echo "$MODDIR/provider-runner.sh"
+        return 0
+    }
+    return 1
+}
+
+prepare_dirs() {
+    mkdir -p "$STATE_DIR" "$PROVIDER_STATE_DIR" "$FRAME_DIR" \
+        "$PROVIDER_FRAME_DIR" || return 1
+    chmod 0700 "$STATE_DIR" "$PROVIDER_STATE_DIR"
+    chown camera:camera "$FRAME_DIR" "$PROVIDER_FRAME_DIR"
+    chmod 0770 "$FRAME_DIR" "$PROVIDER_FRAME_DIR"
+    touch "$ROUTES_FILE"
+    chown camera:camera "$ROUTES_FILE"
+    chmod 0640 "$ROUTES_FILE"
+    restorecon "$FRAME_DIR" "$ROUTES_FILE" >/dev/null 2>&1
+    restorecon -RF "$PROVIDER_FRAME_DIR" >/dev/null 2>&1
+}
+
+valid_id() {
+    case "$1" in
+        ''|*[!A-Za-z0-9._-]*) return 1 ;;
+    esac
+    [ "${#1}" -le 64 ]
+}
+
+valid_package() {
+    case "$1" in
+        ''|*[!A-Za-z0-9._-]*) return 1 ;;
+    esac
+    [ "${#1}" -le 255 ]
+}
+
+valid_base64() {
+    case "$1" in
+        *[!A-Za-z0-9+/=]*) return 1 ;;
+    esac
+    return 0
+}
+
+provider_exists() {
+    case "$1" in
+        physical-0|physical-1) return 0 ;;
+    esac
+    valid_id "$1" && [ -f "$PROVIDER_STATE_DIR/$1/meta" ] && \
+        [ -d "$PROVIDER_FRAME_DIR/$1" ]
+}
+
+meta_value() {
+    key="$1"
+    file="$2"
+    sed -n "s/^${key}=//p" "$file" | head -n 1
+}
+
+config_value() {
+    value=$(meta_value "$1" "$2")
+    [ -n "$value" ] && printf '%s\n' "$value" || printf '%s\n' "$3"
+}
+
+valid_number_between() {
+    case "$1" in ''|*[!0-9]*) return 1 ;; esac
+    [ "$1" -ge "$2" ] && [ "$1" -le "$3" ]
+}
+
+valid_view() {
+    old_ifs=$IFS
+    IFS=,
+    set -- $1
+    IFS=$old_ifs
+    [ "$#" -eq 4 ] || return 1
+    case "$1" in 0|90|180|270) ;; *) return 1 ;; esac
+    valid_number_between "$2" 100 8000 &&
+        valid_number_between "$3" 0 1000 &&
+        valid_number_between "$4" 0 1000
+}
+
+write_runtime_config() {
+    id="$1"
+    meta="$PROVIDER_STATE_DIR/$id/meta"
+    fps=$(config_value fps "$meta" 15)
+    max_width=$(config_value max_width "$meta" 1280)
+    max_height=$(config_value max_height "$meta" 720)
+    view0=$(config_value view0 "$meta" '0,1000,500,500')
+    view1=$(config_value view1 "$meta" '0,1000,500,500')
+    runtime="$PROVIDER_FRAME_DIR/$id"
+    printf '%s,%s,%s\n' "$fps" "$max_width" "$max_height" > "$runtime/source.cfg"
+    printf '%s\n' "$view0" > "$runtime/view-0.cfg"
+    printf '%s\n' "$view1" > "$runtime/view-1.cfg"
+    chown camera:camera "$runtime/source.cfg" "$runtime/view-0.cfg" "$runtime/view-1.cfg"
+    chmod 0640 "$runtime/source.cfg" "$runtime/view-0.cfg" "$runtime/view-1.cfg"
+    restorecon "$runtime/source.cfg" "$runtime/view-0.cfg" "$runtime/view-1.cfg" >/dev/null 2>&1
+}
+
+print_provider() {
+    id="$1"
+    type="$2"
+    name="$3"
+    source="$4"
+    removable="$5"
+    running="$6"
+    printf 'PROVIDER\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$id" "$type" "$name" "$source" "$removable" "$running"
+}
+
+list_providers() {
+    prepare_dirs || return 1
+    print_provider physical-0 physical \
+        "$(printf 'Physical camera 0' | base64 | tr -d '\n')" '' false true
+    print_provider physical-1 physical \
+        "$(printf 'Physical camera 1' | base64 | tr -d '\n')" '' false true
+    for directory in "$PROVIDER_STATE_DIR"/*; do
+        [ -d "$directory" ] || continue
+        meta="$directory/meta"
+        [ -f "$meta" ] || continue
+        id=${directory##*/}
+        type=$(meta_value type "$meta")
+        name=$(meta_value name_b64 "$meta")
+        source=$(meta_value source_b64 "$meta")
+        if [ ! -e "$PROVIDER_FRAME_DIR/$id/enabled" ]; then
+            running=false
+        elif [ -f "$directory/stream.pid" ] && \
+            kill -0 "$(cat "$directory/stream.pid" 2>/dev/null)" 2>/dev/null; then
+            running=true
+        elif [ "$type" = pattern ] || \
+            { [ "$type" = image ] && [ -f "$PROVIDER_FRAME_DIR/$id/frame.rgb" ]; }; then
+            running=true
+        else
+            running=false
+        fi
+        print_provider "$id" "$type" "$name" "$source" true "$running"
+    done
+}
+
+add_provider() {
+    id="$1"
+    type="$2"
+    name_b64="$3"
+    source_b64="$4"
+    valid_id "$id" || { echo "invalid provider id" >&2; return 2; }
+    case "$id" in physical-0|physical-1) echo "reserved provider id" >&2; return 2 ;; esac
+    case "$type" in pattern|image|video|http|https|hls|rtsp) ;;
+        *) echo "unsupported provider type" >&2; return 2 ;;
+    esac
+    valid_base64 "$name_b64" && valid_base64 "$source_b64" || {
+        echo "invalid provider encoding" >&2
+        return 2
+    }
+    prepare_dirs || return 3
+    [ ! -e "$PROVIDER_STATE_DIR/$id" ] || {
+        echo "provider already exists" >&2
+        return 4
+    }
+    mkdir -p "$PROVIDER_STATE_DIR/$id" "$PROVIDER_FRAME_DIR/$id" || return 3
+    {
+        printf 'type=%s\n' "$type"
+        printf 'name_b64=%s\n' "$name_b64"
+        printf 'source_b64=%s\n' "$source_b64"
+        printf 'fps=15\nmax_width=1280\nmax_height=720\n'
+        printf 'view0=0,1000,500,500\nview1=0,1000,500,500\n'
+    } > "$PROVIDER_STATE_DIR/$id/meta"
+    chown -R camera:camera "$PROVIDER_FRAME_DIR/$id"
+    chmod 0750 "$PROVIDER_FRAME_DIR/$id"
+    restorecon -RF "$PROVIDER_FRAME_DIR/$id" >/dev/null 2>&1
+    write_runtime_config "$id"
+    echo "added"
+}
+
+provider_config() {
+    id="$1"
+    valid_id "$id" && provider_exists "$id" || { echo "provider not found" >&2; return 2; }
+    case "$id" in physical-0|physical-1) echo "physical provider is read-only" >&2; return 3 ;; esac
+    meta="$PROVIDER_STATE_DIR/$id/meta"
+    printf 'CONFIG\t%s\t%s\t%s\t%s\t%s\n' \
+        "$(config_value fps "$meta" 15)" \
+        "$(config_value max_width "$meta" 1280)" \
+        "$(config_value max_height "$meta" 720)" \
+        "$(config_value view0 "$meta" '0,1000,500,500')" \
+        "$(config_value view1 "$meta" '0,1000,500,500')"
+}
+
+provider_config_set() {
+    id="$1"; fps="$2"; max_width="$3"; max_height="$4"; view0="$5"; view1="$6"
+    valid_id "$id" && provider_exists "$id" || { echo "provider not found" >&2; return 2; }
+    case "$id" in physical-0|physical-1) return 3 ;; esac
+    valid_number_between "$fps" 1 60 &&
+        valid_number_between "$max_width" 160 1920 &&
+        valid_number_between "$max_height" 120 1920 &&
+        valid_view "$view0" && valid_view "$view1" || {
+            echo "invalid provider configuration" >&2
+            return 2
+        }
+    meta="$PROVIDER_STATE_DIR/$id/meta"
+    temporary="$meta.new"
+    awk '!/^(fps|max_width|max_height|view0|view1)=/' "$meta" > "$temporary" || return 4
+    {
+        printf 'fps=%s\nmax_width=%s\nmax_height=%s\n' "$fps" "$max_width" "$max_height"
+        printf 'view0=%s\nview1=%s\n' "$view0" "$view1"
+    } >> "$temporary"
+    mv -f "$temporary" "$meta" || return 4
+    chmod 0600 "$meta"
+    write_runtime_config "$id" || return 4
+    echo "configured"
+}
+
+stop_provider() {
+    id="$1"
+    pid_file="$PROVIDER_STATE_DIR/$id/stream.pid"
+    if [ -f "$pid_file" ]; then
+        pid=$(cat "$pid_file" 2>/dev/null)
+        case "$pid" in ''|*[!0-9]*) ;;
+            *)
+                if tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null | \
+                    grep -Eq 'provider-runner.sh|vcam-streamer|/system/bin/curl'; then
+                    for child in $(pgrep -P "$pid" 2>/dev/null); do
+                        kill "$child" 2>/dev/null
+                    done
+                    kill "$pid" 2>/dev/null
+                fi
+                ;;
+        esac
+        rm -f "$pid_file"
+    fi
+    rm -f "$PROVIDER_FRAME_DIR/$id/enabled"
+}
+
+start_provider() {
+    id="$1"
+    valid_id "$id" && provider_exists "$id" || {
+        echo "provider not found" >&2
+        return 2
+    }
+    case "$id" in physical-0|physical-1) echo "physical provider is always running"; return 0 ;; esac
+    meta="$PROVIDER_STATE_DIR/$id/meta"
+    type=$(meta_value type "$meta")
+    case "$type" in
+        pattern)
+            touch "$PROVIDER_FRAME_DIR/$id/enabled"
+            chown camera:camera "$PROVIDER_FRAME_DIR/$id/enabled"
+            chmod 0640 "$PROVIDER_FRAME_DIR/$id/enabled"
+            restorecon "$PROVIDER_FRAME_DIR/$id/enabled" >/dev/null 2>&1
+            echo "started"
+            return 0
+            ;;
+        image)
+            [ -f "$PROVIDER_FRAME_DIR/$id/frame.rgb" ] || {
+                echo "image provider has no published frame" >&2
+                return 5
+            }
+            touch "$PROVIDER_FRAME_DIR/$id/enabled"
+            chown camera:camera "$PROVIDER_FRAME_DIR/$id/enabled"
+            chmod 0640 "$PROVIDER_FRAME_DIR/$id/enabled"
+            restorecon "$PROVIDER_FRAME_DIR/$id/enabled" >/dev/null 2>&1
+            echo "started"
+            return 0
+            ;;
+    esac
+    stop_provider "$id"
+    runner=$(find_runner) || { echo "provider runner not found" >&2; return 4; }
+    log="$PROVIDER_STATE_DIR/$id/stream.log"
+    touch "$PROVIDER_FRAME_DIR/$id/enabled"
+    chown camera:camera "$PROVIDER_FRAME_DIR/$id/enabled"
+    chmod 0640 "$PROVIDER_FRAME_DIR/$id/enabled"
+    restorecon "$PROVIDER_FRAME_DIR/$id/enabled" >/dev/null 2>&1
+    nohup "$runner" "$id" > "$log" 2>&1 &
+    pid=$!
+    printf '%s\n' "$pid" > "$PROVIDER_STATE_DIR/$id/stream.pid"
+    echo "started"
+}
+
+remove_provider() {
+    id="$1"
+    valid_id "$id" || { echo "invalid provider id" >&2; return 2; }
+    case "$id" in
+        physical-0|physical-1)
+            echo "physical providers cannot be removed" >&2
+            return 3
+            ;;
+    esac
+    [ -d "$PROVIDER_STATE_DIR/$id" ] || { echo "provider not found" >&2; return 4; }
+    stop_provider "$id"
+    temporary="$ROUTES_FILE.new"
+    awk -F '\t' -v provider_id="$id" 'NF == 3 && $3 != provider_id' \
+        "$ROUTES_FILE" > "$temporary"
+    mv -f "$temporary" "$ROUTES_FILE"
+    chown camera:camera "$ROUTES_FILE"
+    chmod 0640 "$ROUTES_FILE"
+    restorecon "$ROUTES_FILE" >/dev/null 2>&1
+    rm -rf "$PROVIDER_STATE_DIR/$id" "$PROVIDER_FRAME_DIR/$id"
+    echo "removed"
+}
+
+publish_provider() {
+    id="$1"
+    frame_base64="$2"
+    valid_id "$id" && provider_exists "$id" || {
+        echo "provider not found" >&2
+        return 2
+    }
+    case "$id" in physical-0|physical-1) echo "physical provider is read-only" >&2; return 3 ;; esac
+    valid_base64 "$frame_base64" || { echo "invalid frame encoding" >&2; return 2; }
+    publisher=$(find_publisher) || { echo "vcam-publisher not found" >&2; return 4; }
+    output="$PROVIDER_FRAME_DIR/$id/frame.rgb"
+    if ! printf '%s' "$frame_base64" | base64 -d | "$publisher" "$output"; then
+        echo "frame publish failed" >&2
+        return 5
+    fi
+    touch "$PROVIDER_FRAME_DIR/$id/enabled"
+    chown camera:camera "$PROVIDER_FRAME_DIR/$id/frame.rgb" \
+        "$PROVIDER_FRAME_DIR/$id/enabled"
+    chmod 0640 "$PROVIDER_FRAME_DIR/$id/frame.rgb" \
+        "$PROVIDER_FRAME_DIR/$id/enabled"
+    restorecon "$PROVIDER_FRAME_DIR/$id/frame.rgb" \
+        "$PROVIDER_FRAME_DIR/$id/enabled" >/dev/null 2>&1
+    echo "published"
+}
+
+publish_provider_stdin() {
+    id="$1"
+    valid_id "$id" && provider_exists "$id" || {
+        echo "provider not found" >&2
+        return 2
+    }
+    case "$id" in physical-0|physical-1) return 3 ;; esac
+    publisher=$(find_publisher) || { echo "vcam-publisher not found" >&2; return 4; }
+    output="$PROVIDER_FRAME_DIR/$id/frame.rgb"
+    if ! "$publisher" "$output"; then
+        echo "frame publish failed" >&2
+        return 5
+    fi
+    touch "$PROVIDER_FRAME_DIR/$id/enabled"
+    chown camera:camera "$output" "$PROVIDER_FRAME_DIR/$id/enabled"
+    chmod 0640 "$output" "$PROVIDER_FRAME_DIR/$id/enabled"
+    restorecon "$output" "$PROVIDER_FRAME_DIR/$id/enabled" >/dev/null 2>&1
+    echo "published"
+}
+
+import_provider_media() {
+    id="$1"
+    valid_id "$id" && provider_exists "$id" || {
+        echo "provider not found" >&2
+        return 2
+    }
+    case "$id" in physical-0|physical-1) return 3 ;; esac
+    meta="$PROVIDER_STATE_DIR/$id/meta"
+    [ "$(meta_value type "$meta")" = video ] || {
+        echo "provider is not a local video" >&2
+        return 3
+    }
+    destination="$PROVIDER_STATE_DIR/$id/source.media"
+    temporary="$destination.new"
+    umask 077
+    if ! cat > "$temporary"; then
+        rm -f "$temporary"
+        echo "media import failed" >&2
+        return 4
+    fi
+    [ -s "$temporary" ] || {
+        rm -f "$temporary"
+        echo "imported media is empty" >&2
+        return 5
+    }
+    mv -f "$temporary" "$destination" || return 4
+    chmod 0600 "$destination"
+    echo "imported"
+}
+
+publish_stage_path() {
+    id="$1"
+    token="$2"
+    printf '%s/%s/publish-%s.b64\n' "$PROVIDER_STATE_DIR" "$id" "$token"
+}
+
+publish_begin() {
+    id="$1"
+    token="$2"
+    valid_id "$id" && provider_exists "$id" || {
+        echo "provider not found" >&2
+        return 2
+    }
+    case "$id" in physical-0|physical-1) return 3 ;; esac
+    valid_id "$token" || { echo "invalid publish token" >&2; return 2; }
+    stage="$(publish_stage_path "$id" "$token")"
+    : > "$stage" || return 4
+    chmod 0600 "$stage"
+    echo "ready"
+}
+
+publish_chunk() {
+    id="$1"
+    token="$2"
+    chunk="$3"
+    valid_id "$id" && valid_id "$token" && valid_base64 "$chunk" || {
+        echo "invalid publish chunk" >&2
+        return 2
+    }
+    [ "${#chunk}" -le 49152 ] || {
+        echo "publish chunk is too large" >&2
+        return 2
+    }
+    stage="$(publish_stage_path "$id" "$token")"
+    [ -f "$stage" ] && [ ! -L "$stage" ] || {
+        echo "publish session not found" >&2
+        return 3
+    }
+    current="$(wc -c < "$stage")"
+    case "$current" in ''|*[!0-9]*) return 4 ;; esac
+    [ "$current" -le 8388608 ] || {
+        rm -f "$stage"
+        echo "published frame is too large" >&2
+        return 5
+    }
+    printf '%s' "$chunk" >> "$stage" || return 4
+    echo "chunk"
+}
+
+publish_commit() {
+    id="$1"
+    token="$2"
+    valid_id "$id" && valid_id "$token" && provider_exists "$id" || {
+        echo "invalid publish session" >&2
+        return 2
+    }
+    stage="$(publish_stage_path "$id" "$token")"
+    [ -s "$stage" ] && [ ! -L "$stage" ] || {
+        echo "publish session is empty" >&2
+        return 3
+    }
+    publisher=$(find_publisher) || { echo "vcam-publisher not found" >&2; return 4; }
+    output="$PROVIDER_FRAME_DIR/$id/frame.rgb"
+    if ! base64 -d "$stage" | "$publisher" "$output"; then
+        rm -f "$stage"
+        echo "frame publish failed" >&2
+        return 5
+    fi
+    rm -f "$stage"
+    touch "$PROVIDER_FRAME_DIR/$id/enabled"
+    chown camera:camera "$output" "$PROVIDER_FRAME_DIR/$id/enabled"
+    chmod 0640 "$output" "$PROVIDER_FRAME_DIR/$id/enabled"
+    restorecon "$output" "$PROVIDER_FRAME_DIR/$id/enabled" >/dev/null 2>&1
+    echo "published"
+}
+
+publish_abort() {
+    valid_id "$1" && valid_id "$2" || return 2
+    rm -f "$(publish_stage_path "$1" "$2")"
+    echo "aborted"
+}
+
+set_route() {
+    package="$1"
+    target="$2"
+    provider="$3"
+    valid_package "$package" || { echo "invalid package" >&2; return 2; }
+    case "$target" in 0|1) ;; *) echo "invalid target camera" >&2; return 2 ;; esac
+    provider_exists "$provider" || { echo "provider not found" >&2; return 3; }
+    prepare_dirs || return 4
+    temporary="$ROUTES_FILE.new"
+    awk -F '\t' -v package="$package" -v target="$target" \
+        'NF == 3 && !( $1 == package && $2 == target )' \
+        "$ROUTES_FILE" > "$temporary"
+    printf '%s\t%s\t%s\n' "$package" "$target" "$provider" >> "$temporary"
+    mv -f "$temporary" "$ROUTES_FILE"
+    chown camera:camera "$ROUTES_FILE"
+    chmod 0640 "$ROUTES_FILE"
+    restorecon "$ROUTES_FILE" >/dev/null 2>&1
+    echo "routed"
+}
+
+remove_route() {
+    package="$1"
+    target="$2"
+    valid_package "$package" || return 2
+    case "$target" in 0|1) ;; *) return 2 ;; esac
+    prepare_dirs || return 3
+    temporary="$ROUTES_FILE.new"
+    awk -F '\t' -v package="$package" -v target="$target" \
+        'NF == 3 && !( $1 == package && $2 == target )' \
+        "$ROUTES_FILE" > "$temporary"
+    mv -f "$temporary" "$ROUTES_FILE"
+    chown camera:camera "$ROUTES_FILE"
+    chmod 0640 "$ROUTES_FILE"
+    restorecon "$ROUTES_FILE" >/dev/null 2>&1
+    echo "unrouted"
+}
+
+list_routes() {
+    prepare_dirs || return 1
+    while IFS="$(printf '\t')" read -r package target provider; do
+        [ -n "$package" ] && [ -n "$target" ] && [ -n "$provider" ] || continue
+        printf 'ROUTE\t%s\t%s\t%s\n' "$package" "$target" "$provider"
+    done < "$ROUTES_FILE"
+}
+
+print_status() {
+    [ -e "$MODDIR/disable" ] && echo "module_enabled=false" || echo "module_enabled=true"
+    [ -e "$STATE_DIR/mount.ok" ] && echo "mount_active=true" || echo "mount_active=false"
+    camera_devices=$(dumpsys media.camera 2>/dev/null | \
+        sed -n 's/.*Number of camera devices: //p' | head -n 1)
+    [ -n "$camera_devices" ] || camera_devices=unavailable
+    echo "camera_devices=$camera_devices"
+    provider_count=$(list_providers | wc -l)
+    route_count=$(list_routes | wc -l)
+    echo "provider_count=$provider_count"
+    echo "route_count=$route_count"
+    if [ -r /vendor/lib64/hw/camera.qcom.so ]; then
+        echo "hal_hash=$(sha256sum /vendor/lib64/hw/camera.qcom.so | awk '{print $1}')"
+    fi
+}
+
+case "$1" in
+    status) print_status ;;
+    providers) list_providers ;;
+    provider-add) add_provider "$2" "$3" "$4" "$5" ;;
+    provider-remove) remove_provider "$2" ;;
+    provider-start) start_provider "$2" ;;
+    provider-stop) stop_provider "$2"; echo "stopped" ;;
+    provider-publish) publish_provider "$2" "$3" ;;
+    provider-publish-stdin) publish_provider_stdin "$2" ;;
+    provider-import-media) import_provider_media "$2" ;;
+    provider-config) provider_config "$2" ;;
+    provider-config-set) provider_config_set "$2" "$3" "$4" "$5" "$6" "$7" ;;
+    provider-publish-begin) publish_begin "$2" "$3" ;;
+    provider-publish-chunk) publish_chunk "$2" "$3" "$4" ;;
+    provider-publish-commit) publish_commit "$2" "$3" ;;
+    provider-publish-abort) publish_abort "$2" "$3" ;;
+    routes) list_routes ;;
+    route-set) set_route "$2" "$3" "$4" ;;
+    route-remove) remove_route "$2" "$3" ;;
+    apps) pm list packages 2>/dev/null | sed 's/^package://' | sort ;;
+    *)
+        echo "usage: vcamctl {status|providers|provider-add|provider-remove|provider-start|provider-stop|provider-config|provider-config-set|provider-publish|provider-publish-stdin|provider-import-media|provider-publish-begin|provider-publish-chunk|provider-publish-commit|provider-publish-abort|routes|route-set|route-remove|apps}" >&2
+        exit 64
+        ;;
+esac

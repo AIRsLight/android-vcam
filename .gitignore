@@ -1,0 +1,9 @@
+.reference/
+out/
+dist/
+*.log
+*.zip
+*.so
+*.apk
+.idea/
+.vscode/

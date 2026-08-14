@@ -1,0 +1,38 @@
+package {
+    default_applicable_licenses: ["android_vcam_license"],
+}
+
+cc_library_shared {
+    name: "camera.vcam",
+    vendor: true,
+    relative_install_path: "hw",
+    compile_multilib: "64",
+
+    srcs: [
+        "src/MetadataBuilder.cpp",
+        "src/PatternGenerator.cpp",
+        "src/RgbFrame.cpp",
+        "src/VirtualCamera.cpp",
+        "src/VirtualCameraModule.cpp",
+    ],
+
+    local_include_dirs: ["include"],
+
+    shared_libs: [
+        "libcamera_metadata",
+        "libhardware",
+        "liblog",
+    ],
+
+    static_libs: ["libjpeg_static_ndk"],
+
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-gnu-designator",
+        "-fvisibility=hidden",
+    ],
+
+    cpp_std: "c++17",
+}

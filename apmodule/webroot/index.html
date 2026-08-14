@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Android Virtual Camera</title>
+  <link rel="stylesheet" href="/internal/insets.css">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">APATCH MODULE WEBUI</div>
+      <h1>Virtual Camera</h1>
+      <p>按应用、目标相机和输入提供器进行系统级路由</p>
+    </header>
+
+    <section class="card">
+      <div class="section-title">
+        <div><h2>运行状态</h2><p id="statusDetail">正在读取设备状态…</p></div>
+        <button id="refresh" class="quiet">刷新</button>
+      </div>
+      <div class="status-grid">
+        <div><span>模块</span><strong id="moduleState">检查中</strong></div>
+        <div><span>HAL 挂载</span><strong id="mountState">检查中</strong></div>
+        <div><span>Camera2 设备</span><strong id="cameraCount">—</strong></div>
+        <div><span>路由 / 提供器</span><strong id="objectCount">—</strong></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <div><h2>视频源提供器</h2><p>两个物理相机固定存在；其余提供器可独立启停和删除</p></div>
+      </div>
+      <div id="providerList" class="stack empty">正在加载…</div>
+      <details class="composer">
+        <summary>添加提供器</summary>
+        <div class="form-grid">
+          <label><span>名称</span><input id="providerName" maxlength="80" placeholder="例如：远程监控"></label>
+          <label><span>类型</span>
+            <select id="providerType">
+              <option value="pattern">内置彩条</option>
+              <option value="image">静态图片</option>
+              <option value="video">设备本地视频路径</option>
+              <option value="https">HTTPS 视频文件</option>
+              <option value="http">HTTP 视频 / 流</option>
+              <option value="hls">HLS（HTTP）</option>
+              <option value="rtsp">RTSP</option>
+            </select>
+          </label>
+          <label id="sourceRow" class="wide hidden"><span>地址</span><input id="providerSource" inputmode="url" placeholder="https://… / rtsp://…"></label>
+          <label id="fileRow" class="wide hidden picker"><span>选择图片</span><input id="mediaPicker" type="file" accept="image/*"></label>
+        </div>
+        <div id="previewShell" class="preview-shell hidden">
+          <canvas id="preview" width="576" height="324"></canvas>
+        </div>
+        <button id="addProvider">添加并启用</button>
+        <p id="providerOperation" class="operation">彩条由 HAL 直接生成，不占用解码器。</p>
+      </details>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <div><h2>应用作用域</h2><p>未配置的应用以及停用提供器的路由均使用原物理相机</p></div>
+      </div>
+      <div class="form-grid route-form">
+        <label class="wide"><span>应用包名</span><input id="routePackage" list="packageList" autocomplete="off" placeholder="com.example.app"></label>
+        <datalist id="packageList"></datalist>
+        <label><span>目标相机</span><select id="routeTarget"><option value="0">相机 0</option><option value="1">相机 1</option></select></label>
+        <label><span>替换为</span><select id="routeProvider"></select></label>
+      </div>
+      <button id="setRoute">添加 / 更新路由</button>
+      <div id="routeList" class="stack empty">正在加载…</div>
+    </section>
+
+    <section class="notice">
+      <strong>安全边界</strong>
+      <p>配置保存在 /data；模块通过 APatch 系统无痕挂载，不写入 boot、system 或 vendor 分区。删除或停用提供器时，对应路由自动回退物理相机。</p>
+    </section>
+  </main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

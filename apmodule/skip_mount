@@ -1,0 +1,1 @@
+This module performs guarded file bind mounts and does not require a metamodule.

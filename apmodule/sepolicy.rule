@@ -1,0 +1,11 @@
+# vcamd is isolated from APatch's generic root domain. It is permissive because
+# its fixed controller commands need vendor/data/network access across several
+# OEM policy types; its externally reachable protocol is still a strict
+# whitelist authenticated with SO_PEERCRED and the manager package UID.
+type vcamd domain
+typeattribute vcamd mlstrustedsubject
+permissive vcamd
+allow magisk vcamd process transition
+allow vcamd system_file file { entrypoint execute read open getattr map }
+allow untrusted_app vcamd unix_stream_socket connectto
+allow vcamd cameraserver_service service_manager find

@@ -1,7 +1,9 @@
 # android-vcam
 
-System-level, app-scoped virtual camera prototype for a pinned OnePlus 7 Pro
-Android 12 ROM. Target applications are not hooked: Camera1, Camera2 and
+System-level, app-scoped virtual camera project. The currently installable
+adapter is pinned to a OnePlus 7 Pro Android 12 ROM; the repository also
+contains the transport-neutral frame core and the first AOSP HIDL Provider
+service skeleton. Target applications are not hooked: Camera1, Camera2 and
 CameraX keep using the normal framework and CameraService path.
 
 The module injects a small proxy into the original Qualcomm Camera HAL. Every
@@ -74,7 +76,8 @@ apmodule/   APatch lifecycle, provider controller and WebUI
 tools/      Inspection, patching, build and packaging scripts
 tests/      Host-side source/frame tests
 docs/       Architecture, frame format and recovery notes
+aosp/       AOSP HIDL/AIDL Camera Provider frontends
 ```
 
 See [architecture](docs/architecture.md), [development and recovery](docs/development.md),
-and [source format](docs/source-format.md).
+[device support](docs/device-support.md), and [source format](docs/source-format.md).

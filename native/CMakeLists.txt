@@ -60,6 +60,7 @@ find_library(log_library log REQUIRED)
 
 add_library(vcam_proxy SHARED
     proxy_bootstrap.cpp
+    "${VCAM_ROOT}/hal/src/FrameRenderer.cpp"
     "${VCAM_ROOT}/hal/src/MetadataBuilder.cpp"
     "${VCAM_ROOT}/hal/src/PatternGenerator.cpp"
     "${VCAM_ROOT}/hal/src/RgbFrame.cpp"
@@ -87,6 +88,7 @@ target_link_libraries(vcam_proxy PRIVATE
 )
 
 add_library(camera_vcam SHARED
+    "${VCAM_ROOT}/hal/src/FrameRenderer.cpp"
     "${VCAM_ROOT}/hal/src/MetadataBuilder.cpp"
     "${VCAM_ROOT}/hal/src/OriginalHal.cpp"
     "${VCAM_ROOT}/hal/src/PatternGenerator.cpp"

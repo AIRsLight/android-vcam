@@ -34,6 +34,7 @@ struct command_rule {
 
 static const struct command_rule k_rules[] = {
     {"status", 0, 0},
+    {"capabilities", 0, 0},
     {"providers", 0, 0},
     {"provider-add", 4, 0},
     {"provider-remove", 1, 0},

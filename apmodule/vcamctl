@@ -6,6 +6,7 @@ PROVIDER_STATE_DIR="$STATE_DIR/providers"
 FRAME_DIR="/data/vendor/camera/vcam"
 PROVIDER_FRAME_DIR="$FRAME_DIR/providers"
 ROUTES_FILE="$FRAME_DIR/routes.tsv"
+PROFILE_FILE="$STATE_DIR/device-profile.conf"
 
 find_publisher() {
     for candidate in \
@@ -530,8 +531,20 @@ print_status() {
     fi
 }
 
+print_capabilities() {
+    if [ ! -r "$PROFILE_FILE" ] && [ -x "$MODDIR/device-probe.sh" ]; then
+        "$MODDIR/device-probe.sh" "$PROFILE_FILE" >/dev/null 2>&1 || true
+    fi
+    [ -r "$PROFILE_FILE" ] || {
+        echo "device capability profile unavailable" >&2
+        return 1
+    }
+    cat "$PROFILE_FILE"
+}
+
 case "$1" in
     status) print_status ;;
+    capabilities) print_capabilities ;;
     providers) list_providers ;;
     provider-add) add_provider "$2" "$3" "$4" "$5" ;;
     provider-remove) remove_provider "$2" ;;
@@ -551,7 +564,7 @@ case "$1" in
     route-remove) remove_route "$2" "$3" ;;
     apps) pm list packages 2>/dev/null | sed 's/^package://' | sort ;;
     *)
-        echo "usage: vcamctl {status|providers|provider-add|provider-remove|provider-start|provider-stop|provider-config|provider-config-set|provider-publish|provider-publish-stdin|provider-import-media|provider-publish-begin|provider-publish-chunk|provider-publish-commit|provider-publish-abort|routes|route-set|route-remove|apps}" >&2
+        echo "usage: vcamctl {status|capabilities|providers|provider-add|provider-remove|provider-start|provider-stop|provider-config|provider-config-set|provider-publish|provider-publish-stdin|provider-import-media|provider-publish-begin|provider-publish-chunk|provider-publish-commit|provider-publish-abort|routes|route-set|route-remove|apps}" >&2
         exit 64
         ;;
 esac

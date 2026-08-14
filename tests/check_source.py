@@ -23,9 +23,17 @@ def main() -> None:
         ROOT / "native" / "control_daemon.c",
         ROOT / "apmodule" / "module.prop",
         ROOT / "apmodule" / "customize.sh",
+        ROOT / "apmodule" / "device-probe.sh",
         ROOT / "apmodule" / "vcamctl",
         ROOT / "apmodule" / "webroot" / "app.js",
+        ROOT / "aosp" / "provider" / "hidl" / "Android.bp",
+        ROOT / "aosp" / "provider" / "hidl" / "VcamProvider.cpp",
+        ROOT / "aosp" / "provider" / "hidl" / "service.cpp",
+        ROOT / "hal" / "include" / "vcam" / "FrameRenderer.h",
+        ROOT / "hal" / "src" / "FrameRenderer.cpp",
         ROOT / "tools" / "create-module-zip.py",
+        ROOT / "tools" / "probe-device.ps1",
+        ROOT / "docs" / "device-support.md",
     ]
     for path in required:
         if not path.is_file():
@@ -52,13 +60,17 @@ def main() -> None:
     source = (ROOT / "hal" / "src" / "VirtualCamera.cpp").read_text(encoding="utf-8")
     for required_symbol in (
         "CAMERA_DEVICE_API_VERSION_3_5",
-        "PatternGenerator::fillYuv420",
         "CAMERA3_JPEG_BLOB_ID",
         "ANDROID_SENSOR_TIMESTAMP",
         "setSourcePath",
     ):
         if required_symbol not in source:
             fail(f"HAL is missing expected symbol: {required_symbol}")
+    virtual_camera_header = (ROOT / "hal" / "include" / "vcam" / "VirtualCamera.h").read_text(
+        encoding="utf-8"
+    )
+    if "FrameRenderer frameRenderer_" not in virtual_camera_header:
+        fail("HAL does not use the transport-neutral FrameRenderer")
 
     proxy = (ROOT / "native" / "proxy_bootstrap.cpp").read_text(encoding="utf-8")
     for required_symbol in (
@@ -70,11 +82,30 @@ def main() -> None:
 
     controller = (ROOT / "apmodule" / "vcamctl").read_text(encoding="utf-8")
     for command in (
-        "provider-add", "provider-remove", "provider-start", "route-set",
+        "capabilities", "provider-add", "provider-remove", "provider-start", "route-set",
         "provider-publish-stdin", "provider-import-media",
     ):
         if command not in controller:
             fail(f"provider controller is missing command: {command}")
+
+    probe = (ROOT / "apmodule" / "device-probe.sh").read_text(encoding="utf-8")
+    for required_symbol in (
+        "provider_transport", "provider_version", "provider_instance", "adapter_hint",
+    ):
+        if required_symbol not in probe:
+            fail(f"device probe is missing field: {required_symbol}")
+
+    provider = (ROOT / "aosp" / "provider" / "hidl" / "VcamProvider.cpp").read_text(
+        encoding="utf-8"
+    )
+    for required_symbol in ("setCallback", "getCameraIdList"):
+        if required_symbol not in provider:
+            fail(f"AOSP HIDL provider is missing symbol: {required_symbol}")
+    provider_service = (ROOT / "aosp" / "provider" / "hidl" / "service.cpp").read_text(
+        encoding="utf-8"
+    )
+    if 'registerAsService("vcam/0")' not in provider_service:
+        fail("AOSP HIDL provider does not register the vcam/0 instance")
 
     manager_manifest = (ROOT / "manager" / "AndroidManifest.xml").read_text(encoding="utf-8")
     manager_sources = "\n".join(

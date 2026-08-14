@@ -10,6 +10,14 @@ chown camera:camera /data/vendor/camera/vcam
 chmod 0770 /data/vendor/camera/vcam
 restorecon -RF /data/vendor/camera/vcam
 
+# Capture the immutable platform/camera-stack facts before deciding which
+# transport adapter can be used. The profile remains available even if the
+# current device-specific mount is disabled.
+if [ -x "$MODDIR/device-probe.sh" ]; then
+    "$MODDIR/device-probe.sh" "$LOG_DIR/device-profile.conf" >> "$LOG_FILE" 2>&1 || \
+        echo "service: device capability probe failed" >> "$LOG_FILE"
+fi
+
 if [ -e "$MODDIR/disable" ]; then
     echo "service: module disabled" >> "$LOG_FILE"
     exit 0

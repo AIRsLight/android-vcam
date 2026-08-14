@@ -77,3 +77,4 @@ set_perm "$MODPATH/boot-completed.sh" 0 0 0755
 set_perm "$MODPATH/action.sh" 0 0 0755
 set_perm "$MODPATH/vcamctl" 0 0 0755
 set_perm "$MODPATH/provider-runner.sh" 0 0 0755
+set_perm "$MODPATH/device-probe.sh" 0 0 0755

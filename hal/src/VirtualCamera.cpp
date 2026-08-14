@@ -26,7 +26,6 @@
 
 #include "vcam/MetadataBuilder.h"
 #include "vcam/Log.h"
-#include "vcam/PatternGenerator.h"
 #include "vcam/VendorTags.h"
 
 namespace vcam {
@@ -428,8 +427,7 @@ int VirtualCamera::getInfo(camera_info* info) {
 
 void VirtualCamera::setSourcePath(std::string path) {
     std::lock_guard<std::mutex> lock(mutex_);
-    sourcePath_ = std::move(path);
-    sourceFrame_ = RgbFrame{};
+    frameRenderer_.setSourcePath(std::move(path));
 }
 
 int VirtualCamera::closeDevice(hw_device_t* device) {
@@ -576,9 +574,10 @@ int VirtualCamera::configureStreamsLocked(camera3_stream_configuration_t* config
 void VirtualCamera::loadSourceConfigurationLocked() {
     sourceTransform_ = {};
     sourceFrameDurationNs_ = kFrameDurationNs;
-    const size_t slash = sourcePath_.find_last_of('/');
+    const std::string& sourcePath = frameRenderer_.sourcePath();
+    const size_t slash = sourcePath.find_last_of('/');
     if (slash == std::string::npos) return;
-    const std::string directory = sourcePath_.substr(0, slash);
+    const std::string directory = sourcePath.substr(0, slash);
 
     int fps = 30;
     int ignoredWidth = 0;
@@ -754,7 +753,7 @@ bool VirtualCamera::fillBuffer(const camera3_stream_buffer_t& input,
     output->release_fence = -1;
     output->status = CAMERA3_BUFFER_STATUS_OK;
 
-    sourceFrame_.reloadIfChanged(sourcePath_.c_str());
+    frameRenderer_.reload();
 
     if (input.acquire_fence >= 0) {
         const int waitResult = waitForFence(input.acquire_fence, kFenceTimeoutMs);
@@ -870,11 +869,9 @@ bool VirtualCamera::fillYuv(camera3_stream_buffer_t* buffer,
               static_cast<uint64_t>(stream->usage));
         layoutLogged_ = true;
     }
-    const bool generated = sourceFrame_.valid()
-            ? sourceFrame_.fillYuv420(stream->width, stream->height, target,
-                                     sourceTransform_)
-            : PatternGenerator::fillYuv420(
-                    stream->width, stream->height, frameNumber, id_, target);
+    const bool generated = frameRenderer_.fillYuv420(
+            stream->width, stream->height, target, frameNumber, id_,
+            sourceTransform_);
     int unlockResult = 0;
     if (gralloc1_ != nullptr) {
         int releaseFence = -1;
@@ -918,13 +915,9 @@ bool VirtualCamera::fillJpeg(camera3_stream_buffer_t* buffer,
 
     std::vector<uint8_t> row(stream->width * 3);
     while (compressor.next_scanline < compressor.image_height) {
-        if (!sourceFrame_.fillRgbRow(stream->width, stream->height,
-                                     compressor.next_scanline, row.data(),
-                                     sourceTransform_)) {
-            PatternGenerator::fillRgbRow(stream->width, stream->height,
-                                         compressor.next_scanline, frameNumber,
-                                         id_, row.data());
-        }
+        frameRenderer_.fillRgbRow(
+                stream->width, stream->height, compressor.next_scanline,
+                row.data(), frameNumber, id_, sourceTransform_);
         JSAMPROW rowPointer = row.data();
         jpeg_write_scanlines(&compressor, &rowPointer, 1);
     }

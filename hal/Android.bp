@@ -9,6 +9,7 @@ cc_library_shared {
     compile_multilib: "64",
 
     srcs: [
+        "src/FrameRenderer.cpp",
         "src/MetadataBuilder.cpp",
         "src/PatternGenerator.cpp",
         "src/RgbFrame.cpp",

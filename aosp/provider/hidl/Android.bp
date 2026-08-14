@@ -1,0 +1,34 @@
+package {
+    default_applicable_licenses: ["android_vcam_license"],
+}
+
+cc_binary {
+    name: "android.hardware.camera.provider@2.4-vcam-service",
+    vendor: true,
+    relative_install_path: "hw",
+    compile_multilib: "64",
+    srcs: [
+        "VcamProvider.cpp",
+        "service.cpp",
+    ],
+    init_rc: ["android.hardware.camera.provider@2.4-vcam-service.rc"],
+    vintf_fragments: ["android.hardware.camera.provider@2.4-vcam-service.xml"],
+    static_libs: ["libvcam_frame_core"],
+    shared_libs: [
+        "android.hardware.camera.common@1.0",
+        "android.hardware.camera.device@1.0",
+        "android.hardware.camera.device@3.2",
+        "android.hardware.camera.provider@2.4",
+        "libbase",
+        "libbinder",
+        "libhidlbase",
+        "liblog",
+        "libutils",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    cpp_std: "c++17",
+}

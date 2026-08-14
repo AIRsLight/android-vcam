@@ -15,7 +15,7 @@
 #include <hardware/gralloc1.h>
 #include <system/camera_metadata.h>
 
-#include "vcam/RgbFrame.h"
+#include "vcam/FrameRenderer.h"
 
 namespace vcam {
 
@@ -88,10 +88,9 @@ class VirtualCamera final {
     camera_metadata_t* lastSettings_ = nullptr;
     std::array<camera_metadata_t*, CAMERA3_TEMPLATE_COUNT> templates_{};
     std::vector<camera3_stream_t*> streams_;
-    RgbFrame sourceFrame_;
+    FrameRenderer frameRenderer_;
     RgbTransform sourceTransform_{};
     int64_t sourceFrameDurationNs_ = 33333333;
-    std::string sourcePath_ = "/data/vendor/camera/vcam/source.rgb";
 };
 
 }  // namespace vcam

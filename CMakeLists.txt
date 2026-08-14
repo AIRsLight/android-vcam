@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(vcam_pattern STATIC
+    hal/src/FrameRenderer.cpp
     hal/src/PatternGenerator.cpp
     hal/src/RgbFrame.cpp
 )
@@ -20,6 +21,12 @@ add_executable(rgb_frame_test
 )
 target_link_libraries(rgb_frame_test PRIVATE vcam_pattern)
 
+add_executable(frame_renderer_test
+    tests/frame_renderer_test.cpp
+)
+target_link_libraries(frame_renderer_test PRIVATE vcam_pattern)
+
 enable_testing()
 add_test(NAME pattern_generator_test COMMAND pattern_generator_test)
 add_test(NAME rgb_frame_test COMMAND rgb_frame_test)
+add_test(NAME frame_renderer_test COMMAND frame_renderer_test)

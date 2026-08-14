@@ -8,3 +8,20 @@ license {
     license_kinds: ["SPDX-license-identifier-Apache-2.0"],
     license_text: ["LICENSE"],
 }
+
+cc_library_static {
+    name: "libvcam_frame_core",
+    vendor_available: true,
+    srcs: [
+        "hal/src/FrameRenderer.cpp",
+        "hal/src/PatternGenerator.cpp",
+        "hal/src/RgbFrame.cpp",
+    ],
+    export_include_dirs: ["hal/include"],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    cpp_std: "c++17",
+}

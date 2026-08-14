@@ -1,5 +1,28 @@
 # Architecture
 
+## Portable target
+
+```text
+Provider configuration -> FrameRenderer / RGB transforms / patterns
+                                      |
+                 +--------------------+--------------------+
+                 |                    |                    |
+       legacy camera_module     HIDL Provider 2.4    AIDL Provider
+       compatibility proxy      Android 8-12         Android 13+
+                 |                    |                    |
+                 +---------- CameraService / framework ---+
+                                      |
+                               scoped target app
+```
+
+`FrameRenderer` is independent of Binder, gralloc and OEM Camera3 types. Each
+frontend owns stream negotiation, buffer import, metadata and lifecycle, while
+all of them consume the same persistent providers, routes and source framing.
+`device-probe.sh` emits a normalized capability profile used to select a
+frontend or compatibility adapter. Unsupported combinations fail closed.
+
+## Current OnePlus compatibility adapter
+
 ```text
 Target app -> Camera1 / Camera2 / CameraX -> patched CameraService
   -> OEM package-name session tag

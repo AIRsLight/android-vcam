@@ -40,8 +40,10 @@ def main() -> None:
         ROOT / "tests" / "route_resolver_test.cpp",
         ROOT / "tests" / "scoped_camera_router_test.cpp",
         ROOT / "aosp" / "cameraservice" / "android-12" / "frameworks-av.patch",
+        ROOT / "aosp" / "cameraservice" / "android-12" / "frameworks-base-license.bp",
         ROOT / "tools" / "create-module-zip.py",
         ROOT / "tools" / "apply-aosp-cameraservice-patch.ps1",
+        ROOT / "tools" / "verify-aosp-build.ps1",
         ROOT / "tools" / "probe-device.ps1",
         ROOT / "docs" / "device-support.md",
     ]
@@ -94,6 +96,13 @@ def main() -> None:
     if "VirtualCameraStandaloneModule.cpp" not in hal_blueprint or \
             "VirtualCameraModule.cpp" in hal_blueprint:
         fail("AOSP camera.vcam must use the standalone Camera3 module entrypoint")
+    root_blueprint = (ROOT / "Android.bp").read_text(encoding="utf-8")
+    provider_blueprint = (
+        ROOT / "aosp" / "provider" / "hidl" / "Android.bp"
+    ).read_text(encoding="utf-8")
+    if 'name: "libvcam_headers"' not in root_blueprint or \
+            '"libvcam_headers"' not in provider_blueprint:
+        fail("AOSP provider does not import the shared vcam header contract")
 
     proxy = (ROOT / "native" / "proxy_bootstrap.cpp").read_text(encoding="utf-8")
     for required_symbol in (
@@ -125,6 +134,7 @@ def main() -> None:
         "kVcamClientPackageTag", "mClientPackageName",
         "resolveScopedCameraId", "firstPackageNameForUid",
         "routedConfigurations", "getLegacyParametersLazy(cameraId, selectedCameraId",
+        "readOnlyParams",
     ):
         if required_symbol not in cameraservice_patch:
             fail(f"Android 12 CameraService patch is missing: {required_symbol}")

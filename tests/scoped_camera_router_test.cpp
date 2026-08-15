@@ -1,34 +1,36 @@
 #include <assert.h>
-#include <stdio.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
+#include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <string>
 
 #include "vcam/ScopedCameraRouter.h"
 
 int main() {
-    const std::string root = "/data/local/tmp/android-vcam-scoped-route-test-" +
-            std::to_string(getpid());
+    const auto nonce = std::chrono::high_resolution_clock::now()
+            .time_since_epoch().count();
+    const std::filesystem::path rootPath =
+            std::filesystem::temp_directory_path() /
+            ("android-vcam-scoped-route-test-" + std::to_string(nonce));
+    const std::string root = rootPath.string();
     const std::string providers = root + "/providers";
     const std::string provider = providers + "/movie";
-    assert(mkdir(root.c_str(), 0700) == 0);
-    assert(mkdir(providers.c_str(), 0700) == 0);
-    assert(mkdir(provider.c_str(), 0700) == 0);
+    assert(std::filesystem::create_directories(provider));
 
     const std::string enabled = provider + "/enabled";
-    FILE* marker = fopen(enabled.c_str(), "we");
-    assert(marker != nullptr);
-    fclose(marker);
+    std::ofstream marker(enabled);
+    assert(marker.good());
+    marker.close();
 
     const std::string routes = root + "/routes.tsv";
-    FILE* table = fopen(routes.c_str(), "we");
-    assert(table != nullptr);
-    fputs("com.example.virtual\t0\tmovie\n", table);
-    fputs("com.example.virtual\t1\tmovie\n", table);
-    fputs("com.example.physical\t0\tphysical-1\n", table);
-    fputs("com.example.stopped\t0\tstopped\n", table);
-    fclose(table);
+    std::ofstream table(routes);
+    assert(table.good());
+    table << "com.example.virtual\t0\tmovie\n"
+          << "com.example.virtual\t1\tmovie\n"
+          << "com.example.physical\t0\tphysical-1\n"
+          << "com.example.stopped\t0\tstopped\n";
+    table.close();
 
     const auto back = vcam::ScopedCameraRouter::resolve(
             "com.example.virtual", "0", routes, providers);
@@ -76,10 +78,6 @@ int main() {
     assert(vcam::ScopedCameraRouter::visibleCameraId("1001") == "1");
     assert(vcam::ScopedCameraRouter::visibleCameraId("2") == "2");
 
-    assert(unlink(routes.c_str()) == 0);
-    assert(unlink(enabled.c_str()) == 0);
-    assert(rmdir(provider.c_str()) == 0);
-    assert(rmdir(providers.c_str()) == 0);
-    assert(rmdir(root.c_str()) == 0);
+    assert(std::filesystem::remove_all(rootPath) >= 5);
     return 0;
 }

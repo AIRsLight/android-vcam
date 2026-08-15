@@ -9,6 +9,12 @@ license {
     license_text: ["LICENSE"],
 }
 
+cc_library_headers {
+    name: "libvcam_headers",
+    vendor_available: true,
+    export_include_dirs: ["hal/include"],
+}
+
 cc_library_static {
     name: "libvcam_frame_core",
     vendor_available: true,

@@ -1,0 +1,44 @@
+// Minimal frameworks/base root used only by tools/verify-aosp-build.ps1.
+// It preserves package license inheritance while excluding the Java framework
+// module graph from a partial native-camera build.
+
+package {
+    default_applicable_licenses: ["frameworks_base_license"],
+}
+
+license {
+    name: "frameworks_base_license",
+    visibility: [":__subpackages__"],
+    license_kinds: [
+        "SPDX-license-identifier-Apache-2.0",
+        "SPDX-license-identifier-BSD",
+        "SPDX-license-identifier-CC-BY",
+        "SPDX-license-identifier-CPL-1.0",
+        "SPDX-license-identifier-GPL",
+        "SPDX-license-identifier-GPL-2.0",
+        "SPDX-license-identifier-MIT",
+        "SPDX-license-identifier-Unicode-DFS",
+        "SPDX-license-identifier-W3C",
+        "legacy_unencumbered",
+    ],
+    license_text: ["NOTICE"],
+}
+
+// Native libbinder consumes this AIDL filegroup through
+// libactivitymanager_aidl. Keeping the definition here avoids discovering the
+// complete frameworks/base/core/java Blueprint graph during the partial-tree
+// validator build.
+filegroup {
+    name: "activity_manager_procstate_aidl",
+    srcs: ["core/java/android/app/ProcessStateEnum.aidl"],
+    path: "core/java",
+}
+
+filegroup {
+    name: "libvibrator_aidl",
+    srcs: [
+        "core/java/android/os/IExternalVibrationController.aidl",
+        "core/java/android/os/IExternalVibratorService.aidl",
+    ],
+    path: "core/java",
+}

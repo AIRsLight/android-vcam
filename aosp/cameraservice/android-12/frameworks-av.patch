@@ -544,7 +544,7 @@ index fd645c7..d68ef24 100644
          mOperatingMode(NO_MODE),
          mIsConstrainedHighSpeedConfiguration(false),
          mStatus(STATUS_UNINITIALIZED),
-@@ -1694,7 +1699,19 @@ status_t Camera3Device::configureStreams(const CameraMetadata& sessionParams, in
+@@ -1694,7 +1699,20 @@ status_t Camera3Device::configureStreams(const CameraMetadata& sessionParams, in
  status_t Camera3Device::filterParamsAndConfigureLocked(const CameraMetadata& sessionParams,
          int operatingMode) {
      //Filter out any incoming session parameters
@@ -562,9 +562,19 @@ index fd645c7..d68ef24 100644
 +            return tagStatus;
 +        }
 +    }
++    const CameraMetadata& readOnlyParams = params;
      camera_metadata_entry_t availableSessionKeys = mDeviceInfo.find(
              ANDROID_REQUEST_AVAILABLE_SESSION_KEYS);
      CameraMetadata filteredParams(availableSessionKeys.count);
+@@ -1704,7 +1722,7 @@ status_t Camera3Device::filterParamsAndConfigureLocked(const CameraMetadata& sess
+     filteredParams.unlock(meta);
+     if (availableSessionKeys.count > 0) {
+         for (size_t i = 0; i < availableSessionKeys.count; i++) {
+-            camera_metadata_ro_entry entry = params.find(
++            camera_metadata_ro_entry entry = readOnlyParams.find(
+                     availableSessionKeys.data.i32[i]);
+             if (entry.count > 0) {
+                 filteredParams.update(entry);
 diff --git a/services/camera/libcameraservice/device3/Camera3Device.h b/services/camera/libcameraservice/device3/Camera3Device.h
 index 39714f0..c6d538a 100644
 --- a/services/camera/libcameraservice/device3/Camera3Device.h

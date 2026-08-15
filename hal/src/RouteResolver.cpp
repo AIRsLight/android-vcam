@@ -6,7 +6,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include <fstream>
 
@@ -62,7 +61,7 @@ ProviderSelection RouteResolver::resolveProviderForPackage(
             return {provider, true, true};
         }
         const std::string enabled = providersPath + "/" + provider + "/enabled";
-        return {provider, true, access(enabled.c_str(), R_OK) == 0};
+        return {provider, true, std::ifstream(enabled).good()};
     }
     return {fallback, false, true};
 }

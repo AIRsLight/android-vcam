@@ -26,7 +26,7 @@ cc_library_shared {
     ],
 
     static_libs: [
-        "libjpeg_static_ndk",
+        "libjpeg",
         "libvcam_route_core",
     ],
 

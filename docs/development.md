@@ -45,6 +45,14 @@ is an operator-controlled prerequisite because a complete checkout and build
 can consume substantial disk space. It also performs no device-side action;
 successful compilation is not authorization to flash a system or vendor image.
 
+Android 13 uses the native Linux validator `tools/verify-aosp13-build.sh` and
+the exact `android-13.0.0_r84` source tag. On the remote builder, initialize a
+space-conscious platform checkout with the official manifest groups
+`pdk,pdk-fs,-cts,-darwin`; these retain CameraService, Soong, VINTF, AIDL/HIDL
+interfaces and the generic arm64 product while excluding CTS and the macOS
+toolchain. The validator temporarily applies the versioned patch from
+`aosp/cameraservice/android-13` and restores `frameworks/av` on exit.
+
 ## Recovery
 
 If Android boots, disable `android_vcam` in APatch and reboot. If it does not,

@@ -142,12 +142,14 @@ export OUT_DIR="$aosp_root/out/android-vcam-r84"
 export ALLOW_MISSING_DEPENDENCIES=true
 export WITH_DEXPREOPT=false
 export DISABLE_PREOPT=true
+set +u
 source build/envsetup.sh >/dev/null
 lunch aosp_arm64-eng >/dev/null
 m -j"$jobs" WITH_DEXPREOPT=false \
     libcameraservice \
     camera.vcam \
     android.hardware.camera.provider@2.4-vcam-service
+set -u
 
 for artifact in \
     "$OUT_DIR/target/product/generic_arm64/system/lib64/libcameraservice.so" \

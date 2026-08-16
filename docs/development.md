@@ -48,10 +48,17 @@ successful compilation is not authorization to flash a system or vendor image.
 Android 13 uses the native Linux validator `tools/verify-aosp13-build.sh` and
 the exact `android-13.0.0_r84` source tag. On the remote builder, initialize a
 space-conscious platform checkout with the official manifest groups
-`pdk,pdk-fs,-cts,-darwin`; these retain CameraService, Soong, VINTF, AIDL/HIDL
-interfaces and the generic arm64 product while excluding CTS and the macOS
-toolchain. The validator temporarily applies the versioned patch from
+`pdk,pdk-fs,-cts,-darwin,-device,-developers`; these retain CameraService,
+Soong, VINTF, AIDL/HIDL interfaces and the generic arm64 product while
+excluding CTS, device-specific kernels, sample trees and the macOS toolchain.
+The validator temporarily applies the versioned patch from
 `aosp/cameraservice/android-13` and restores `frameworks/av` on exit.
+
+When the builder reaches Android source sites through the workstation's local
+proxy, run `tools/start-ci-proxy.ps1`. It starts a hidden SSH reverse tunnel
+from the builder's loopback port 1085 to the workstation's loopback port 1085
+and verifies the path against Android's manifest server. The tunnel process
+must be restarted after Windows reboots; it never listens on a LAN address.
 
 ## Recovery
 

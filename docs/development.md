@@ -54,6 +54,15 @@ excluding CTS, device-specific kernels, sample trees and the macOS toolchain.
 The validator temporarily applies the versioned patch from
 `aosp/cameraservice/android-13` and restores `frameworks/av` on exit.
 
+An interrupted first shallow sync can leave `.repo/projects/<path>.git`
+without its `shallow` file. Repo treats that state as a deliberately
+unshallowed checkout and silently omits `--depth=1` on the next fetch, which
+can download the complete history of large prebuilt repositories. Before
+retrying an incomplete checkout, verify the child `git fetch` command contains
+`--depth=1`; if it does not, stop that sync and repair or recreate only the
+incomplete project checkout before retrying. Never remove a completed AOSP
+project merely to repair another project's shallow state.
+
 When the builder reaches Android source sites through the workstation's local
 proxy, run `tools/start-ci-proxy.ps1`. It starts a hidden SSH reverse tunnel
 from the builder's loopback port 1085 to the workstation's loopback port 1085

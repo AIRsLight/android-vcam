@@ -101,6 +101,18 @@ valid_number_between() {
     [ "$1" -ge "$2" ] && [ "$1" -le "$3" ]
 }
 
+valid_source_config() {
+    fps="$1"
+    width="$2"
+    height="$3"
+    valid_number_between "$fps" 1 60 &&
+        valid_number_between "$width" 160 4096 &&
+        valid_number_between "$height" 120 4096 || return 1
+    pixels=$((width * height))
+    pixel_rate=$((pixels * fps))
+    [ "$pixels" -le 12582912 ] && [ "$pixel_rate" -le 124416000 ]
+}
+
 valid_view() {
     old_ifs=$IFS
     IFS=,
@@ -228,9 +240,7 @@ provider_config_set() {
     id="$1"; fps="$2"; max_width="$3"; max_height="$4"; view0="$5"; view1="$6"
     valid_id "$id" && provider_exists "$id" || { echo "provider not found" >&2; return 2; }
     case "$id" in physical-0|physical-1) return 3 ;; esac
-    valid_number_between "$fps" 1 60 &&
-        valid_number_between "$max_width" 160 1920 &&
-        valid_number_between "$max_height" 120 1920 &&
+    valid_source_config "$fps" "$max_width" "$max_height" &&
         valid_view "$view0" && valid_view "$view1" || {
             echo "invalid provider configuration" >&2
             return 2
@@ -254,9 +264,7 @@ provider_update() {
     valid_id "$id" && provider_exists "$id" || { echo "provider not found" >&2; return 2; }
     case "$id" in physical-0|physical-1) echo "physical provider is read-only" >&2; return 3 ;; esac
     valid_base64 "$name_b64" && valid_base64 "$source_b64" &&
-        valid_number_between "$fps" 1 60 &&
-        valid_number_between "$max_width" 160 1920 &&
-        valid_number_between "$max_height" 120 1920 &&
+        valid_source_config "$fps" "$max_width" "$max_height" &&
         valid_view "$view0" && valid_view "$view1" || {
             echo "invalid provider update" >&2
             return 2
@@ -436,6 +444,10 @@ preview_source() {
         echo "vcam-streamer not found" >&2
         return 4
     }
+    publisher=$(find_publisher) || {
+        echo "vcam-publisher not found" >&2
+        return 4
+    }
     preview_dir="$PROVIDER_FRAME_DIR/.preview-$$"
     frame="$preview_dir/frame.rgb"
     cleanup_preview() { rm -rf "$preview_dir"; }
@@ -460,7 +472,9 @@ preview_source() {
         echo "preview source produced no frame" >&2
         return 6
     }
-    base64 "$frame" | tr -d '\n'
+    preview_rgb="$preview_dir/preview.rgb"
+    "$publisher" --thumbnail "$frame" "$preview_rgb" 576 324 || return 6
+    base64 "$preview_rgb" | tr -d '\n'
 }
 
 provider_frame() {

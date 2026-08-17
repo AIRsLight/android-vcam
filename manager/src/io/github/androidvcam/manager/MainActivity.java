@@ -78,6 +78,9 @@ public final class MainActivity extends Activity {
     private static final int REQUEST_VIDEO = 4102;
     private static final int FRAME_WIDTH = 576;
     private static final int FRAME_HEIGHT = 324;
+    private static final int MAX_SOURCE_DIMENSION = 4096;
+    private static final long MAX_SOURCE_PIXELS = 4096L * 3072L;
+    private static final long MAX_SOURCE_PIXEL_RATE = 1920L * 1080L * 60L;
     private static final String[] TYPE_LABELS = {
             "内置彩条", "静态图片", "设备本地视频", "HTTPS 视频文件",
             "HTTP 视频 / 流", "HLS（HTTP）", "RTSP"
@@ -431,8 +434,8 @@ public final class MainActivity extends Activity {
                 android.R.layout.simple_spinner_dropdown_item, TYPE_LABELS));
         EditText source = input("网络地址");
         EditText fps = numericInput("1–60", existing == null ? "30" : Integer.toString(existing.fps));
-        EditText maxWidth = numericInput("160–1920", existing == null ? "1280" : Integer.toString(existing.maxWidth));
-        EditText maxHeight = numericInput("120–1920", existing == null ? "720" : Integer.toString(existing.maxHeight));
+        EditText maxWidth = numericInput("160–4096", existing == null ? "1280" : Integer.toString(existing.maxWidth));
+        EditText maxHeight = numericInput("120–4096", existing == null ? "720" : Integer.toString(existing.maxHeight));
         form.addView(label("名称")); form.addView(name);
         form.addView(label("类型")); form.addView(type);
         LinearLayout sourceBlock = vertical();
@@ -450,6 +453,16 @@ public final class MainActivity extends Activity {
         LinearLayout dimensions = horizontal();
         dimensions.addView(maxWidth, weighted()); dimensions.addView(maxHeight, weighted());
         form.addView(label("源解码上限（宽 × 高，保持原始比例）")); form.addView(dimensions);
+        LinearLayout resolutionPresets = horizontal();
+        Button fullHd = secondaryButton("1080p");
+        Button ultraHd = secondaryButton("4K");
+        Button twelveMp = secondaryButton("12 MP");
+        resolutionPresets.addView(fullHd, weighted());
+        resolutionPresets.addView(ultraHd, weightedMargins(8, 0, 0, 0));
+        resolutionPresets.addView(twelveMp, weightedMargins(8, 0, 0, 0));
+        form.addView(resolutionPresets, matchWrapMargins(0, 8, 0, 0));
+        form.addView(text("高分辨率会按像素吞吐预算限制帧率：4K 最高 15 fps，12 MP 最高 9 fps。",
+                11, 0xff64748b), matchWrapMargins(0, 6, 0, 0));
         LinearLayout progressRow = horizontal();
         progressRow.setGravity(Gravity.CENTER_VERTICAL);
         ProgressBar progress = new ProgressBar(this);
@@ -467,6 +480,12 @@ public final class MainActivity extends Activity {
         AddProviderSession session = new AddProviderSession(existing, name, type, source,
                 sourceLabel, sourceBlock, fileBlock, choose, selectedFile, fps, maxWidth,
                 maxHeight, progressRow, progressText, errorText);
+        fullHd.setOnClickListener(view -> applyResolutionPreset(maxWidth, maxHeight, fps,
+                1920, 1080));
+        ultraHd.setOnClickListener(view -> applyResolutionPreset(maxWidth, maxHeight, fps,
+                3840, 2160));
+        twelveMp.setOnClickListener(view -> applyResolutionPreset(maxWidth, maxHeight, fps,
+                4096, 3072));
         if (existing != null) {
             name.setText(existing.name);
             source.setText(existing.source);
@@ -552,13 +571,25 @@ public final class MainActivity extends Activity {
             showFormError(session, "请先选择本地文件，再继续");
             return;
         }
+        int configuredFps = parseBounded(session.fps, 1, 60, 30);
+        int configuredWidth = parseBounded(session.maxWidth, 160, MAX_SOURCE_DIMENSION, 1280);
+        int configuredHeight = parseBounded(session.maxHeight, 120, MAX_SOURCE_DIMENSION, 720);
+        long configuredPixels = (long) configuredWidth * configuredHeight;
+        if (configuredPixels > MAX_SOURCE_PIXELS) {
+            showFormError(session, "源解码上限不能超过 12.6 MP（例如 4096×3072）");
+            return;
+        }
+        int allowedFps = maxFpsForResolution(configuredWidth, configuredHeight);
+        if (configuredFps > allowedFps) {
+            showFormError(session, configuredWidth + "×" + configuredHeight +
+                    " 的最高帧率为 " + allowedFps + " fps，请降低帧率后重试");
+            return;
+        }
         PendingProvider pending = new PendingProvider(
                 session.existing == null ? "p-" + Long.toString(System.currentTimeMillis(), 36)
                         : session.existing.id,
                 code, displayName, source,
-                parseBounded(session.fps, 1, 60, 30),
-                parseBounded(session.maxWidth, 160, 1920, 1280),
-                parseBounded(session.maxHeight, 120, 1920, 720));
+                configuredFps, configuredWidth, configuredHeight);
         pending.uri = uri;
         pending.editing = session.existing != null;
         if (session.existing != null) {
@@ -941,24 +972,42 @@ public final class MainActivity extends Activity {
         if (source == null) throw new IOException("无法解码所选图片");
         float scale = Math.min(1f, Math.min((float) maxWidth / source.getWidth(),
                 (float) maxHeight / source.getHeight()));
-        int frameWidth = Math.max(2, Math.round(source.getWidth() * scale));
-        int frameHeight = Math.max(2, Math.round(source.getHeight() * scale));
-        Bitmap target = scale < 1f ? Bitmap.createScaledBitmap(source, frameWidth, frameHeight, true) : source;
+        int frameWidth = Math.max(2, Math.round(source.getWidth() * scale)) & ~1;
+        int frameHeight = Math.max(2, Math.round(source.getHeight() * scale)) & ~1;
+        Bitmap target = frameWidth != source.getWidth() || frameHeight != source.getHeight()
+                ? Bitmap.createScaledBitmap(source, frameWidth, frameHeight, true) : source;
         if (target != source) source.recycle();
-        int payload = frameWidth * frameHeight * 3;
-        ByteBuffer frame = ByteBuffer.allocate(24 + payload).order(ByteOrder.LITTLE_ENDIAN);
-        frame.put(new byte[]{'V', 'C', 'A', 'M', 'R', 'G', 'B', '1'});
-        frame.putInt(frameWidth); frame.putInt(frameHeight);
-        frame.putInt(payload); frame.putInt(++frameSequence);
-        int[] pixels = new int[frameWidth * frameHeight];
-        target.getPixels(pixels, 0, frameWidth, 0, 0, frameWidth, frameHeight);
-        target.recycle();
-        for (int pixel : pixels) {
-            frame.put((byte) Color.red(pixel));
-            frame.put((byte) Color.green(pixel));
-            frame.put((byte) Color.blue(pixel));
+        int pixels = frameWidth * frameHeight;
+        int payload = pixels + pixels / 2;
+        byte[] frame = new byte[24 + payload];
+        ByteBuffer header = ByteBuffer.wrap(frame).order(ByteOrder.LITTLE_ENDIAN);
+        header.put(new byte[]{'V', 'C', 'A', 'M', 'Y', 'U', 'V', '1'});
+        header.putInt(frameWidth); header.putInt(frameHeight);
+        header.putInt(payload); header.putInt(++frameSequence);
+        int yOffset = 24;
+        int cbOffset = yOffset + pixels;
+        int crOffset = cbOffset + pixels / 4;
+        int[] row = new int[frameWidth];
+        for (int y = 0; y < frameHeight; ++y) {
+            target.getPixels(row, 0, frameWidth, 0, y, frameWidth, 1);
+            for (int x = 0; x < frameWidth; ++x) {
+                int pixel = row[x];
+                int red = Color.red(pixel);
+                int green = Color.green(pixel);
+                int blue = Color.blue(pixel);
+                frame[yOffset + y * frameWidth + x] = (byte) clampColor(
+                        16 + ((66 * red + 129 * green + 25 * blue + 128) >> 8));
+                if ((y & 1) == 0 && (x & 1) == 0) {
+                    int chroma = (y / 2) * (frameWidth / 2) + x / 2;
+                    frame[cbOffset + chroma] = (byte) clampColor(
+                            128 + ((-38 * red - 74 * green + 112 * blue + 128) >> 8));
+                    frame[crOffset + chroma] = (byte) clampColor(
+                            128 + ((112 * red - 94 * green - 18 * blue + 128) >> 8));
+                }
+            }
         }
-        return frame.array();
+        target.recycle();
+        return frame;
     }
 
     private void runProviderAction(String command, String id) {
@@ -996,6 +1045,24 @@ public final class MainActivity extends Activity {
         try { return Math.max(minimum, Math.min(maximum,
                 Integer.parseInt(input.getText().toString().trim()))); }
         catch (NumberFormatException ignored) { return fallback; }
+    }
+
+    private void applyResolutionPreset(EditText width, EditText height, EditText fps,
+                                       int presetWidth, int presetHeight) {
+        width.setText(Integer.toString(presetWidth));
+        height.setText(Integer.toString(presetHeight));
+        int requested = parseBounded(fps, 1, 60, 30);
+        fps.setText(Integer.toString(Math.min(requested,
+                maxFpsForResolution(presetWidth, presetHeight))));
+    }
+
+    private int maxFpsForResolution(int width, int height) {
+        long pixels = Math.max(1L, (long) width * height);
+        return Math.max(1, (int) Math.min(60L, MAX_SOURCE_PIXEL_RATE / pixels));
+    }
+
+    private int clampColor(int value) {
+        return Math.max(0, Math.min(255, value));
     }
 
     private void confirmRemove(Provider provider) {

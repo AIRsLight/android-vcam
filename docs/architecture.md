@@ -37,7 +37,20 @@ linked statically into that executable so RTSP/HTTP/HLS availability does not
 depend on a vendor `libavformat.so`. The runner enters APatch's `magisk` domain
 only to inherit Android's default-network routing; `vcam-streamer` immediately
 drops to the `camera` UID before opening a socket or parsing media. It scales
-to the configured source limit and atomically publishes `VCAMRGB1` frames.
+to the configured source limit and atomically publishes planar `VCAMYUV1`
+frames. RGB frames from older managers remain readable. The YUV path halves
+the provider-frame payload and removes the redundant RGB-to-YUV conversion in
+the Camera HAL.
+
+The bundled FFmpeg runner remains the portable fallback across Android 10-14.
+It enables frame/slice decoder threading and drops excess decoded live-stream
+frames before scaling, preventing low configured FPS from accumulating RTSP
+latency. Android hardware decoding is intentionally kept behind a future
+module-owned codec-service boundary: this standalone native runner has no
+JavaVM for FFmpeg's MediaCodec bridge, and vendor byte-buffer layouts are not
+portable enough to make an in-process MediaCodec path a safe default. Such a
+service must always fall back to this software/YUV path when configuration or
+output-layout negotiation fails.
 HTTPS files still use the ROM's BoringSSL-enabled curl before decoding.
 
 Stopping a remote provider waits for its runner and decoder children to exit

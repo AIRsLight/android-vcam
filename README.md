@@ -14,6 +14,9 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
 - Physical cameras `physical-0` and `physical-1` are immutable providers and
   may both be used as sources or routing targets.
 - User providers can be added, edited, stopped, started and removed independently.
+- Source decoding supports up to 4096x3072 with a bounded pixel-rate budget:
+  4K up to 15 fps and 12.6 MP up to 9 fps. Video and newly imported images use
+  planar YUV420 frames while legacy RGB providers remain compatible.
 - A native, root-free manager app separates status, providers and per-app
   camera 0/1 routes into tabs. Source creation includes a live preview,
   source FPS/resolution limits, and independent camera 0/1 framing with a
@@ -67,9 +70,9 @@ tools/build-ffmpeg-android.sh --ndk-root /path/to/android-ndk-r27d
 Outputs:
 
 ```text
-dist/android-vcam-apm-v0.3.7-dev.zip
-dist/android-vcam-manager-v0.3.7-dev-debug.apk
-dist/android-vcam-camera2-test-v0.3.7-dev-debug.apk
+dist/android-vcam-apm-v0.4.0-dev.zip
+dist/android-vcam-manager-v0.4.0-dev-debug.apk
+dist/android-vcam-camera2-test-v0.4.0-dev-debug.apk
 ```
 
 The APatch ZIP contains a patched copy of the pinned OEM HAL, the dependency

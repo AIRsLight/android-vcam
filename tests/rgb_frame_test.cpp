@@ -78,6 +78,33 @@ int main() {
     assert(decoded.fillYuv420(4, 4, layout));
     assert(y[0] > 60 && y[0] < 90);  // Red luma in the integer BT.601 transform.
 
+    // New video providers publish planar I420. The decoder must copy YUV
+    // directly for camera buffers while still converting it for JPEG rows.
+    std::vector<uint8_t> yuvFrame(vcam::RgbFrame::kHeaderSize + 6, 0);
+    const uint8_t yuvMagic[] = {'V', 'C', 'A', 'M', 'Y', 'U', 'V', '1'};
+    for (size_t i = 0; i < sizeof(yuvMagic); ++i) yuvFrame[i] = yuvMagic[i];
+    writeLe32(&yuvFrame, 8, 2);
+    writeLe32(&yuvFrame, 12, 2);
+    writeLe32(&yuvFrame, 16, 6);
+    writeLe32(&yuvFrame, 20, 8);
+    yuvFrame[vcam::RgbFrame::kHeaderSize] = 82;
+    yuvFrame[vcam::RgbFrame::kHeaderSize + 1] = 82;
+    yuvFrame[vcam::RgbFrame::kHeaderSize + 2] = 82;
+    yuvFrame[vcam::RgbFrame::kHeaderSize + 3] = 82;
+    yuvFrame[vcam::RgbFrame::kHeaderSize + 4] = 90;
+    yuvFrame[vcam::RgbFrame::kHeaderSize + 5] = 240;
+    assert(decoded.load(yuvFrame.data(), yuvFrame.size()));
+    std::vector<uint8_t> directY(4);
+    std::vector<uint8_t> directCb(1);
+    std::vector<uint8_t> directCr(1);
+    vcam::Yuv420Layout directLayout{
+            directY.data(), directCb.data(), directCr.data(), 2, 1, 1};
+    assert(decoded.fillYuv420(2, 2, directLayout));
+    assert(directY[0] == 82 && directCb[0] == 90 && directCr[0] == 240);
+    std::vector<uint8_t> convertedRgb(2 * 3);
+    assert(decoded.fillRgbRow(2, 2, 0, convertedRgb.data()));
+    assert(convertedRgb[0] > 245 && convertedRgb[1] < 10 && convertedRgb[2] < 10);
+
     frame[0] = 'X';
     assert(!decoded.load(frame.data(), frame.size()));
     assert(decoded.valid());  // A rejected replacement preserves the last good frame.

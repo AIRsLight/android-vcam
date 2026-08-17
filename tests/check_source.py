@@ -88,9 +88,20 @@ def main() -> None:
         fail("provider preview must use a bounded backend thumbnail")
 
     publisher = (ROOT / "native" / "frame_publisher.c").read_text(encoding="utf-8")
-    for required_symbol in ("--thumbnail", "O_NOFOLLOW", "MAX_DIMENSION", "pread_exact"):
+    for required_symbol in (
+        "--thumbnail", "O_NOFOLLOW", "MAX_DIMENSION", "MAX_PIXELS",
+        "kYuvMagic", "FRAME_I420", "pread_exact",
+    ):
         if required_symbol not in publisher:
             fail(f"frame publisher lacks safe thumbnail support: {required_symbol}")
+
+    streamer = (ROOT / "native" / "stream_provider.c").read_text(encoding="utf-8")
+    for required_symbol in (
+        "AV_PIX_FMT_YUV420P", "MAX_SOURCE_DIMENSION", "MAX_SOURCE_PIXELS",
+        "MAX_PIXEL_RATE", "kYuvMagic",
+    ):
+        if required_symbol not in streamer:
+            fail(f"stream provider lacks high-resolution YUV support: {required_symbol}")
 
     manager_manifest = (ROOT / "manager" / "AndroidManifest.xml").read_text(encoding="utf-8")
     manager_sources = "\n".join(
@@ -102,7 +113,7 @@ def main() -> None:
             fail(f"root-free manager contains forbidden capability: {forbidden}")
     for required_symbol in (
         "source-preview", "loadBackendNetworkPreview", "showProviderPreview",
-        "provider-frame", "刷新帧",
+        "provider-frame", "刷新帧", "MAX_SOURCE_PIXEL_RATE", "12 MP",
     ):
         if required_symbol not in manager_sources:
             fail(f"manager lacks source preview support: {required_symbol}")

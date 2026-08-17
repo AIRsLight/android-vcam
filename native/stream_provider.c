@@ -22,8 +22,11 @@
 
 #define HEADER_SIZE 24
 #define CAMERA_AID 1006
+#define MAX_SOURCE_DIMENSION 4096
+#define MAX_SOURCE_PIXELS (4096ULL * 3072ULL)
+#define MAX_PIXEL_RATE (1920ULL * 1080ULL * 60ULL)
 
-static const uint8_t kMagic[8] = {'V', 'C', 'A', 'M', 'R', 'G', 'B', '1'};
+static const uint8_t kYuvMagic[8] = {'V', 'C', 'A', 'M', 'Y', 'U', 'V', '1'};
 static const char* kProviderPrefix = "/data/vendor/camera/vcam/providers/";
 static volatile sig_atomic_t gRunning = 1;
 
@@ -67,16 +70,18 @@ static int write_exact(int fd, const void* data, size_t size) {
     return 0;
 }
 
-static int publish_frame(const char* output_path, const uint8_t* rgb,
-                         int stride, int width, int height, uint32_t sequence) {
+static int publish_frame(const char* output_path, uint8_t* const data[4],
+                         const int linesize[4], int width, int height,
+                         uint32_t sequence) {
     char temporary[512];
     if (snprintf(temporary, sizeof(temporary), "%s.new", output_path) >=
         (int)sizeof(temporary)) return AVERROR(ENAMETOOLONG);
-    const uint64_t payload64 = (uint64_t)width * height * 3;
+    const uint64_t pixels = (uint64_t)width * height;
+    const uint64_t payload64 = pixels + pixels / 2;
     if (payload64 > UINT32_MAX) return AVERROR(EOVERFLOW);
 
     uint8_t header[HEADER_SIZE];
-    memcpy(header, kMagic, sizeof(kMagic));
+    memcpy(header, kYuvMagic, sizeof(kYuvMagic));
     write_le32(header + 8, (uint32_t)width);
     write_le32(header + 12, (uint32_t)height);
     write_le32(header + 16, (uint32_t)payload64);
@@ -91,8 +96,16 @@ static int publish_frame(const char* output_path, const uint8_t* rgb,
         result = AVERROR(errno == 0 ? EIO : errno);
     }
     for (int row = 0; result == 0 && row < height; ++row) {
-        if (write_exact(fd, rgb + row * stride, (size_t)width * 3) != 0) {
+        if (write_exact(fd, data[0] + row * linesize[0], (size_t)width) != 0) {
             result = AVERROR(errno == 0 ? EIO : errno);
+        }
+    }
+    for (int plane = 1; result == 0 && plane <= 2; ++plane) {
+        for (int row = 0; result == 0 && row < height / 2; ++row) {
+            if (write_exact(fd, data[plane] + row * linesize[plane],
+                            (size_t)width / 2) != 0) {
+                result = AVERROR(errno == 0 ? EIO : errno);
+            }
         }
     }
     if (close(fd) != 0 && result == 0) result = AVERROR(errno);
@@ -123,14 +136,15 @@ static int decode_source(const char* source, const char* output_path,
     AVPacket* packet = NULL;
     AVFrame* frame = NULL;
     struct SwsContext* scaler = NULL;
-    uint8_t* rgb_data[4] = {NULL};
-    int rgb_linesize[4] = {0};
+    uint8_t* yuv_data[4] = {NULL};
+    int yuv_linesize[4] = {0};
     AVDictionary* options = NULL;
     int video_stream = -1;
     int result = 0;
     int output_width = 0;
     int output_height = 0;
     int64_t next_frame_time = 0;
+    const int live_source = strstr(source, "://") != NULL;
 
     av_dict_set(&options, "rw_timeout", "10000000", 0);
     // FFmpeg 4.2 interprets the deprecated RTSP "timeout" option as a
@@ -157,6 +171,8 @@ static int decode_source(const char* source, const char* output_path,
     result = avcodec_parameters_to_context(
             codec, format->streams[video_stream]->codecpar);
     if (result < 0) goto cleanup;
+    codec->thread_count = 0;
+    codec->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
     result = avcodec_open2(codec, decoder, NULL);
     if (result < 0) goto cleanup;
 
@@ -180,19 +196,25 @@ static int decode_source(const char* source, const char* output_path,
                                   &output_width, &output_height);
                 scaler = sws_getContext(frame->width, frame->height,
                         (enum AVPixelFormat)frame->format,
-                        output_width, output_height, AV_PIX_FMT_RGB24,
+                        output_width, output_height, AV_PIX_FMT_YUV420P,
                         SWS_BILINEAR, NULL, NULL, NULL);
                 if (scaler == NULL) { result = AVERROR(EINVAL); goto cleanup; }
-                result = av_image_alloc(rgb_data, rgb_linesize, output_width,
-                                        output_height, AV_PIX_FMT_RGB24, 1);
+                result = av_image_alloc(yuv_data, yuv_linesize, output_width,
+                                        output_height, AV_PIX_FMT_YUV420P, 1);
                 if (result < 0) goto cleanup;
             }
-            sws_scale(scaler, (const uint8_t* const*)frame->data,
-                      frame->linesize, 0, frame->height, rgb_data, rgb_linesize);
-
             const int64_t now = av_gettime_relative();
-            if (next_frame_time > now) av_usleep((unsigned)(next_frame_time - now));
-            result = publish_frame(output_path, rgb_data[0], rgb_linesize[0],
+            if (!single_frame && next_frame_time > now) {
+                if (live_source) {
+                    av_frame_unref(frame);
+                    continue;
+                }
+                av_usleep((unsigned)(next_frame_time - now));
+            }
+            sws_scale(scaler, (const uint8_t* const*)frame->data,
+                      frame->linesize, 0, frame->height, yuv_data, yuv_linesize);
+
+            result = publish_frame(output_path, yuv_data, yuv_linesize,
                                    output_width, output_height, ++*sequence);
             if (result < 0) goto cleanup;
             if (single_frame) {
@@ -213,7 +235,7 @@ cleanup:
         av_strerror(result, message, sizeof(message));
         fprintf(stderr, "vcam-streamer: %s: %s\n", source, message);
     }
-    if (rgb_data[0] != NULL) av_freep(&rgb_data[0]);
+    if (yuv_data[0] != NULL) av_freep(&yuv_data[0]);
     if (scaler != NULL) sws_freeContext(scaler);
     av_frame_free(&frame);
     av_packet_free(&packet);
@@ -232,8 +254,11 @@ int main(int argc, char** argv) {
     const int output_fps = atoi(argv[3]);
     const int max_width = atoi(argv[4]);
     const int max_height = atoi(argv[5]);
+    const uint64_t configured_pixels = (uint64_t)max_width * max_height;
     if (output_fps < 1 || output_fps > 60 || max_width < 160 ||
-        max_width > 1920 || max_height < 120 || max_height > 1920) {
+        max_width > MAX_SOURCE_DIMENSION || max_height < 120 ||
+        max_height > MAX_SOURCE_DIMENSION || configured_pixels > MAX_SOURCE_PIXELS ||
+        configured_pixels * (uint64_t)output_fps > MAX_PIXEL_RATE) {
         fprintf(stderr, "vcam-streamer: invalid output configuration\n");
         return 64;
     }

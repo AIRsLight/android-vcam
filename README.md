@@ -65,9 +65,9 @@ tools/build-ffmpeg-android.sh --ndk-root /path/to/android-ndk-r27d
 Outputs:
 
 ```text
-dist/android-vcam-apm-v0.3.5-dev.zip
-dist/android-vcam-manager-v0.3.5-dev-debug.apk
-dist/android-vcam-camera2-test-v0.3.5-dev-debug.apk
+dist/android-vcam-apm-v0.3.6-dev.zip
+dist/android-vcam-manager-v0.3.6-dev-debug.apk
+dist/android-vcam-camera2-test-v0.3.6-dev-debug.apk
 ```
 
 The APatch ZIP contains a patched copy of the pinned OEM HAL, the dependency

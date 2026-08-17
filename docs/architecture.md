@@ -40,6 +40,11 @@ drops to the `camera` UID before opening a socket or parsing media. It scales
 to the configured source limit and atomically publishes `VCAMRGB1` frames.
 HTTPS files still use the ROM's BoringSSL-enabled curl before decoding.
 
+Stopping a remote provider waits for its runner and decoder children to exit
+before removing transient state or starting a replacement. This prevents an old
+runner's exit trap from deleting the new instance's `enabled` marker or temporary
+frame during rapid restart/update sequences.
+
 The control daemon forks a short-lived handler per authenticated client. A slow
 network preview therefore does not block provider, route, or status reads. Provider
 metadata updates use a temporary file and restart active streams; a failed restart

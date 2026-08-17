@@ -314,16 +314,40 @@ stop_provider() {
             *)
                 if tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null | \
                     grep -Eq 'provider-runner.sh|vcam-streamer|/system/bin/curl'; then
-                    for child in $(pgrep -P "$pid" 2>/dev/null); do
+                    children=$(pgrep -P "$pid" 2>/dev/null)
+                    for child in $children; do
                         kill "$child" 2>/dev/null
                     done
                     kill "$pid" 2>/dev/null
+                    attempts=0
+                    while [ "$attempts" -lt 20 ]; do
+                        alive=false
+                        kill -0 "$pid" 2>/dev/null && alive=true
+                        for child in $children; do
+                            kill -0 "$child" 2>/dev/null && alive=true
+                        done
+                        [ "$alive" = false ] && break
+                        usleep 100000
+                        attempts=$((attempts + 1))
+                    done
+                    if kill -0 "$pid" 2>/dev/null && \
+                        tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null | \
+                        grep -Eq 'provider-runner.sh|vcam-streamer|/system/bin/curl'; then
+                        kill -9 "$pid" 2>/dev/null
+                    fi
+                    for child in $children; do
+                        if kill -0 "$child" 2>/dev/null && \
+                            tr '\000' ' ' < "/proc/$child/cmdline" 2>/dev/null | \
+                            grep -Eq 'vcam-streamer|/system/bin/curl'; then
+                            kill -9 "$child" 2>/dev/null
+                        fi
+                    done
                 fi
                 ;;
         esac
         rm -f "$pid_file"
     fi
-    rm -f "$PROVIDER_FRAME_DIR/$id/enabled"
+    rm -f "$PROVIDER_FRAME_DIR/$id/enabled" "$PROVIDER_FRAME_DIR/$id/frame.rgb.new"
 }
 
 start_provider() {

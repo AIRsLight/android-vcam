@@ -99,6 +99,7 @@ git -C "$google_camera" apply --check "$google_patch" ||
 for required in \
     "$aosp_root/build/soong/soong_ui.bash" \
     "$aosp_root/prebuilts/clang/host/linux-x86" \
+    "$aosp_root/prebuilts/go/linux-x86" \
     "$aosp_root/prebuilts/jdk/jdk17" \
     "$aosp_root/system/core"; do
     [[ -e "$required" ]] || fail "required AOSP build dependency is missing: $required"

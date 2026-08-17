@@ -54,6 +54,7 @@ def main() -> None:
         ROOT / "tools" / "verify-aosp14-build.sh",
         ROOT / "tools" / "probe-device.ps1",
         ROOT / "docs" / "device-support.md",
+        ROOT / "tools" / "build-ffmpeg-android.sh",
     ]
     for path in required:
         if not path.is_file():
@@ -92,6 +93,8 @@ def main() -> None:
         "ANDROID_SENSOR_TIMESTAMP",
         "setSourcePath",
         "kMaxStreamDimension",
+        "kMaxOutputPixelRate",
+        "outputFrameDurationNs_",
     ):
         if required_symbol not in source:
             fail(f"HAL is missing expected symbol: {required_symbol}")
@@ -156,10 +159,30 @@ def main() -> None:
     controller = (ROOT / "apmodule" / "vcamctl").read_text(encoding="utf-8")
     for command in (
         "capabilities", "provider-add", "provider-remove", "provider-start", "route-set",
-        "provider-publish-stdin", "provider-import-media",
+        "provider-publish-stdin", "provider-import-media", "source-preview",
+        "provider-frame", "provider-update",
+        "route-save",
     ):
         if command not in controller:
             fail(f"provider controller is missing command: {command}")
+    if '--thumbnail "$frame" "$preview" 640 640' not in controller:
+        fail("provider preview must use a bounded backend thumbnail")
+
+    publisher = (ROOT / "native" / "frame_publisher.c").read_text(encoding="utf-8")
+    for required_symbol in (
+        "--thumbnail", "O_NOFOLLOW", "MAX_DIMENSION", "MAX_PIXELS",
+        "kYuvMagic", "FRAME_I420", "pread_exact",
+    ):
+        if required_symbol not in publisher:
+            fail(f"frame publisher lacks safe thumbnail support: {required_symbol}")
+
+    streamer = (ROOT / "native" / "stream_provider.c").read_text(encoding="utf-8")
+    for required_symbol in (
+        "AV_PIX_FMT_YUV420P", "MAX_SOURCE_DIMENSION", "MAX_SOURCE_PIXELS",
+        "MAX_PIXEL_RATE", "kYuvMagic",
+    ):
+        if required_symbol not in streamer:
+            fail(f"stream provider lacks high-resolution YUV support: {required_symbol}")
 
     probe = (ROOT / "apmodule" / "device-probe.sh").read_text(encoding="utf-8")
     for required_symbol in (
@@ -234,10 +257,33 @@ def main() -> None:
     for forbidden in ("ProcessBuilder", '"su"', "MANAGE_EXTERNAL_STORAGE"):
         if forbidden in manager_manifest or forbidden in manager_sources:
             fail(f"root-free manager contains forbidden capability: {forbidden}")
+    for required_symbol in (
+        "source-preview", "loadBackendNetworkPreview", "showProviderPreview",
+        "provider-frame", "刷新帧", "MAX_SOURCE_PIXEL_RATE", "12 MP",
+    ):
+        if required_symbol not in manager_sources:
+            fail(f"manager lacks source preview support: {required_symbol}")
+
+    service_scripts = controller + \
+        (ROOT / "apmodule" / "service.sh").read_text(encoding="utf-8") + \
+        (ROOT / "apmodule" / "boot-completed.sh").read_text(encoding="utf-8")
+    for required_symbol in ("autostart", "retry-provider", "camera-dump.txt"):
+        if required_symbol not in service_scripts:
+            fail(f"provider boot recovery is missing: {required_symbol}")
+
+    test_app = (ROOT / "testapp" / "src" / "io" / "github" / "androidvcam" /
+                "test" / "CameraPreviewActivity.java").read_text(encoding="utf-8")
+    for required_symbol in ("preview_width", "preview_height", "single_stream"):
+        if required_symbol not in test_app:
+            fail(f"Camera2 test app lacks high-resolution launch support: {required_symbol}")
     for required_symbol in ("LocalSocket", "VCAMD001", "SO_PEERCRED", "MANAGER_PACKAGE"):
         daemon_and_manager = manager_sources + (ROOT / "native" / "control_daemon.c").read_text(encoding="utf-8")
         if required_symbol not in daemon_and_manager:
             fail(f"authenticated manager transport is missing: {required_symbol}")
+
+    native_build = (ROOT / "native" / "CMakeLists.txt").read_text(encoding="utf-8")
+    if "libavformat.a" not in native_build or "device_avformat" in native_build:
+        fail("vcam-streamer must use the pinned static Android FFmpeg SDK")
 
     print("Source layout checks passed")
 

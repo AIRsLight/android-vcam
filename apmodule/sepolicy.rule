@@ -6,6 +6,7 @@ type vcamd domain
 typeattribute vcamd mlstrustedsubject
 permissive vcamd
 allow magisk vcamd process transition
+allow vcamd magisk process transition
 allow vcamd system_file file { entrypoint execute read open getattr map }
 allow untrusted_app vcamd unix_stream_socket connectto
 allow vcamd cameraserver_service service_manager find

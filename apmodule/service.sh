@@ -57,7 +57,12 @@ fi
 for provider in /data/adb/android_vcam/providers/*; do
     [ -f "$provider/meta" ] || continue
     id=${provider##*/}
-    [ -e "/data/vendor/camera/vcam/providers/$id/enabled" ] || continue
+    if [ -e "/data/vendor/camera/vcam/providers/$id/enabled" ] && \
+       [ ! -e "$provider/autostart" ]; then
+        touch "$provider/autostart"
+        chmod 0600 "$provider/autostart"
+    fi
+    [ -e "$provider/autostart" ] || continue
     "$MODDIR/vcamctl" provider-start "$id" >/dev/null 2>&1
 done
 

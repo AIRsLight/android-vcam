@@ -97,6 +97,7 @@ class VirtualCamera final {
     FrameRenderer frameRenderer_;
     RgbTransform sourceTransform_{};
     int64_t sourceFrameDurationNs_ = 33333333;
+    int64_t outputFrameDurationNs_ = 33333333;
 };
 
 }  // namespace vcam

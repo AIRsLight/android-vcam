@@ -41,6 +41,8 @@ public final class CameraPreviewActivity extends Activity {
     private int analyzedFrames;
     private String targetCameraId = "0";
     private boolean singleStream;
+    private int previewWidth = 1280;
+    private int previewHeight = 720;
     private Button switchCamera;
 
     @Override
@@ -51,6 +53,9 @@ public final class CameraPreviewActivity extends Activity {
             targetCameraId = requestedCamera;
         }
         singleStream = getIntent().getBooleanExtra("single_stream", false);
+        previewWidth = boundedDimension(getIntent().getIntExtra("preview_width", 1280), 1280);
+        previewHeight = boundedDimension(getIntent().getIntExtra("preview_height", 720), 720);
+        if ((long) previewWidth * previewHeight > 1920L * 1080L) singleStream = true;
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
         preview = new TextureView(this);
@@ -150,7 +155,7 @@ public final class CameraPreviewActivity extends Activity {
         CameraDevice device = camera;
         SurfaceTexture texture = preview.getSurfaceTexture();
         if (device == null || texture == null) return;
-        texture.setDefaultBufferSize(1280, 720);
+        texture.setDefaultBufferSize(previewWidth, previewHeight);
         previewSurface = new Surface(texture);
         if (singleStream) {
             createSingleStreamSession(device);
@@ -171,7 +176,8 @@ public final class CameraPreviewActivity extends Activity {
                     session = configured;
                     try {
                         configured.setRepeatingRequest(request.build(), null, cameraHandler);
-                        showStatus("Camera2 双流预览运行中，正在分析 YUV 帧…");
+                        showStatus("Camera2 双流预览 " + previewWidth + "×" + previewHeight +
+                                " 运行中，正在分析 YUV 帧…");
                     } catch (CameraAccessException error) {
                         showStatus("启动预览失败：" + error);
                     }
@@ -195,7 +201,8 @@ public final class CameraPreviewActivity extends Activity {
                     session = configured;
                     try {
                         configured.setRepeatingRequest(request.build(), null, cameraHandler);
-                        showStatus("Camera2 单流预览运行中");
+                        showStatus("Camera2 单流预览 " + previewWidth + "×" + previewHeight +
+                                " 运行中");
                     } catch (CameraAccessException error) {
                         showStatus("启动预览失败：" + error);
                     }
@@ -217,6 +224,10 @@ public final class CameraPreviewActivity extends Activity {
         Surface surface = previewSurface; previewSurface = null;
         if (surface != null) surface.release();
         analyzedFrames = 0;
+    }
+
+    private int boundedDimension(int value, int fallback) {
+        return value >= 2 && value <= 4096 ? value : fallback;
     }
 
     private void analyzeFrame(ImageReader reader) {

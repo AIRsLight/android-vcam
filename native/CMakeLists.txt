@@ -134,26 +134,30 @@ add_executable(vcam_control_daemon control_daemon.c)
 set_target_properties(vcam_control_daemon PROPERTIES OUTPUT_NAME vcamd)
 target_compile_options(vcam_control_daemon PRIVATE -Wall -Wextra -Werror)
 
-set(FFMPEG_SOURCE_DIR "${AOSP_REF}/ffmpeg")
-set(FFMPEG_LIBRARY_DIR "${AOSP_REF}/device-ffmpeg/lib64")
-if(EXISTS "${FFMPEG_SOURCE_DIR}/libavformat/avformat.h" AND
-   EXISTS "${FFMPEG_LIBRARY_DIR}/libavformat.so")
-    foreach(ffmpeg_library IN ITEMS avutil avcodec avformat swscale)
-        add_library("device_${ffmpeg_library}" SHARED IMPORTED)
-        set_target_properties("device_${ffmpeg_library}" PROPERTIES
-            IMPORTED_LOCATION "${FFMPEG_LIBRARY_DIR}/lib${ffmpeg_library}.so")
+set(FFMPEG_ANDROID_ROOT "${AOSP_REF}/ffmpeg-android/arm64-v8a" CACHE PATH
+    "Pinned static FFmpeg SDK built for Android arm64-v8a")
+set(FFMPEG_INCLUDE_DIR "${FFMPEG_ANDROID_ROOT}/include")
+set(FFMPEG_LIBRARY_DIR "${FFMPEG_ANDROID_ROOT}/lib")
+if(EXISTS "${FFMPEG_INCLUDE_DIR}/libavformat/avformat.h" AND
+   EXISTS "${FFMPEG_LIBRARY_DIR}/libavformat.a")
+    foreach(ffmpeg_library IN ITEMS avutil avcodec avformat swscale swresample)
+        add_library("bundled_${ffmpeg_library}" STATIC IMPORTED)
+        set_target_properties("bundled_${ffmpeg_library}" PROPERTIES
+            IMPORTED_LOCATION "${FFMPEG_LIBRARY_DIR}/lib${ffmpeg_library}.a")
     endforeach()
     add_executable(vcam_streamer stream_provider.c)
     set_target_properties(vcam_streamer PROPERTIES OUTPUT_NAME vcam-streamer)
-    target_include_directories(vcam_streamer PRIVATE
-        "${CMAKE_CURRENT_LIST_DIR}/ffmpeg_compat"
-        "${FFMPEG_SOURCE_DIR}"
-    )
+    target_include_directories(vcam_streamer PRIVATE "${FFMPEG_INCLUDE_DIR}")
     target_compile_options(vcam_streamer PRIVATE -Wall -Wextra)
     target_link_libraries(vcam_streamer PRIVATE
-        device_avformat device_avcodec device_swscale device_avutil)
+        "-Wl,--start-group"
+        bundled_avformat bundled_avcodec bundled_swscale bundled_swresample
+        bundled_avutil
+        "-Wl,--end-group"
+        z m dl)
 else()
-    message(WARNING "Pinned device FFmpeg SDK missing; vcam-streamer will not be built")
+    message(WARNING
+        "Pinned static Android FFmpeg SDK missing; run tools/build-ffmpeg-android.sh")
 endif()
 
 add_executable(vcam_gralloc_probe gralloc_probe.c)

@@ -15,11 +15,22 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
 
 - Physical cameras `physical-0` and `physical-1` are immutable providers and
   may both be used as sources or routing targets.
-- User providers can be added, stopped, started and removed independently.
+- User providers can be added, edited, stopped, started and removed independently.
+- Source decoding supports up to 4096x3072 with a bounded pixel-rate budget:
+  4K up to 15 fps and 12.6 MP up to 9 fps. Video and newly imported images use
+  planar YUV420 frames while legacy RGB providers remain compatible. Camera
+  output uses the same pixel-rate budget, so a lower-resolution source cannot
+  accidentally drive an application-requested 4K surface at 30 or 60 fps.
 - A native, root-free manager app separates status, providers and per-app
   camera 0/1 routes into tabs. Source creation includes a live preview,
   source FPS/resolution limits, and independent camera 0/1 framing with a
   fixed viewport, draggable media, pinch zoom and continuous zoom control.
+  Slow previews show in-form progress and preserve all entered values on failure.
+  Existing virtual sources expose their currently published frame through a
+  bounded backend thumbnail, with an in-place refresh action.
+- The route tab lists only configured packages. New routes can select only
+  unconfigured installed apps; uninstalling an app leaves its package route marked
+  temporarily unavailable, and reinstalling the same package restores it automatically.
 - A module-owned `vcamd` daemon persists configuration independently of the
   manager and exposes only an authenticated, fixed-command local protocol.
 - A transport-neutral route resolver is shared by the OEM compatibility proxy
@@ -28,10 +39,15 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
 - An Android 12 AOSP CameraService patch performs scoped redirection to hidden
   provider IDs 1000/1001 and fails closed for configured but unavailable
   providers.
-- Native FFmpeg 4.2.2 integration decodes local, HTTP, HTTP-HLS and RTSP input.
+- Provider intent is persisted separately from runtime state, allowing network
+  sources that start before Wi-Fi routing is ready to retry after boot completes.
+- A self-contained, statically linked FFmpeg 4.2.2 decoder handles local,
+  HTTP, HTTP-HLS and RTSP input without relying on the ROM's reduced protocol
+  set. Network preview and provider startup both require a decoded first frame.
 - HTTPS video files are downloaded through the ROM's BoringSSL-enabled curl,
   then decoded in the background.
-- A regular root-free Camera2 APK validates two-stream YUV preview.
+- A regular root-free Camera2 APK validates two-stream YUV preview and accepts
+  launch extras for single-stream high-resolution output tests.
 - Module installation is systemless and pinned to the tested ROM hashes.
 
 ## Pinned target
@@ -53,16 +69,23 @@ The tested toolchain is under `D:\AndroidSdk`: NDK `27.2.12479018`, CMake
 
 ```powershell
 pwsh -File tools/fetch-platform-deps.ps1
-pwsh -File tools/fetch-device-ffmpeg.ps1
 pwsh -File tools/package-release.ps1
+```
+
+Build the pinned static FFmpeg SDK once on Linux (the CI builder uses NDK
+r27d), then place its `arm64-v8a` output under
+`.reference/ffmpeg-android/arm64-v8a` before running `build-native.ps1`:
+
+```bash
+tools/build-ffmpeg-android.sh --ndk-root /path/to/android-ndk-r27d
 ```
 
 Outputs:
 
 ```text
-dist/android-vcam-apm-v0.3.2-dev.zip
-dist/android-vcam-manager-v0.3.2-dev-debug.apk
-dist/android-vcam-camera2-test-v0.3.2-dev-debug.apk
+dist/android-vcam-apm-v0.4.0-dev.zip
+dist/android-vcam-manager-v0.4.0-dev-debug.apk
+dist/android-vcam-camera2-test-v0.4.0-dev-debug.apk
 ```
 
 The APatch ZIP contains a patched copy of the pinned OEM HAL, the dependency

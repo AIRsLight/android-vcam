@@ -38,21 +38,29 @@ find_streamer() {
 }
 
 streamer=$(find_streamer) || exit 69
+run_streamer() {
+    /system/bin/runcon u:r:magisk:s0 "$streamer" \
+        "$1" "$frame" "$fps" "$max_width" "$max_height"
+}
 case "$type" in
     https)
-        cache="$STATE_DIR/$id/remote-video.cache"
+        cache="$FRAME_DIR/$id/remote-video.cache"
         temporary="$cache.new"
         rm -f "$temporary"
-        if ! /system/bin/curl --location --fail --silent --show-error \
+        if ! /system/bin/runcon u:r:magisk:s0 /system/bin/curl \
+            --location --fail --silent --show-error \
             --connect-timeout 15 --retry 3 --output "$temporary" "$source"; then
             rm -f "$temporary"
             exit 69
         fi
         mv -f "$temporary" "$cache"
-        "$streamer" "$cache" "$frame" "$fps" "$max_width" "$max_height"
+        chown camera:camera "$cache"
+        chmod 0640 "$cache"
+        restorecon "$cache" >/dev/null 2>&1
+        run_streamer "$cache"
         ;;
     http|hls|rtsp|video)
-        "$streamer" "$source" "$frame" "$fps" "$max_width" "$max_height"
+        run_streamer "$source"
         ;;
     *)
         exit 64

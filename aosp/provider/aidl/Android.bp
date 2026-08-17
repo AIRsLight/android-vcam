@@ -5,7 +5,9 @@ package {
 cc_library_shared {
     name: "libvcam_googlecamerahwl_impl",
     vendor: true,
-    defaults: ["libgooglecamerahwl_impl_defaults"],
+    defaults: [
+        "//hardware/google/camera/devices/EmulatedCamera/hwl:libgooglecamerahwl_impl_defaults",
+    ],
     srcs: ["VcamCameraProviderHwl.cpp"],
     cflags: ["-DANDROID_VCAM_CUSTOM_FACTORY"],
     include_dirs: [
@@ -17,8 +19,8 @@ cc_library_shared {
 cc_binary {
     name: "android.hardware.camera.provider-service-vcam",
     defaults: [
-        "camera_service_vcam_defaults",
-        "camera_service_eager_hal_defaults",
+        "//hardware/google/camera/common/hal/aidl_service:camera_service_vcam_defaults",
+        "//hardware/google/camera/common/hal/aidl_service:camera_service_eager_hal_defaults",
     ],
     required: ["libvcam_googlecamerahwl_impl"],
     init_rc: ["android.hardware.camera.provider-service-vcam.rc"],

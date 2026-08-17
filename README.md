@@ -31,6 +31,8 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
   temporarily unavailable, and reinstalling the same package restores it automatically.
 - A module-owned `vcamd` daemon persists configuration independently of the
   manager and exposes only an authenticated, fixed-command local protocol.
+- Provider intent is persisted separately from runtime state, allowing network
+  sources that start before Wi-Fi routing is ready to retry after boot completes.
 - A self-contained, statically linked FFmpeg 4.2.2 decoder handles local,
   HTTP, HTTP-HLS and RTSP input without relying on the ROM's reduced protocol
   set. Network preview and provider startup both require a decoded first frame.

@@ -120,6 +120,13 @@ def main() -> None:
         if required_symbol not in manager_sources:
             fail(f"manager lacks source preview support: {required_symbol}")
 
+    service_scripts = controller + \
+        (ROOT / "apmodule" / "service.sh").read_text(encoding="utf-8") + \
+        (ROOT / "apmodule" / "boot-completed.sh").read_text(encoding="utf-8")
+    for required_symbol in ("autostart", "retry-provider"):
+        if required_symbol not in service_scripts:
+            fail(f"provider boot recovery is missing: {required_symbol}")
+
     test_app = (ROOT / "testapp" / "src" / "io" / "github" / "androidvcam" /
                 "test" / "CameraPreviewActivity.java").read_text(encoding="utf-8")
     for required_symbol in ("preview_width", "preview_height", "single_stream"):

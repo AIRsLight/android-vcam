@@ -31,3 +31,14 @@ if [ "$healthy" -ne 1 ]; then
 else
     echo "Camera health check passed" >> "$LOG_FILE"
 fi
+
+# late_start can run before Wi-Fi has a route. Retry providers that the user
+# left enabled but which could not publish a frame during early boot.
+for provider in /data/adb/android_vcam/providers/*; do
+    [ -f "$provider/meta" ] || continue
+    [ -e "$provider/autostart" ] || continue
+    id=${provider##*/}
+    [ -e "/data/vendor/camera/vcam/providers/$id/enabled" ] && continue
+    echo "retry-provider=$id" >> "$LOG_FILE"
+    "$MODDIR/vcamctl" provider-start "$id" >> "$LOG_FILE" 2>&1
+done

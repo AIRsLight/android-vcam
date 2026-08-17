@@ -281,7 +281,10 @@ provider_update() {
     temporary="$meta.new-$$"
     cp "$meta" "$backup" || return 4
     was_enabled=false
-    [ -e "$PROVIDER_FRAME_DIR/$id/enabled" ] && was_enabled=true
+    if [ -e "$PROVIDER_FRAME_DIR/$id/enabled" ] || \
+       [ -e "$PROVIDER_STATE_DIR/$id/autostart" ]; then
+        was_enabled=true
+    fi
     awk '!/^(name_b64|source_b64|fps|max_width|max_height|view0|view1)=/' \
         "$meta" > "$temporary" || { rm -f "$backup" "$temporary"; return 4; }
     {
@@ -301,7 +304,7 @@ provider_update() {
                     cp "$backup" "$meta"
                     chmod 0600 "$meta"
                     write_runtime_config "$id" >/dev/null 2>&1
-                    start_provider >/dev/null 2>&1
+                    start_provider "$id" >/dev/null 2>&1
                     rm -f "$backup"
                     echo "provider update failed: $start_error" >&2
                     return 6
@@ -315,6 +318,7 @@ provider_update() {
 
 stop_provider() {
     id="$1"
+    preserve_autostart="${2:-false}"
     pid_file="$PROVIDER_STATE_DIR/$id/stream.pid"
     if [ -f "$pid_file" ]; then
         pid=$(cat "$pid_file" 2>/dev/null)
@@ -356,6 +360,7 @@ stop_provider() {
         rm -f "$pid_file"
     fi
     rm -f "$PROVIDER_FRAME_DIR/$id/enabled" "$PROVIDER_FRAME_DIR/$id/frame.rgb.new"
+    [ "$preserve_autostart" = true ] || rm -f "$PROVIDER_STATE_DIR/$id/autostart"
 }
 
 start_provider() {
@@ -367,8 +372,11 @@ start_provider() {
     case "$id" in physical-0|physical-1) echo "physical provider is always running"; return 0 ;; esac
     meta="$PROVIDER_STATE_DIR/$id/meta"
     type=$(meta_value type "$meta")
+    autostart="$PROVIDER_STATE_DIR/$id/autostart"
     case "$type" in
         pattern)
+            touch "$autostart"
+            chmod 0600 "$autostart"
             touch "$PROVIDER_FRAME_DIR/$id/enabled"
             chown camera:camera "$PROVIDER_FRAME_DIR/$id/enabled"
             chmod 0640 "$PROVIDER_FRAME_DIR/$id/enabled"
@@ -381,6 +389,8 @@ start_provider() {
                 echo "image provider has no published frame" >&2
                 return 5
             }
+            touch "$autostart"
+            chmod 0600 "$autostart"
             touch "$PROVIDER_FRAME_DIR/$id/enabled"
             chown camera:camera "$PROVIDER_FRAME_DIR/$id/enabled"
             chmod 0640 "$PROVIDER_FRAME_DIR/$id/enabled"
@@ -389,7 +399,9 @@ start_provider() {
             return 0
             ;;
     esac
-    stop_provider "$id"
+    touch "$autostart"
+    chmod 0600 "$autostart"
+    stop_provider "$id" true
     runner=$(find_runner) || { echo "provider runner not found" >&2; return 4; }
     log="$PROVIDER_STATE_DIR/$id/stream.log"
     frame="$PROVIDER_FRAME_DIR/$id/frame.rgb"
@@ -414,7 +426,7 @@ start_provider() {
         attempts=$((attempts + 1))
     done
     last_error=$(tail -n 1 "$log" 2>/dev/null)
-    stop_provider "$id"
+    stop_provider "$id" true
     if [ -n "$last_error" ]; then
         echo "video source did not produce a frame: $last_error" >&2
     else

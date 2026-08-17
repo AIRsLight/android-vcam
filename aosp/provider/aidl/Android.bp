@@ -30,3 +30,17 @@ cc_binary {
     init_rc: ["android.hardware.camera.provider-service-vcam.rc"],
     vintf_fragments: ["android.hardware.camera.provider-service-vcam.xml"],
 }
+
+// Android 14 promotes the camera provider interface to stable AIDL v2. The
+// installed stem remains unchanged so the init contract is shared with v1.
+cc_binary {
+    name: "android.hardware.camera.provider-service-vcam-v2",
+    stem: "android.hardware.camera.provider-service-vcam",
+    defaults: [
+        "//hardware/google/camera/common/hal/aidl_service:camera_service_vcam_defaults",
+        "//hardware/google/camera/common/hal/aidl_service:camera_service_eager_hal_defaults",
+    ],
+    required: ["libvcam_googlecamerahwl_impl"],
+    init_rc: ["android.hardware.camera.provider-service-vcam.rc"],
+    vintf_fragments: ["android-14/android.hardware.camera.provider-service-vcam.xml"],
+}

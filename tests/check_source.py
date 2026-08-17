@@ -33,6 +33,9 @@ def main() -> None:
         ROOT / "aosp" / "provider" / "aidl" / "Android.bp",
         ROOT / "aosp" / "provider" / "aidl" / "VcamCameraProviderHwl.cpp",
         ROOT / "aosp" / "provider" / "aidl" / "android-13" / "hardware-google-camera.patch",
+        ROOT / "aosp" / "provider" / "aidl" / "android-14" / "hardware-google-camera.patch",
+        ROOT / "aosp" / "provider" / "aidl" / "android-14" /
+        "android.hardware.camera.provider-service-vcam.xml",
         ROOT / "aosp" / "provider" / "sepolicy" / "file_contexts",
         ROOT / "hal" / "include" / "vcam" / "FrameRenderer.h",
         ROOT / "hal" / "include" / "vcam" / "RouteResolver.h",
@@ -43,10 +46,12 @@ def main() -> None:
         ROOT / "tests" / "route_resolver_test.cpp",
         ROOT / "tests" / "scoped_camera_router_test.cpp",
         ROOT / "aosp" / "cameraservice" / "android-12" / "frameworks-av.patch",
+        ROOT / "aosp" / "cameraservice" / "android-14" / "frameworks-av.patch",
         ROOT / "aosp" / "cameraservice" / "android-12" / "frameworks-base-license.bp",
         ROOT / "tools" / "create-module-zip.py",
         ROOT / "tools" / "apply-aosp-cameraservice-patch.ps1",
         ROOT / "tools" / "verify-aosp-build.ps1",
+        ROOT / "tools" / "verify-aosp14-build.sh",
         ROOT / "tools" / "probe-device.ps1",
         ROOT / "docs" / "device-support.md",
     ]
@@ -190,9 +195,25 @@ def main() -> None:
         "kFrontCameraId = 1001", "kVcamClientPackageTag",
         "libvcam_frame_core", "libvcam_route_core", "ConfigureRoutedFrame",
         "VcamSetActiveFrame", "VcamRenderYuv420", "VcamRenderRgb",
+        "android.hardware.camera.provider-service-vcam-v2",
     ):
         if required_symbol not in aidl_provider:
             fail(f"AOSP AIDL provider is missing symbol: {required_symbol}")
+    aidl_v2_manifest = (
+        ROOT / "aosp" / "provider" / "aidl" / "android-14" /
+        "android.hardware.camera.provider-service-vcam.xml"
+    ).read_text(encoding="utf-8")
+    if "<version>2</version>" not in aidl_v2_manifest:
+        fail("Android 14 provider manifest does not declare stable AIDL v2")
+    cameraservice14_patch = (
+        ROOT / "aosp" / "cameraservice" / "android-14" / "frameworks-av.patch"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "resolveScopedCameraId", "routedClientPackageName",
+        "kVcamClientPackageTag", "mClientPackageName",
+    ):
+        if required_symbol not in cameraservice14_patch:
+            fail(f"Android 14 CameraService patch is missing: {required_symbol}")
     vendor_tags = (ROOT / "hal" / "include" / "vcam" / "VendorTags.h").read_text(
         encoding="utf-8"
     )

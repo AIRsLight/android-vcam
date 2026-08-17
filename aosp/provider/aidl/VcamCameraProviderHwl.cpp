@@ -346,7 +346,7 @@ class VcamCameraDeviceSessionHwl final : public gch::CameraDeviceSessionHwl {
     const int64_t output_fps = static_cast<int64_t>(std::max<uint64_t>(
         1, std::min<uint64_t>(60, kMaxOutputPixelRate / max_output_pixels)));
     frame_duration_ns_ =
-        std::max(source_frame_duration, 1000000000LL / output_fps);
+        std::max<int64_t>(source_frame_duration, 1000000000LL / output_fps);
     next_frame_time_ = {};
     ALOGI("Configured AIDL route camera=%u outputFps=%lld",
           public_id_, static_cast<long long>(1000000000LL / frame_duration_ns_));

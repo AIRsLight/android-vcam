@@ -106,6 +106,22 @@ up to 4096x3072 and applies source-aware, pixel-budgeted frame pacing. This is
 a tier-1 AOSP/ROM integration check; it is not a systemless stock-ROM package
 and must not be installed on an arbitrary OEM Android 14 device.
 
+After initializing the space-conscious Android 14 base checkout, use the
+version-specific dependency helper before the validator. It synchronizes only
+the explicit camera-target closure encountered at r23, including both JDK 17
+for Soong and JDK 11 for Bazel; it does not request a complete AOSP checkout:
+
+```bash
+tools/sync-aosp14-build-deps.sh \
+    --aosp-root /aosp/src/android-14.0.0_r23
+tools/verify-aosp14-build.sh \
+    --aosp-root /aosp/src/android-14.0.0_r23 \
+    --mode build --jobs 8
+```
+
+If the builder needs a proxy, append `--proxy-url http://host:port` to the
+dependency synchronization command. The proxy is exported only for that run.
+
 ## Recovery
 
 If Android boots, disable `android_vcam` in APatch and reboot. If it does not,

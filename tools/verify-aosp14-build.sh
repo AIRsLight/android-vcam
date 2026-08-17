@@ -98,9 +98,16 @@ git -C "$google_camera" apply --check "$google_patch" ||
 
 for required in \
     "$aosp_root/build/soong/soong_ui.bash" \
+    "$aosp_root/prebuilts/bazel/common" \
+    "$aosp_root/prebuilts/bazel/linux-x86_64" \
+    "$aosp_root/prebuilts/build-tools/linux-x86" \
     "$aosp_root/prebuilts/clang/host/linux-x86" \
     "$aosp_root/prebuilts/go/linux-x86" \
+    "$aosp_root/prebuilts/jdk/jdk11" \
     "$aosp_root/prebuilts/jdk/jdk17" \
+    "$aosp_root/frameworks/base" \
+    "$aosp_root/frameworks/native" \
+    "$aosp_root/hardware/libhardware" \
     "$aosp_root/system/core"; do
     [[ -e "$required" ]] || fail "required AOSP build dependency is missing: $required"
 done
@@ -171,6 +178,22 @@ export DISABLE_PREOPT=true
 set +u
 source build/envsetup.sh >/dev/null
 lunch aosp_arm64-eng >/dev/null
+# --soong-only skips Kati, while Google's AIDL camera version generator reads
+# the standard build number file that Kati normally creates. Query AOSP's own
+# dumpvar interface, then mirror main.mk's compare-and-replace behavior without
+# evaluating unrelated product installation rules in this reduced checkout.
+build_number=$(build/soong/soong_ui.bash --dumpvar-mode BUILD_NUMBER)
+[[ -n "$build_number" && "$build_number" != *$'\n'* ]] ||
+    fail "AOSP dumpvar returned an invalid BUILD_NUMBER"
+mkdir -p "$OUT_DIR/soong"
+printf '%s' "$build_number" >"$OUT_DIR/soong/build_number.tmp"
+if ! cmp -s "$OUT_DIR/soong/build_number.tmp" "$OUT_DIR/soong/build_number.txt"; then
+    mv "$OUT_DIR/soong/build_number.tmp" "$OUT_DIR/soong/build_number.txt"
+else
+    rm "$OUT_DIR/soong/build_number.tmp"
+fi
+[[ -s "$OUT_DIR/soong/build_number.txt" ]] ||
+    fail "AOSP build initialization did not create soong/build_number.txt"
 m --soong-only -j"$jobs" WITH_DEXPREOPT=false \
     libcameraservice \
     libvcam_googlecamerahwl_impl \
@@ -180,16 +203,16 @@ set -u
 for artifact in \
     "$OUT_DIR/soong/target/product/generic_arm64/system/lib64/libcameraservice.so" \
     "$OUT_DIR/soong/target/product/generic_arm64/vendor/lib64/libvcam_googlecamerahwl_impl.so" \
-    "$OUT_DIR/soong/target/product/generic_arm64/vendor/bin/hw/android.hardware.camera.provider-service-vcam"; do
+    "$OUT_DIR/soong/target/product/generic_arm64/vendor/bin/hw/android.hardware.camera.provider-service-vcam-v2"; do
     [[ -s "$artifact" ]] || fail "expected build artifact is missing: $artifact"
     printf 'Verified artifact: %s\n' "$artifact"
 done
 
 hwl_artifact="$OUT_DIR/soong/target/product/generic_arm64/vendor/lib64/libvcam_googlecamerahwl_impl.so"
-llvm_readelf=$(find "$aosp_root/prebuilts/clang/host/linux-x86" \
-    -path '*/bin/llvm-readelf' -type f -print -quit)
-[[ -x "$llvm_readelf" ]] || fail "llvm-readelf is missing from the Android 14 prebuilts"
-hwl_symbols=$("$llvm_readelf" -Ws "$hwl_artifact")
+llvm_nm=$(find "$aosp_root/prebuilts/clang/host/linux-x86" \
+    -path '*/bin/llvm-nm' -type f -print | sort -V | tail -n 1)
+[[ -x "$llvm_nm" ]] || fail "llvm-nm is missing from the Android 14 prebuilts"
+hwl_symbols=$("$llvm_nm" -D --defined-only "$hwl_artifact")
 for symbol in \
     CreateCameraProviderHwl \
     VcamAdjustCameraMetadata \

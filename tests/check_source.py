@@ -35,7 +35,9 @@ def main() -> None:
         ROOT / "aosp" / "provider" / "aidl" / "android-13" / "hardware-google-camera.patch",
         ROOT / "aosp" / "provider" / "aidl" / "android-14" / "hardware-google-camera.patch",
         ROOT / "aosp" / "provider" / "aidl" / "android-14" /
-        "android.hardware.camera.provider-service-vcam.xml",
+        "android.hardware.camera.provider-service-vcam-v2.xml",
+        ROOT / "aosp" / "provider" / "aidl" / "android-14" /
+        "android.hardware.camera.provider-service-vcam-v2.rc",
         ROOT / "aosp" / "provider" / "sepolicy" / "file_contexts",
         ROOT / "hal" / "include" / "vcam" / "FrameRenderer.h",
         ROOT / "hal" / "include" / "vcam" / "RouteResolver.h",
@@ -52,6 +54,7 @@ def main() -> None:
         ROOT / "tools" / "apply-aosp-cameraservice-patch.ps1",
         ROOT / "tools" / "verify-aosp-build.ps1",
         ROOT / "tools" / "verify-aosp14-build.sh",
+        ROOT / "tools" / "sync-aosp14-build-deps.sh",
         ROOT / "tools" / "probe-device.ps1",
         ROOT / "docs" / "device-support.md",
         ROOT / "tools" / "build-ffmpeg-android.sh",
@@ -224,19 +227,20 @@ def main() -> None:
         "VcamAdjustCameraMetadata", "AddHighResolutionMetadata",
         "kMaxOutputPixelRate", "outputFps", "emu_camera_back.json",
         "android.hardware.camera.provider-service-vcam-v2",
+        "android.hardware.camera.provider-service-vcam-v2.rc",
     ):
         if required_symbol not in aidl_provider:
             fail(f"AOSP AIDL provider is missing symbol: {required_symbol}")
     aidl_v2_manifest = (
         ROOT / "aosp" / "provider" / "aidl" / "android-14" /
-        "android.hardware.camera.provider-service-vcam.xml"
+        "android.hardware.camera.provider-service-vcam-v2.xml"
     ).read_text(encoding="utf-8")
     if "<version>2</version>" not in aidl_v2_manifest:
         fail("Android 14 provider manifest does not declare stable AIDL v2")
     provider_file_contexts = (
         ROOT / "aosp" / "provider" / "sepolicy" / "file_contexts"
     ).read_text(encoding="utf-8")
-    if "android\\.hardware\\.camera\\.provider-service-vcam" not in provider_file_contexts:
+    if "android\\.hardware\\.camera\\.provider-service-vcam-v2" not in provider_file_contexts:
         fail("Android 14 provider executable lacks a hal_camera_default_exec mapping")
     cameraservice14_patch = (
         ROOT / "aosp" / "cameraservice" / "android-14" / "frameworks-av.patch"

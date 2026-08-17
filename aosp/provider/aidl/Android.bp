@@ -36,11 +36,11 @@ cc_binary {
     vintf_fragments: ["android.hardware.camera.provider-service-vcam.xml"],
 }
 
-// Android 14 promotes the camera provider interface to stable AIDL v2. The
-// installed stem remains unchanged so the init contract is shared with v1.
+// Android 14 promotes the camera provider interface to stable AIDL v2. Keep a
+// distinct installed filename so Soong can parse the v1 and v2 definitions in
+// the same namespace without generating two rules for one output path.
 cc_binary {
     name: "android.hardware.camera.provider-service-vcam-v2",
-    stem: "android.hardware.camera.provider-service-vcam",
     defaults: [
         "//hardware/google/camera/common/hal/aidl_service:camera_service_vcam_defaults",
         "//hardware/google/camera/common/hal/aidl_service:camera_service_eager_hal_defaults",
@@ -51,6 +51,6 @@ cc_binary {
         "emu_camera_front.json",
         "emu_camera_depth.json",
     ],
-    init_rc: ["android.hardware.camera.provider-service-vcam.rc"],
-    vintf_fragments: ["android-14/android.hardware.camera.provider-service-vcam.xml"],
+    init_rc: ["android-14/android.hardware.camera.provider-service-vcam-v2.rc"],
+    vintf_fragments: ["android-14/android.hardware.camera.provider-service-vcam-v2.xml"],
 }

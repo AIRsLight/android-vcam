@@ -1,0 +1,7 @@
+service vendor.camera-provider-vcam /vendor/bin/hw/android.hardware.camera.provider-service-vcam-v2
+    class hal
+    user system
+    group system
+    capabilities SYS_NICE
+    rlimit rtprio 10 10
+    task_profiles CameraServiceCapacity CameraServicePerformance

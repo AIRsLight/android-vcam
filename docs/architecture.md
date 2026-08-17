@@ -32,10 +32,18 @@ frames live at `/data/vendor/camera/vcam/providers/<id>/frame.rgb`; the
 presence of `enabled` activates that provider. Missing or disabled providers
 fail closed to the target camera's physical source.
 
-Remote providers run one background `vcam-streamer` process. It uses the ROM's
-pinned FFmpeg libraries, scales to at most 640x360 at 15 fps and atomically
-publishes `VCAMRGB1` frames. HTTPS files use system curl because this ROM's
-FFmpeg build has no HTTPS protocol.
+Remote providers run one background `vcam-streamer` process. FFmpeg 4.2.2 is
+linked statically into that executable so RTSP/HTTP/HLS availability does not
+depend on a vendor `libavformat.so`. The runner enters APatch's `magisk` domain
+only to inherit Android's default-network routing; `vcam-streamer` immediately
+drops to the `camera` UID before opening a socket or parsing media. It scales
+to the configured source limit and atomically publishes `VCAMRGB1` frames.
+HTTPS files still use the ROM's BoringSSL-enabled curl before decoding.
+
+The manager requests RTSP previews from the same backend decoder used at
+runtime. `provider-start` removes stale output and waits up to 15 seconds for a
+new first frame, so a missing protocol, route or decoder is returned as an
+error instead of leaving a false "running" provider.
 
 The module declares `skip_mount`, so it does not depend on an APatch
 metamodule. Guarded `post-mount.sh` binds the proxy over the pinned, otherwise

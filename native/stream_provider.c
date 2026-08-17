@@ -4,6 +4,7 @@
  */
 #include <errno.h>
 #include <fcntl.h>
+#include <grp.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -25,6 +26,22 @@
 static const uint8_t kMagic[8] = {'V', 'C', 'A', 'M', 'R', 'G', 'B', '1'};
 static const char* kProviderPrefix = "/data/vendor/camera/vcam/providers/";
 static volatile sig_atomic_t gRunning = 1;
+
+static int drop_to_camera(void) {
+    if (getuid() == 0) {
+        if (setgroups(0, NULL) != 0 || setgid(CAMERA_AID) != 0 ||
+            setuid(CAMERA_AID) != 0) {
+            fprintf(stderr, "vcam-streamer: unable to drop to camera uid: %s\n",
+                    strerror(errno));
+            return -1;
+        }
+    }
+    if (getuid() != CAMERA_AID || getgid() != CAMERA_AID) {
+        fprintf(stderr, "vcam-streamer: must run as root or camera uid\n");
+        return -1;
+    }
+    return 0;
+}
 
 static void handle_signal(int signal_number) {
     (void)signal_number;
@@ -100,7 +117,7 @@ static void output_dimensions(int input_width, int input_height,
 
 static int decode_source(const char* source, const char* output_path,
                          int output_fps, int max_width, int max_height,
-                         uint32_t* sequence) {
+                         uint32_t* sequence, int single_frame) {
     AVFormatContext* format = NULL;
     AVCodecContext* codec = NULL;
     AVPacket* packet = NULL;
@@ -116,7 +133,9 @@ static int decode_source(const char* source, const char* output_path,
     int64_t next_frame_time = 0;
 
     av_dict_set(&options, "rw_timeout", "10000000", 0);
-    av_dict_set(&options, "timeout", "10000000", 0);
+    // FFmpeg 4.2 interprets the deprecated RTSP "timeout" option as a
+    // listen timeout and silently switches the demuxer into server mode.
+    // stimeout is the client-side TCP I/O timeout on this pinned build.
     av_dict_set(&options, "stimeout", "10000000", 0);
     av_dict_set(&options, "rtsp_transport", "tcp", 0);
     av_dict_set(&options, "user_agent", "android-vcam/0.3", 0);
@@ -126,7 +145,7 @@ static int decode_source(const char* source, const char* output_path,
     result = avformat_find_stream_info(format, NULL);
     if (result < 0) goto cleanup;
 
-    const AVCodec* decoder = NULL;
+    AVCodec* decoder = NULL;
     video_stream = av_find_best_stream(format, AVMEDIA_TYPE_VIDEO, -1, -1,
                                        &decoder, 0);
     if (video_stream < 0 || decoder == NULL) {
@@ -176,6 +195,10 @@ static int decode_source(const char* source, const char* output_path,
             result = publish_frame(output_path, rgb_data[0], rgb_linesize[0],
                                    output_width, output_height, ++*sequence);
             if (result < 0) goto cleanup;
+            if (single_frame) {
+                result = 0;
+                goto cleanup;
+            }
             next_frame_time = av_gettime_relative() + 1000000 / output_fps;
             av_frame_unref(frame);
         }
@@ -200,9 +223,10 @@ cleanup:
 }
 
 int main(int argc, char** argv) {
-    if (argc != 6 || strncmp(argv[2], kProviderPrefix,
+    const int single_frame = argc == 7 && strcmp(argv[6], "--once") == 0;
+    if ((argc != 6 && !single_frame) || strncmp(argv[2], kProviderPrefix,
                              strlen(kProviderPrefix)) != 0) {
-        fprintf(stderr, "usage: vcam-streamer <url-or-path> <provider-frame.rgb> <fps> <max-width> <max-height>\n");
+        fprintf(stderr, "usage: vcam-streamer <url-or-path> <provider-frame.rgb> <fps> <max-width> <max-height> [--once]\n");
         return 64;
     }
     const int output_fps = atoi(argv[3]);
@@ -213,6 +237,10 @@ int main(int argc, char** argv) {
         fprintf(stderr, "vcam-streamer: invalid output configuration\n");
         return 64;
     }
+    // The APatch magisk SELinux domain has Android's default-network access,
+    // while the isolated controller domain does not. Drop DAC privileges
+    // before parsing any untrusted media or opening a network socket.
+    if (drop_to_camera() != 0) return 77;
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
     signal(SIGHUP, handle_signal);
@@ -221,8 +249,13 @@ int main(int argc, char** argv) {
 
     uint32_t sequence = (uint32_t)(av_gettime_relative() / 1000000);
     while (gRunning) {
-        decode_source(argv[1], argv[2], output_fps, max_width, max_height,
-                      &sequence);
+        const int result = decode_source(argv[1], argv[2], output_fps,
+                                         max_width, max_height, &sequence,
+                                         single_frame);
+        if (single_frame) {
+            avformat_network_deinit();
+            return result < 0 ? 69 : 0;
+        }
         if (gRunning) av_usleep(2000000);
     }
     avformat_network_deinit();

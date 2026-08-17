@@ -20,7 +20,9 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
   fixed viewport, draggable media, pinch zoom and continuous zoom control.
 - A module-owned `vcamd` daemon persists configuration independently of the
   manager and exposes only an authenticated, fixed-command local protocol.
-- Native FFmpeg 4.2.2 integration decodes local, HTTP, HTTP-HLS and RTSP input.
+- A self-contained, statically linked FFmpeg 4.2.2 decoder handles local,
+  HTTP, HTTP-HLS and RTSP input without relying on the ROM's reduced protocol
+  set. Network preview and provider startup both require a decoded first frame.
 - HTTPS video files are downloaded through the ROM's BoringSSL-enabled curl,
   then decoded in the background.
 - A regular root-free Camera2 APK validates two-stream YUV preview.
@@ -45,16 +47,23 @@ The tested toolchain is under `D:\AndroidSdk`: NDK `27.2.12479018`, CMake
 
 ```powershell
 pwsh -File tools/fetch-platform-deps.ps1
-pwsh -File tools/fetch-device-ffmpeg.ps1
 pwsh -File tools/package-release.ps1
+```
+
+Build the pinned static FFmpeg SDK once on Linux (the CI builder uses NDK
+r27d), then place its `arm64-v8a` output under
+`.reference/ffmpeg-android/arm64-v8a` before running `build-native.ps1`:
+
+```bash
+tools/build-ffmpeg-android.sh --ndk-root /path/to/android-ndk-r27d
 ```
 
 Outputs:
 
 ```text
-dist/android-vcam-apm-v0.3.2-dev.zip
-dist/android-vcam-manager-v0.3.2-dev-debug.apk
-dist/android-vcam-camera2-test-v0.3.2-dev-debug.apk
+dist/android-vcam-apm-v0.3.3-dev.zip
+dist/android-vcam-manager-v0.3.3-dev-debug.apk
+dist/android-vcam-camera2-test-v0.3.3-dev-debug.apk
 ```
 
 The APatch ZIP contains a patched copy of the pinned OEM HAL, the dependency

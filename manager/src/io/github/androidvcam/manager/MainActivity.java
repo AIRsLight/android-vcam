@@ -440,6 +440,9 @@ public final class MainActivity extends Activity {
                 return bitmap;
             }
         }
+        if ("rtsp".equals(pending.type)) {
+            return loadBackendNetworkPreview(pending);
+        }
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
         try {
             if (pending.uri != null) retriever.setDataSource(this, pending.uri);
@@ -450,6 +453,41 @@ public final class MainActivity extends Activity {
         } catch (RuntimeException error) {
             throw new IOException("无法读取视频源预览，请检查地址或媒体格式", error);
         } finally { retriever.release(); }
+    }
+
+    private Bitmap loadBackendNetworkPreview(PendingProvider pending) throws IOException {
+        BackendClient.Result preview = BackendClient.controller(
+                "source-preview", pending.type, BackendClient.encode(pending.source));
+        preview.requireSuccess();
+        byte[] frame;
+        try {
+            frame = android.util.Base64.decode(preview.output, android.util.Base64.DEFAULT);
+        } catch (IllegalArgumentException error) {
+            throw new IOException("后端返回的预览帧无效", error);
+        }
+        if (frame.length < 24) throw new IOException("后端返回的预览帧不完整");
+        byte[] magic = {'V', 'C', 'A', 'M', 'R', 'G', 'B', '1'};
+        for (int index = 0; index < magic.length; ++index) {
+            if (frame[index] != magic[index]) throw new IOException("后端返回的预览帧格式无效");
+        }
+        ByteBuffer header = ByteBuffer.wrap(frame).order(ByteOrder.LITTLE_ENDIAN);
+        int width = header.getInt(8);
+        int height = header.getInt(12);
+        int payload = header.getInt(16);
+        long expected = (long) width * height * 3;
+        if (width < 2 || width > 1920 || height < 2 || height > 1920 ||
+                payload != expected || frame.length != 24L + expected) {
+            throw new IOException("后端返回的预览帧尺寸无效");
+        }
+        int[] pixels = new int[width * height];
+        int offset = 24;
+        for (int index = 0; index < pixels.length; ++index) {
+            int red = frame[offset++] & 0xff;
+            int green = frame[offset++] & 0xff;
+            int blue = frame[offset++] & 0xff;
+            pixels[index] = Color.rgb(red, green, blue);
+        }
+        return Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888);
     }
 
     private Paint colorPaint(int color) { Paint paint = new Paint(); paint.setColor(color); return paint; }
@@ -540,7 +578,7 @@ public final class MainActivity extends Activity {
     private void importVideo(PendingProvider pending) {
         toast("正在导入本地视频…");
         runAsync(() -> {
-            String modulePath = "/data/adb/android_vcam/providers/" + pending.id + "/source.media";
+            String modulePath = "/data/vendor/camera/vcam/providers/" + pending.id + "/source.media";
             BackendClient.Result added = BackendClient.controller("provider-add", pending.id, "video",
                     BackendClient.encode(pending.name), BackendClient.encode(modulePath));
             added.requireSuccess();

@@ -26,6 +26,7 @@ def main() -> None:
         ROOT / "apmodule" / "vcamctl",
         ROOT / "apmodule" / "webroot" / "app.js",
         ROOT / "tools" / "create-module-zip.py",
+        ROOT / "tools" / "build-ffmpeg-android.sh",
     ]
     for path in required:
         if not path.is_file():
@@ -77,7 +78,7 @@ def main() -> None:
     controller = (ROOT / "apmodule" / "vcamctl").read_text(encoding="utf-8")
     for command in (
         "provider-add", "provider-remove", "provider-start", "route-set",
-        "provider-publish-stdin", "provider-import-media",
+        "provider-publish-stdin", "provider-import-media", "source-preview",
     ):
         if command not in controller:
             fail(f"provider controller is missing command: {command}")
@@ -90,10 +91,17 @@ def main() -> None:
     for forbidden in ("ProcessBuilder", '"su"', "MANAGE_EXTERNAL_STORAGE"):
         if forbidden in manager_manifest or forbidden in manager_sources:
             fail(f"root-free manager contains forbidden capability: {forbidden}")
+    for required_symbol in ("source-preview", "loadBackendNetworkPreview"):
+        if required_symbol not in manager_sources:
+            fail(f"manager lacks backend network preview support: {required_symbol}")
     for required_symbol in ("LocalSocket", "VCAMD001", "SO_PEERCRED", "MANAGER_PACKAGE"):
         daemon_and_manager = manager_sources + (ROOT / "native" / "control_daemon.c").read_text(encoding="utf-8")
         if required_symbol not in daemon_and_manager:
             fail(f"authenticated manager transport is missing: {required_symbol}")
+
+    native_build = (ROOT / "native" / "CMakeLists.txt").read_text(encoding="utf-8")
+    if "libavformat.a" not in native_build or "device_avformat" in native_build:
+        fail("vcam-streamer must use the pinned static Android FFmpeg SDK")
 
     print("Source layout checks passed")
 

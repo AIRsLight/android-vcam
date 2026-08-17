@@ -39,6 +39,7 @@ static const struct command_rule k_rules[] = {
     {"provider-remove", 1, 0},
     {"provider-start", 1, 0},
     {"provider-stop", 1, 0},
+    {"source-preview", 2, 0},
     {"provider-publish-stdin", 1, MAX_IMAGE_PAYLOAD},
     {"provider-import-media", 1, MAX_MEDIA_PAYLOAD},
     {"provider-config", 1, 0},

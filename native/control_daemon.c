@@ -54,6 +54,7 @@ static const struct command_rule k_rules[] = {
     {"routes", 0, 0},
     {"route-set", 3, 0},
     {"route-remove", 2, 0},
+    {"route-save", 3, 0},
 };
 
 static bool read_exact(int fd, void *buffer, size_t length) {

@@ -68,6 +68,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -88,7 +90,6 @@ public final class MainActivity extends Activity {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final List<Provider> providers = new ArrayList<>();
     private final List<AppEntry> allApps = new ArrayList<>();
-    private final List<AppEntry> visibleApps = new ArrayList<>();
     private final Map<String, String> routes = new HashMap<>();
 
     private FrameLayout content;
@@ -101,19 +102,20 @@ public final class MainActivity extends Activity {
     private TextView routeCountText;
     private TextView halText;
     private LinearLayout providerList;
+    private LinearLayout routeList;
     private TextView providerRefreshText;
-    private TextView appRefreshText;
-    private EditText appFilter;
-    private AppAdapter appAdapter;
+    private TextView routeRefreshText;
     private final List<TextView> navigationItems = new ArrayList<>();
     private final Map<String, Drawable> appIcons = new HashMap<>();
     private AddProviderSession activeAddSession;
     private boolean providerRefreshInFlight;
     private boolean providerRefreshPending;
-    private boolean appRefreshInFlight;
+    private boolean routeRefreshInFlight;
+    private boolean routeRefreshPending;
     private boolean appsDirty = true;
     private long lastProviderRefresh;
     private long lastAppRefresh;
+    private long lastRouteRefresh;
     private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
             appsDirty = true;
@@ -124,9 +126,12 @@ public final class MainActivity extends Activity {
                 for (int index = allApps.size() - 1; index >= 0; --index) {
                     if (packageName.equals(allApps.get(index).packageName)) allApps.remove(index);
                 }
-                filterApps(appFilter == null ? "" : appFilter.getText().toString());
+                if (!Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction())) {
+                    AppEntry restored = installedApp(packageName);
+                    if (restored != null) allApps.add(restored);
+                }
             }
-            if (appsPage != null && appsPage.getVisibility() == View.VISIBLE) refreshApps(true);
+            if (appsPage != null && appsPage.getVisibility() == View.VISIBLE) renderRoutes();
         }
     };
     private final TargetCameraSpec[] targetCameras = {
@@ -195,7 +200,7 @@ public final class MainActivity extends Activity {
         navigation.setElevation(dp(12));
         TextView statusTab = navigationItem("概览", "●");
         TextView sourcesTab = navigationItem("视频源", "◆");
-        TextView appsTab = navigationItem("应用", "■");
+        TextView appsTab = navigationItem("路由", "■");
         navigation.addView(statusTab, weightedMargins(3, 0, 3, 0));
         navigation.addView(sourcesTab, weightedMargins(3, 0, 3, 0));
         navigation.addView(appsTab, weightedMargins(3, 0, 3, 0));
@@ -203,7 +208,7 @@ public final class MainActivity extends Activity {
 
         statusTab.setOnClickListener(view -> { showPage(statusPage); refreshStatus(); });
         sourcesTab.setOnClickListener(view -> { showPage(sourcesPage); refreshProviders(false); });
-        appsTab.setOnClickListener(view -> { showPage(appsPage); refreshApps(false); });
+        appsTab.setOnClickListener(view -> { showPage(appsPage); refreshRoutes(false); });
         return root;
     }
 
@@ -282,44 +287,29 @@ public final class MainActivity extends Activity {
     }
 
     private View buildAppsPage() {
+        ScrollView scroll = new ScrollView(this);
         LinearLayout body = pageBody();
-        body.addView(pageTitle("应用作用域", "按应用配置相机 0 与相机 1 的来源"));
-        appFilter = new EditText(this);
-        appFilter.setSingleLine(true);
-        appFilter.setHint("搜索应用或包名");
-        appFilter.setTextSize(14);
-        appFilter.setPadding(dp(16), 0, dp(16), 0);
-        appFilter.setBackground(roundRect(0xffeef1f6, 16));
-        body.addView(appFilter, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(50)));
+        LinearLayout titleRow = horizontal();
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        titleRow.addView(pageTitle("应用路由", "仅显示已配置的应用及双相机来源"), weighted());
+        TextView add = compactPrimaryButton("＋ 新增");
+        add.setOnClickListener(view -> showAddRouteDialog());
+        titleRow.addView(add);
+        body.addView(titleRow, matchWrap());
+        body.addView(text("卸载应用不会删除路由；重新安装同一包名后会自动恢复。",
+                12, 0xff64748b), matchWrapMargins(0, 8, 0, 10));
         LinearLayout refreshRow = horizontal();
         refreshRow.setGravity(Gravity.CENTER_VERTICAL);
-        appRefreshText = text("尚未读取应用列表", 11, 0xff64748b);
-        refreshRow.addView(appRefreshText, weighted());
+        routeRefreshText = text("尚未读取路由", 11, 0xff64748b);
+        refreshRow.addView(routeRefreshText, weighted());
         TextView refresh = compactSecondaryButton("刷新");
-        refresh.setOnClickListener(view -> refreshApps(true));
+        refresh.setOnClickListener(view -> refreshRoutes(true));
         refreshRow.addView(refresh);
-        body.addView(refreshRow, matchWrapMargins(0, 8, 0, 0));
-        ListView list = new ListView(this);
-        list.setDivider(new ColorDrawable(Color.TRANSPARENT));
-        list.setDividerHeight(dp(8));
-        list.setSelector(android.R.color.transparent);
-        list.setClipToPadding(false);
-        list.setPadding(0, dp(8), 0, dp(16));
-        appAdapter = new AppAdapter();
-        list.setAdapter(appAdapter);
-        list.setOnItemClickListener((parent, view, position, id) ->
-                loadRouteEditor(visibleApps.get(position)));
-        body.addView(list, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
-        appFilter.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                filterApps(s.toString());
-            }
-            @Override public void afterTextChanged(Editable s) { }
-        });
-        return body;
+        body.addView(refreshRow, matchWrapMargins(0, 0, 0, 10));
+        routeList = vertical();
+        body.addView(routeList, matchWrap());
+        scroll.addView(body);
+        return scroll;
     }
 
     private void refreshStatus() {
@@ -902,7 +892,9 @@ public final class MainActivity extends Activity {
 
     private void runProviderAction(String command, String id) {
         runAsync(() -> BackendClient.controller(command, id), result -> {
-            result.requireSuccess(); refreshProviders();
+            result.requireSuccess();
+            if ("provider-remove".equals(command)) lastRouteRefresh = 0;
+            refreshProviders();
         });
     }
 
@@ -943,70 +935,191 @@ public final class MainActivity extends Activity {
                         runProviderAction("provider-remove", provider.id)).show();
     }
 
-    private void refreshApps() { refreshApps(true); }
-
-    private void refreshApps(boolean force) {
-        if (!allApps.isEmpty()) filterApps(appFilter.getText().toString());
-        long age = SystemClock.elapsedRealtime() - lastAppRefresh;
-        if (!force && !appsDirty && !allApps.isEmpty() && age < 30_000) return;
-        if (appRefreshInFlight) return;
-        appRefreshInFlight = true;
-        appRefreshText.setText(allApps.isEmpty() ? "正在后台读取应用…" : "正在后台检查应用变化…");
+    private void refreshRoutes(boolean force) {
+        if (!routes.isEmpty()) renderRoutes();
+        long age = SystemClock.elapsedRealtime() - lastRouteRefresh;
+        if (!force && lastRouteRefresh > 0 && age < 5_000) return;
+        if (routeRefreshInFlight) {
+            routeRefreshPending |= force;
+            return;
+        }
+        routeRefreshInFlight = true;
+        routeRefreshText.setText(routes.isEmpty() ? "正在读取路由…" : "正在后台更新…");
+        if (routes.isEmpty()) {
+            routeList.removeAllViews();
+            routeList.addView(text("正在读取已配置路由…", 14, 0xff667383));
+        }
         runAsync(() -> {
-            PackageManager pm = getPackageManager();
-            List<AppEntry> scanned = new ArrayList<>();
-            for (ApplicationInfo info : pm.getInstalledApplications(0)) {
-                CharSequence label = pm.getApplicationLabel(info);
-                String labelText = label == null || label.length() == 0
-                        ? info.packageName : label.toString();
-                scanned.add(new AppEntry(labelText, info.packageName));
+            BackendClient.Result routeResult = BackendClient.controller("routes");
+            routeResult.requireSuccess();
+            List<Provider> latestProviders = null;
+            if (providers.isEmpty() || SystemClock.elapsedRealtime() - lastProviderRefresh > 5_000) {
+                BackendClient.Result providerResult = BackendClient.controller("providers");
+                providerResult.requireSuccess();
+                latestProviders = parseProviders(providerResult.output);
             }
-            scanned.sort(Comparator.comparing(entry -> entry.label.toLowerCase(Locale.ROOT)));
-            return new AppsResult(scanned);
+            return new RoutesResult(parseRoutes(routeResult.output), latestProviders);
         }, result -> {
-            allApps.clear();
-            allApps.addAll(((AppsResult) result).apps);
-            appsDirty = false;
-            appRefreshInFlight = false;
-            lastAppRefresh = SystemClock.elapsedRealtime();
-            appRefreshText.setText("刚刚更新 · " + allApps.size() + " 个应用");
-            filterApps(appFilter.getText().toString());
+            RoutesResult latest = (RoutesResult) result;
+            routes.clear(); routes.putAll(latest.routes);
+            if (latest.providers != null) {
+                providers.clear(); providers.addAll(latest.providers);
+                lastProviderRefresh = SystemClock.elapsedRealtime();
+            }
+            lastRouteRefresh = SystemClock.elapsedRealtime();
+            routeRefreshInFlight = false;
+            routeRefreshText.setText("刚刚更新 · " + routePackages().size() + " 个应用路由");
+            renderRoutes();
+            if (routeRefreshPending) {
+                routeRefreshPending = false;
+                refreshRoutes(true);
+            }
         }, error -> {
-            appRefreshInFlight = false;
-            appRefreshText.setText("应用列表更新失败");
+            routeRefreshInFlight = false;
+            routeRefreshText.setText("更新失败，保留现有路由");
             showError(error);
         });
     }
 
-    private void filterApps(String query) {
-        String needle = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
-        visibleApps.clear();
-        for (AppEntry entry : allApps) {
-            if (needle.isEmpty() || entry.label.toLowerCase(Locale.ROOT).contains(needle) ||
-                    entry.packageName.toLowerCase(Locale.ROOT).contains(needle)) {
-                visibleApps.add(entry);
-            }
+    private void renderRoutes() {
+        if (routeList == null) return;
+        routeList.removeAllViews();
+        Set<String> packages = routePackages();
+        if (packages.isEmpty()) {
+            LinearLayout empty = card();
+            empty.addView(cardHeading("尚未添加应用路由", "点击右上角“新增”，选择应用并配置相机来源"));
+            routeList.addView(empty, matchWrap());
+            return;
         }
-        if (appAdapter != null) appAdapter.notifyDataSetChanged();
+        for (String packageName : packages) {
+            AppEntry app = appEntryForPackage(packageName);
+            LinearLayout routeCard = card();
+            LinearLayout top = horizontal();
+            top.setGravity(Gravity.CENTER_VERTICAL);
+            ImageView icon = new ImageView(this);
+            if (app.installed) {
+                Drawable drawable = appIcons.get(packageName);
+                if (drawable == null) {
+                    try { drawable = getPackageManager().getApplicationIcon(packageName); }
+                    catch (PackageManager.NameNotFoundException ignored) { }
+                    if (drawable != null) appIcons.put(packageName, drawable);
+                }
+                icon.setImageDrawable(drawable);
+            }
+            icon.setBackground(roundRect(app.installed ? 0xffeff6ff : 0xfff1f5f9, 14));
+            top.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
+            LinearLayout identity = vertical();
+            TextView name = text(app.installed ? app.label : packageName, 15, 0xff111827);
+            name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            identity.addView(name);
+            if (app.installed) identity.addView(text(packageName, 11, 0xff64748b));
+            top.addView(identity, weightedMargins(12, 0, 8, 0));
+            top.addView(pill(app.installed ? "可用" : "暂不可用",
+                    app.installed ? 0xffecfdf5 : 0xfffff7ed,
+                    app.installed ? 0xff059669 : 0xffc2410c));
+            routeCard.addView(top);
+            LinearLayout mapping = vertical();
+            mapping.setPadding(dp(12), dp(9), dp(12), dp(9));
+            mapping.setBackground(roundRect(0xfff8fafc, 10));
+            mapping.addView(text("相机 0  →  " + routeProviderName("0", routes.get(packageName + "\t0")),
+                    12, 0xff475569));
+            mapping.addView(text("相机 1  →  " + routeProviderName("1", routes.get(packageName + "\t1")),
+                    12, 0xff475569), matchWrapMargins(0, 5, 0, 0));
+            routeCard.addView(mapping, matchWrapMargins(0, 12, 0, 0));
+            LinearLayout actions = horizontal();
+            Button edit = secondaryButton("修改");
+            edit.setOnClickListener(view -> showRouteEditor(app));
+            Button remove = dangerButton("删除");
+            remove.setOnClickListener(view -> confirmRemoveRoute(app));
+            actions.addView(edit, weighted());
+            actions.addView(remove, weightedMargins(8, 0, 0, 0));
+            routeCard.addView(actions, matchWrapMargins(0, 12, 0, 0));
+            routeList.addView(routeCard, matchWrapMargins(0, 0, 0, 12));
+        }
     }
 
-    private void loadRouteEditor(AppEntry app) {
+    private void showAddRouteDialog() {
+        LinearLayout loadingBody = horizontal();
+        loadingBody.setGravity(Gravity.CENTER_VERTICAL);
+        loadingBody.setPadding(dp(24), dp(16), dp(24), dp(16));
+        loadingBody.addView(new ProgressBar(this), new LinearLayout.LayoutParams(dp(30), dp(30)));
+        loadingBody.addView(text("正在读取未配置的应用…", 13, 0xff475569),
+                weightedMargins(12, 0, 0, 0));
+        AlertDialog loading = new AlertDialog.Builder(this).setTitle("新增应用路由")
+                .setView(loadingBody).setNegativeButton("取消", null).create();
+        loading.show();
+        final boolean scanApps = appsDirty || allApps.isEmpty() ||
+                SystemClock.elapsedRealtime() - lastAppRefresh > 30_000;
+        final List<AppEntry> cachedApps = new ArrayList<>(allApps);
         runAsync(() -> {
-            if (providers.isEmpty() || SystemClock.elapsedRealtime() - lastProviderRefresh > 5_000) {
-                BackendClient.Result providerResult = BackendClient.controller("providers");
-                providerResult.requireSuccess();
-                List<Provider> latest = parseProviders(providerResult.output);
-                main.post(() -> {
-                    providers.clear();
-                    providers.addAll(latest);
-                    lastProviderRefresh = SystemClock.elapsedRealtime();
-                });
-            }
             BackendClient.Result routeResult = BackendClient.controller("routes");
             routeResult.requireSuccess();
-            routes.clear(); routes.putAll(parseRoutes(routeResult.output));
-            return routeResult;
-        }, result -> showRouteEditor(app));
+            BackendClient.Result providerResult = BackendClient.controller("providers");
+            providerResult.requireSuccess();
+            List<AppEntry> apps = scanApps ? scanInstalledApps() : cachedApps;
+            return new RouteSetupResult(parseRoutes(routeResult.output),
+                    parseProviders(providerResult.output), apps);
+        }, result -> {
+            if (!loading.isShowing()) return;
+            loading.dismiss();
+            RouteSetupResult setup = (RouteSetupResult) result;
+            routes.clear(); routes.putAll(setup.routes);
+            providers.clear(); providers.addAll(setup.providers);
+            allApps.clear(); allApps.addAll(setup.apps);
+            appsDirty = false;
+            lastAppRefresh = lastProviderRefresh = lastRouteRefresh = SystemClock.elapsedRealtime();
+            renderRoutes();
+            showAppPicker();
+        }, error -> {
+            if (loading.isShowing()) loading.dismiss();
+            showError(error);
+        });
+    }
+
+    private void showAppPicker() {
+        Set<String> configured = routePackages();
+        List<AppEntry> candidates = new ArrayList<>();
+        for (AppEntry app : allApps) {
+            if (!configured.contains(app.packageName)) candidates.add(app);
+        }
+        if (candidates.isEmpty()) {
+            new AlertDialog.Builder(this).setTitle("没有可添加的应用")
+                    .setMessage("所有可见应用都已经配置了路由。")
+                    .setPositiveButton("知道了", null).show();
+            return;
+        }
+        LinearLayout body = dialogForm();
+        EditText search = input("搜索应用或包名");
+        body.addView(search);
+        ListView list = new ListView(this);
+        list.setDivider(new ColorDrawable(Color.TRANSPARENT));
+        list.setDividerHeight(dp(7));
+        list.setSelector(android.R.color.transparent);
+        List<AppEntry> visible = new ArrayList<>(candidates);
+        AppPickerAdapter adapter = new AppPickerAdapter(visible);
+        list.setAdapter(adapter);
+        body.addView(list, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(460)));
+        AlertDialog picker = new AlertDialog.Builder(this).setTitle("选择未配置的应用")
+                .setView(body).setNegativeButton("取消", null).create();
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                String needle = s.toString().trim().toLowerCase(Locale.ROOT);
+                visible.clear();
+                for (AppEntry app : candidates) {
+                    if (needle.isEmpty() || app.label.toLowerCase(Locale.ROOT).contains(needle) ||
+                            app.packageName.toLowerCase(Locale.ROOT).contains(needle)) visible.add(app);
+                }
+                adapter.notifyDataSetChanged();
+            }
+            @Override public void afterTextChanged(Editable s) { }
+        });
+        list.setOnItemClickListener((parent, view, position, id) -> {
+            AppEntry selected = visible.get(position);
+            picker.dismiss();
+            showRouteEditor(selected);
+        });
+        picker.show();
     }
 
     private void showRouteEditor(AppEntry app) {
@@ -1020,16 +1133,28 @@ public final class MainActivity extends Activity {
         LinearLayout form = dialogForm();
         Spinner camera0 = routeSpinner(labels, ids, routes.get(app.packageName + "\t0"));
         Spinner camera1 = routeSpinner(labels, ids, routes.get(app.packageName + "\t1"));
-        form.addView(text(app.label + "\n" + app.packageName, 14, 0xff526171));
+        form.addView(text(app.installed ? app.label + "\n" + app.packageName
+                : app.packageName + "\n暂不可用（路由仍会保留）", 14, 0xff526171));
         form.addView(label("目标相机 0")); form.addView(camera0);
         form.addView(label("目标相机 1")); form.addView(camera1);
-        new AlertDialog.Builder(this).setTitle("独立替换配置")
+        TextView error = text("请至少为一个目标相机选择替换来源", 12, 0xffdc2626);
+        error.setVisibility(View.GONE);
+        form.addView(error, matchWrapMargins(0, 8, 0, 0));
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("应用路由配置")
                 .setView(form).setNegativeButton("取消", null)
-                .setPositiveButton("保存", (dialog, which) -> {
+                .setPositiveButton("保存", null).create();
+        dialog.setOnShowListener(ignored ->
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
                     String provider0 = ids.get(camera0.getSelectedItemPosition());
                     String provider1 = ids.get(camera1.getSelectedItemPosition());
+                    if (provider0.isEmpty() && provider1.isEmpty()) {
+                        error.setVisibility(View.VISIBLE);
+                        return;
+                    }
+                    dialog.dismiss();
                     saveAppRoutes(app.packageName, provider0, provider1);
-                }).show();
+                }));
+        dialog.show();
     }
 
     private Spinner routeSpinner(List<String> labels, List<String> ids, String selected) {
@@ -1042,19 +1167,87 @@ public final class MainActivity extends Activity {
     }
 
     private void saveAppRoutes(String packageName, String provider0, String provider1) {
-        runAsync(() -> {
-            setRoute(packageName, "0", provider0);
-            setRoute(packageName, "1", provider1);
-            return new BackendClient.Result(0, "saved");
-        }, result -> toast("应用替换配置已保存，新相机会话开始时生效"));
+        runAsync(() -> BackendClient.controller("route-save", packageName, provider0, provider1), result -> {
+            result.requireSuccess();
+            routes.remove(packageName + "\t0");
+            routes.remove(packageName + "\t1");
+            if (!provider0.isEmpty()) routes.put(packageName + "\t0", provider0);
+            if (!provider1.isEmpty()) routes.put(packageName + "\t1", provider1);
+            lastRouteRefresh = SystemClock.elapsedRealtime();
+            renderRoutes();
+            toast("应用路由已保存，新相机会话开始时生效");
+        });
     }
 
-    private void setRoute(String packageName, String target, String provider)
-            throws IOException, InterruptedException {
-        BackendClient.Result result = provider.isEmpty()
-                ? BackendClient.controller("route-remove", packageName, target)
-                : BackendClient.controller("route-set", packageName, target, provider);
-        result.requireSuccess();
+    private void confirmRemoveRoute(AppEntry app) {
+        new AlertDialog.Builder(this).setTitle("删除应用路由")
+                .setMessage("删除 “" + (app.installed ? app.label : app.packageName) + "” 的全部相机路由？")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除", (dialog, which) ->
+                        runAsync(() -> BackendClient.controller("route-save", app.packageName, "", ""), result -> {
+                            result.requireSuccess();
+                            routes.remove(app.packageName + "\t0");
+                            routes.remove(app.packageName + "\t1");
+                            lastRouteRefresh = SystemClock.elapsedRealtime();
+                            renderRoutes();
+                            toast("应用路由已删除");
+                        })).show();
+    }
+
+    private Set<String> routePackages() {
+        Set<String> packages = new TreeSet<>();
+        for (String key : routes.keySet()) {
+            int split = key.lastIndexOf('\t');
+            if (split > 0) packages.add(key.substring(0, split));
+        }
+        return packages;
+    }
+
+    private String routeProviderName(String target, String providerId) {
+        if (providerId == null || providerId.isEmpty()) return "目标物理相机 " + target + "（默认）";
+        for (Provider provider : providers) {
+            if (provider.id.equals(providerId)) {
+                return provider.name + (provider.running ? "" : "（已停止）");
+            }
+        }
+        return providerId + "（来源不可用）";
+    }
+
+    private AppEntry appEntryForPackage(String packageName) {
+        for (AppEntry app : allApps) {
+            if (packageName.equals(app.packageName)) return app;
+        }
+        AppEntry installed = installedApp(packageName);
+        if (installed != null) {
+            allApps.add(installed);
+            return installed;
+        }
+        return new AppEntry(packageName, packageName, false);
+    }
+
+    private AppEntry installedApp(String packageName) {
+        PackageManager pm = getPackageManager();
+        try {
+            ApplicationInfo info = pm.getApplicationInfo(packageName, 0);
+            CharSequence label = pm.getApplicationLabel(info);
+            String labelText = label == null || label.length() == 0 ? packageName : label.toString();
+            return new AppEntry(labelText, packageName, true);
+        } catch (PackageManager.NameNotFoundException ignored) {
+            return null;
+        }
+    }
+
+    private List<AppEntry> scanInstalledApps() {
+        PackageManager pm = getPackageManager();
+        List<AppEntry> scanned = new ArrayList<>();
+        for (ApplicationInfo info : pm.getInstalledApplications(0)) {
+            CharSequence label = pm.getApplicationLabel(info);
+            String labelText = label == null || label.length() == 0
+                    ? info.packageName : label.toString();
+            scanned.add(new AppEntry(labelText, info.packageName, true));
+        }
+        scanned.sort(Comparator.comparing(entry -> entry.label.toLowerCase(Locale.ROOT)));
+        return scanned;
     }
 
     private List<Provider> parseProviders(String output) {
@@ -1379,17 +1572,34 @@ public final class MainActivity extends Activity {
         final Bitmap bitmap;
         PreviewResult(Bitmap bitmap) { super(0, "preview"); this.bitmap = bitmap; }
     }
-    private static final class AppsResult extends BackendClient.Result {
+    private static final class RoutesResult extends BackendClient.Result {
+        final Map<String, String> routes;
+        final List<Provider> providers;
+        RoutesResult(Map<String, String> routes, List<Provider> providers) {
+            super(0, "routes"); this.routes = routes; this.providers = providers;
+        }
+    }
+    private static final class RouteSetupResult extends BackendClient.Result {
+        final Map<String, String> routes;
+        final List<Provider> providers;
         final List<AppEntry> apps;
-        AppsResult(List<AppEntry> apps) { super(0, "apps"); this.apps = apps; }
+        RouteSetupResult(Map<String, String> routes, List<Provider> providers, List<AppEntry> apps) {
+            super(0, "route-setup");
+            this.routes = routes; this.providers = providers; this.apps = apps;
+        }
     }
     private static final class AppEntry {
         final String label, packageName;
-        AppEntry(String label, String packageName) { this.label = label; this.packageName = packageName; }
+        final boolean installed;
+        AppEntry(String label, String packageName, boolean installed) {
+            this.label = label; this.packageName = packageName; this.installed = installed;
+        }
     }
-    private final class AppAdapter extends BaseAdapter {
-        @Override public int getCount() { return visibleApps.size(); }
-        @Override public Object getItem(int position) { return visibleApps.get(position); }
+    private final class AppPickerAdapter extends BaseAdapter {
+        private final List<AppEntry> apps;
+        AppPickerAdapter(List<AppEntry> apps) { this.apps = apps; }
+        @Override public int getCount() { return apps.size(); }
+        @Override public Object getItem(int position) { return apps.get(position); }
         @Override public long getItemId(int position) { return position; }
         @Override public View getView(int position, View reusable, ViewGroup parent) {
             LinearLayout row = reusable instanceof LinearLayout ? (LinearLayout) reusable : horizontal();
@@ -1399,7 +1609,7 @@ public final class MainActivity extends Activity {
             row.setPadding(dp(14), dp(12), dp(14), dp(12));
             row.setBackground(ripple(Color.WHITE, 16));
             row.setElevation(dp(1));
-            AppEntry app = visibleApps.get(position);
+            AppEntry app = apps.get(position);
             ImageView icon = new ImageView(MainActivity.this);
             Drawable drawable = appIcons.get(app.packageName);
             if (drawable == null) {

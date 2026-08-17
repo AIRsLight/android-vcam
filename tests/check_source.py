@@ -80,6 +80,7 @@ def main() -> None:
         "provider-add", "provider-remove", "provider-start", "route-set",
         "provider-publish-stdin", "provider-import-media", "source-preview",
         "provider-frame", "provider-update",
+        "route-save",
     ):
         if command not in controller:
             fail(f"provider controller is missing command: {command}")

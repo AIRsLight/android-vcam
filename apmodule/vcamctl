@@ -651,6 +651,30 @@ set_route() {
     echo "routed"
 }
 
+save_routes() {
+    package="$1"
+    provider0="$2"
+    provider1="$3"
+    valid_package "$package" || { echo "invalid package" >&2; return 2; }
+    for provider in "$provider0" "$provider1"; do
+        [ -z "$provider" ] || provider_exists "$provider" || {
+            echo "provider not found" >&2
+            return 3
+        }
+    done
+    prepare_dirs || return 4
+    temporary="$ROUTES_FILE.new-$$"
+    awk -F '\t' -v package_name="$package" \
+        'NF == 3 && $1 != package_name' "$ROUTES_FILE" > "$temporary" || return 4
+    [ -z "$provider0" ] || printf '%s\t0\t%s\n' "$package" "$provider0" >> "$temporary"
+    [ -z "$provider1" ] || printf '%s\t1\t%s\n' "$package" "$provider1" >> "$temporary"
+    mv -f "$temporary" "$ROUTES_FILE" || return 4
+    chown camera:camera "$ROUTES_FILE"
+    chmod 0640 "$ROUTES_FILE"
+    restorecon "$ROUTES_FILE" >/dev/null 2>&1
+    echo "saved"
+}
+
 remove_route() {
     package="$1"
     target="$2"
@@ -714,9 +738,10 @@ case "$1" in
     routes) list_routes ;;
     route-set) set_route "$2" "$3" "$4" ;;
     route-remove) remove_route "$2" "$3" ;;
+    route-save) save_routes "$2" "$3" "$4" ;;
     apps) pm list packages 2>/dev/null | sed 's/^package://' | sort ;;
     *)
-        echo "usage: vcamctl {status|providers|provider-add|provider-remove|provider-start|provider-stop|source-preview|provider-frame|provider-update|provider-config|provider-config-set|provider-publish|provider-publish-stdin|provider-import-media|provider-publish-begin|provider-publish-chunk|provider-publish-commit|provider-publish-abort|routes|route-set|route-remove|apps}" >&2
+        echo "usage: vcamctl {status|providers|provider-add|provider-remove|provider-start|provider-stop|source-preview|provider-frame|provider-update|provider-config|provider-config-set|provider-publish|provider-publish-stdin|provider-import-media|provider-publish-begin|provider-publish-chunk|provider-publish-commit|provider-publish-abort|routes|route-set|route-remove|route-save|apps}" >&2
         exit 64
         ;;
 esac

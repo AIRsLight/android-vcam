@@ -64,6 +64,11 @@ picker for images and videos. Selected bytes are streamed to the module; the
 module owns the durable copy under `/data/adb/android_vcam`, so closing or
 uninstalling the manager does not remove routes or stop providers.
 
+Routes are keyed only by package name and remain in `routes.tsv` when an app is
+uninstalled. The manager resolves labels and icons at display time, marks missing
+packages temporarily unavailable, and reacts to package broadcasts so reinstalling
+the same package restores the route presentation without rewriting the route.
+
 `vcamd` listens on an abstract Unix socket in its own SELinux domain. The
 kernel-provided `SO_PEERCRED` UID must map to
 `io.github.androidvcam.manager` in Android's package database. The binary

@@ -91,6 +91,7 @@ class VirtualCamera final {
     RgbFrame sourceFrame_;
     RgbTransform sourceTransform_{};
     int64_t sourceFrameDurationNs_ = 33333333;
+    int64_t outputFrameDurationNs_ = 33333333;
     std::string sourcePath_ = "/data/vendor/camera/vcam/source.rgb";
 };
 

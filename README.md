@@ -16,7 +16,9 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
 - User providers can be added, edited, stopped, started and removed independently.
 - Source decoding supports up to 4096x3072 with a bounded pixel-rate budget:
   4K up to 15 fps and 12.6 MP up to 9 fps. Video and newly imported images use
-  planar YUV420 frames while legacy RGB providers remain compatible.
+  planar YUV420 frames while legacy RGB providers remain compatible. Camera
+  output uses the same pixel-rate budget, so a lower-resolution source cannot
+  accidentally drive an application-requested 4K surface at 30 or 60 fps.
 - A native, root-free manager app separates status, providers and per-app
   camera 0/1 routes into tabs. Source creation includes a live preview,
   source FPS/resolution limits, and independent camera 0/1 framing with a
@@ -34,7 +36,8 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
   set. Network preview and provider startup both require a decoded first frame.
 - HTTPS video files are downloaded through the ROM's BoringSSL-enabled curl,
   then decoded in the background.
-- A regular root-free Camera2 APK validates two-stream YUV preview.
+- A regular root-free Camera2 APK validates two-stream YUV preview and accepts
+  launch extras for single-stream high-resolution output tests.
 - Module installation is systemless and pinned to the tested ROM hashes.
 
 ## Pinned target

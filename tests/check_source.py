@@ -61,6 +61,8 @@ def main() -> None:
         "ANDROID_SENSOR_TIMESTAMP",
         "setSourcePath",
         "kMaxStreamDimension",
+        "kMaxOutputPixelRate",
+        "outputFrameDurationNs_",
     ):
         if required_symbol not in source:
             fail(f"HAL is missing expected symbol: {required_symbol}")
@@ -117,6 +119,12 @@ def main() -> None:
     ):
         if required_symbol not in manager_sources:
             fail(f"manager lacks source preview support: {required_symbol}")
+
+    test_app = (ROOT / "testapp" / "src" / "io" / "github" / "androidvcam" /
+                "test" / "CameraPreviewActivity.java").read_text(encoding="utf-8")
+    for required_symbol in ("preview_width", "preview_height", "single_stream"):
+        if required_symbol not in test_app:
+            fail(f"Camera2 test app lacks high-resolution launch support: {required_symbol}")
     for required_symbol in ("LocalSocket", "VCAMD001", "SO_PEERCRED", "MANAGER_PACKAGE"):
         daemon_and_manager = manager_sources + (ROOT / "native" / "control_daemon.c").read_text(encoding="utf-8")
         if required_symbol not in daemon_and_manager:

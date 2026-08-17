@@ -40,7 +40,10 @@ ratio and bounds it by the source resolution selected at creation time. The
 maximum configured frame is 4096 on either edge and 4096x3072 total pixels.
 The controller also caps `width * height * fps` at the former 1080p60 pixel
 budget, allowing 4K at 15 fps and 12.6 MP at 9 fps. The background decoder
-likewise uses the selected maximum dimensions and 1..60 fps.
+likewise uses the selected maximum dimensions and 1..60 fps. The Camera HAL
+applies that budget again to the largest configured client output stream. This
+keeps a 3840x2160 client surface at no more than 15 fps even when its provider
+contains a smaller 30 or 60 fps source.
 
 Each provider also owns runtime configuration beside `frame.rgb`:
 

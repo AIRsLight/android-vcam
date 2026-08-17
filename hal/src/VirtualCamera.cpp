@@ -36,6 +36,7 @@ constexpr int kFenceTimeoutMs = 5000;
 constexpr int32_t kJpegMaxSize = 16 * 1024 * 1024;
 constexpr int64_t kFrameDurationNs = 33333333;
 constexpr uint32_t kMaxStreamDimension = 16384;
+constexpr uint64_t kMaxOutputPixelRate = 1920ULL * 1080ULL * 60ULL;
 
 struct JpegErrorManager {
     jpeg_error_mgr base;
@@ -576,6 +577,7 @@ int VirtualCamera::configureStreamsLocked(camera3_stream_configuration_t* config
 
     std::vector<camera3_stream_t*> accepted;
     accepted.reserve(config->num_streams);
+    uint64_t maxOutputPixels = 0;
     for (uint32_t i = 0; i < config->num_streams; ++i) {
         camera3_stream_t* stream = config->streams[i];
         if (stream == nullptr) {
@@ -604,6 +606,8 @@ int VirtualCamera::configureStreamsLocked(camera3_stream_configuration_t* config
               id_, i, stream->stream_type, stream->format,
               stream->width, stream->height, stream->rotation,
               static_cast<uint64_t>(stream->usage));
+        maxOutputPixels = std::max(maxOutputPixels,
+                static_cast<uint64_t>(stream->width) * stream->height);
 
         // Camera3 passes consumer usage into configure_streams. Preserve it so
         // SurfaceTexture buffers retain HW_TEXTURE/display compatibility.
@@ -614,6 +618,10 @@ int VirtualCamera::configureStreamsLocked(camera3_stream_configuration_t* config
         accepted.push_back(stream);
     }
 
+    const int64_t outputFps = static_cast<int64_t>(std::max<uint64_t>(1,
+            std::min<uint64_t>(60, kMaxOutputPixelRate /
+                    std::max<uint64_t>(1, maxOutputPixels))));
+    outputFrameDurationNs_ = 1000000000LL / outputFps;
     streams_ = std::move(accepted);
     configured_ = true;
     layoutLogged_ = false;
@@ -625,7 +633,8 @@ int VirtualCamera::configureStreamsLocked(camera3_stream_configuration_t* config
         free_camera_metadata(lastSettings_);
         lastSettings_ = nullptr;
     }
-    ALOGI("Configured virtual camera %d with %u streams", id_, config->num_streams);
+    ALOGI("Configured virtual camera %d with %u streams outputFps=%lld",
+          id_, config->num_streams, static_cast<long long>(outputFps));
     return 0;
 }
 
@@ -736,7 +745,8 @@ int VirtualCamera::processRequestLocked(camera3_capture_request_t* request) {
 
     uint64_t timestamp = bootTimeNs();
     if (lastFrameTimestampNs_ != 0) {
-        const uint64_t target = lastFrameTimestampNs_ + sourceFrameDurationNs_;
+        const uint64_t target = lastFrameTimestampNs_ +
+                std::max(sourceFrameDurationNs_, outputFrameDurationNs_);
         if (timestamp < target) {
             sleepForNs(target - timestamp);
             timestamp = bootTimeNs();
@@ -1133,7 +1143,7 @@ camera_metadata_t* VirtualCamera::buildDefaultRequest(int type) const {
 camera_metadata_t* VirtualCamera::buildResultMetadata(uint64_t timestamp) const {
     MetadataBuilder metadata(32, 2048);
     const int64_t sensorTimestamp = timestamp;
-    const int64_t frameDuration = sourceFrameDurationNs_;
+    const int64_t frameDuration = std::max(sourceFrameDurationNs_, outputFrameDurationNs_);
     const int64_t exposureTime = 10000000;
     const int32_t sensitivity = 100;
     const uint8_t pipelineDepth = 1;

@@ -123,7 +123,7 @@ def main() -> None:
     service_scripts = controller + \
         (ROOT / "apmodule" / "service.sh").read_text(encoding="utf-8") + \
         (ROOT / "apmodule" / "boot-completed.sh").read_text(encoding="utf-8")
-    for required_symbol in ("autostart", "retry-provider"):
+    for required_symbol in ("autostart", "retry-provider", "camera-dump.txt"):
         if required_symbol not in service_scripts:
             fail(f"provider boot recovery is missing: {required_symbol}")
 

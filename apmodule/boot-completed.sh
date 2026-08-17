@@ -10,12 +10,14 @@ echo "health-check $(date '+%Y-%m-%dT%H:%M:%S%z')" > "$LOG_FILE"
 
 healthy=0
 attempt=1
+camera_dump_file="$LOG_DIR/camera-dump.txt"
 while [ "$attempt" -le 3 ]; do
     echo "attempt=$attempt" >> "$LOG_FILE"
-    camera_dump="$(dumpsys media.camera 2>&1)"
-    printf '%s\n' "$camera_dump" >> "$LOG_FILE"
-    camera_count="$(printf '%s\n' "$camera_dump" | \
-        sed -n 's/.*Number of camera devices: //p' | head -n 1)"
+    dumpsys media.camera > "$camera_dump_file" 2>&1
+    chmod 0600 "$camera_dump_file"
+    camera_count="$(sed -n 's/.*Number of camera devices: //p' \
+        "$camera_dump_file" | head -n 1)"
+    echo "camera-count=${camera_count:-unavailable}" >> "$LOG_FILE"
     if [ -e "$LOG_DIR/mount.ok" ] && \
        [ "${camera_count:-0}" -ge 2 ] 2>/dev/null; then
         healthy=1

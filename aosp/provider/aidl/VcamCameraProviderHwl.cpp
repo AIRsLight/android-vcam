@@ -11,12 +11,19 @@
 #include <system/camera_metadata.h>
 
 #include <algorithm>
+#include <array>
+#include <cstdio>
+#include <cstring>
 #include <memory>
+#include <mutex>
+#include <string>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "EmulatedCameraProviderHWLImpl.h"
+#include "vcam/FrameRenderer.h"
+#include "vcam/RouteResolver.h"
 #include "vcam/VendorTags.h"
 
 namespace android {
@@ -28,6 +35,106 @@ constexpr uint32_t kBackCameraId = 1000;
 constexpr uint32_t kFrontCameraId = 1001;
 constexpr uint32_t kDelegateBackCameraId = 0;
 constexpr uint32_t kDelegateFrontCameraId = 1;
+
+struct RoutedFrameState {
+  std::mutex mutex;
+  vcam::FrameRenderer renderer;
+  vcam::RgbTransform transform;
+  std::string package_name;
+  std::string provider_id;
+};
+
+struct ActiveFrame {
+  uint32_t camera_id = kDelegateBackCameraId;
+  uint32_t frame_number = 0;
+  bool valid = false;
+};
+
+std::array<RoutedFrameState, 2> g_routed_frames;
+thread_local ActiveFrame g_active_frame;
+
+std::string ClientPackageFrom(const gch::HalCameraMetadata* metadata) {
+  if (metadata == nullptr) return {};
+  camera_metadata_ro_entry_t entry{};
+  if (metadata->Get(vcam::kVcamClientPackageTag, &entry) != OK ||
+      entry.type != TYPE_BYTE || entry.count == 0 || entry.data.u8 == nullptr) {
+    return {};
+  }
+  const char* value = reinterpret_cast<const char*>(entry.data.u8);
+  const size_t length = strnlen(value, entry.count);
+  return std::string(value, length);
+}
+
+vcam::RgbTransform LoadSourceTransform(const std::string& frame_path,
+                                       uint32_t camera_id) {
+  vcam::RgbTransform transform;
+  const size_t slash = frame_path.find_last_of('/');
+  if (slash == std::string::npos) return transform;
+
+  int rotation = 0;
+  int scale = 1000;
+  int center_x = 500;
+  int center_y = 500;
+  const std::string path = frame_path.substr(0, slash) + "/view-" +
+                           std::to_string(camera_id) + ".cfg";
+  FILE* view = fopen(path.c_str(), "re");
+  if (view != nullptr) {
+    const int parsed =
+        fscanf(view, "%d,%d,%d,%d", &rotation, &scale, &center_x, &center_y);
+    fclose(view);
+    if (parsed != 4 ||
+        (rotation != 0 && rotation != 90 && rotation != 180 &&
+         rotation != 270) ||
+        scale < 100 || scale > 8000 || center_x < 0 || center_x > 1000 ||
+        center_y < 0 || center_y > 1000) {
+      rotation = 0;
+      scale = 1000;
+      center_x = 500;
+      center_y = 500;
+    }
+  }
+
+  const int sensor_orientation = camera_id == kDelegateBackCameraId ? 90 : 270;
+  int total_rotation = rotation - sensor_orientation;
+  while (total_rotation <= -270) total_rotation += 360;
+  while (total_rotation > 270) total_rotation -= 360;
+  transform.rotationDegrees = total_rotation;
+  transform.scale = scale / 1000.0f;
+  transform.centerX = center_x / 1000.0f;
+  transform.centerY = center_y / 1000.0f;
+  return transform;
+}
+
+status_t ConfigureRoutedFrame(uint32_t camera_id,
+                              const gch::HalCameraMetadata* session_params) {
+  if (camera_id >= g_routed_frames.size()) return BAD_VALUE;
+  const std::string package_name = ClientPackageFrom(session_params);
+  if (package_name.empty()) {
+    ALOGE("Client package is absent from VCAM session parameters");
+    return BAD_VALUE;
+  }
+  const vcam::ProviderSelection selection =
+      vcam::RouteResolver::resolveProviderForPackage(package_name, camera_id);
+  if (!selection.configured || !selection.available ||
+      vcam::RouteResolver::physicalIdFromProvider(selection.providerId) >= 0) {
+    ALOGE("Invalid virtual route camera=%u package='%s' provider='%s'",
+          camera_id, package_name.c_str(), selection.providerId.c_str());
+    return BAD_VALUE;
+  }
+
+  const std::string frame_path =
+      vcam::RouteResolver::framePath(selection.providerId);
+  RoutedFrameState& state = g_routed_frames[camera_id];
+  std::lock_guard<std::mutex> lock(state.mutex);
+  state.package_name = package_name;
+  state.provider_id = selection.providerId;
+  state.renderer.setSourcePath(frame_path);
+  state.transform = LoadSourceTransform(frame_path, camera_id);
+  state.renderer.reload();
+  ALOGI("Configured frame route camera=%u package='%s' provider='%s'",
+        camera_id, package_name.c_str(), selection.providerId.c_str());
+  return OK;
+}
 
 bool ToDelegateId(uint32_t public_id, uint32_t* delegate_id) {
   if (delegate_id == nullptr) return false;
@@ -98,6 +205,9 @@ class VcamCameraDeviceSessionHwl final : public gch::CameraDeviceSessionHwl {
 
   status_t PrepareConfigureStreams(
       const gch::StreamConfiguration& config) override {
+    status_t route_result =
+        ConfigureRoutedFrame(delegate_id_, config.session_params.get());
+    if (route_result != OK) return route_result;
     return delegate_->PrepareConfigureStreams(config);
   }
 
@@ -412,6 +522,81 @@ class VcamCameraProviderHwl final : public gch::CameraProviderHwl {
 };
 
 }  // namespace
+
+extern "C" void VcamSetActiveFrame(uint32_t camera_id,
+                                    uint32_t frame_number) {
+  g_active_frame = {
+      .camera_id = camera_id,
+      .frame_number = frame_number,
+      .valid = camera_id < g_routed_frames.size(),
+  };
+}
+
+extern "C" bool VcamRenderYuv420(uint8_t* y, uint8_t* cb, uint8_t* cr,
+                                  uint32_t width, uint32_t height,
+                                  uint32_t y_stride, uint32_t cbcr_stride,
+                                  uint32_t cbcr_step, size_t bytes_per_pixel) {
+  if (!g_active_frame.valid || bytes_per_pixel != 1 || y == nullptr ||
+      cb == nullptr || cr == nullptr) {
+    return false;
+  }
+  RoutedFrameState& state = g_routed_frames[g_active_frame.camera_id];
+  std::lock_guard<std::mutex> lock(state.mutex);
+  state.renderer.reload();
+  return state.renderer.fillYuv420(
+      width, height,
+      {.y = y,
+       .cb = cb,
+       .cr = cr,
+       .yStride = y_stride,
+       .cStride = cbcr_stride,
+       .chromaStep = cbcr_step,
+       .yStep = bytes_per_pixel},
+      g_active_frame.frame_number, g_active_frame.camera_id, state.transform);
+}
+
+extern "C" bool VcamRenderRgb(uint8_t* image, uint32_t width,
+                               uint32_t height, uint32_t stride,
+                               uint32_t layout) {
+  if (!g_active_frame.valid || image == nullptr || width == 0 || height == 0 ||
+      layout > 2) {
+    return false;
+  }
+  const uint32_t bytes_per_pixel = layout == 0 ? 3 : 4;
+  if (stride < width * bytes_per_pixel) return false;
+
+  RoutedFrameState& state = g_routed_frames[g_active_frame.camera_id];
+  std::lock_guard<std::mutex> lock(state.mutex);
+  state.renderer.reload();
+  std::vector<uint8_t> row(static_cast<size_t>(width) * 3);
+  for (uint32_t y = 0; y < height; ++y) {
+    if (!state.renderer.fillRgbRow(width, height, y, row.data(),
+                                   g_active_frame.frame_number,
+                                   g_active_frame.camera_id, state.transform)) {
+      return false;
+    }
+    uint8_t* output = image + static_cast<size_t>(y) * stride;
+    for (uint32_t x = 0; x < width; ++x) {
+      const uint8_t* rgb = row.data() + static_cast<size_t>(x) * 3;
+      if (layout == 0) {
+        memcpy(output + static_cast<size_t>(x) * 3, rgb, 3);
+      } else if (layout == 1) {
+        uint8_t* rgba = output + static_cast<size_t>(x) * 4;
+        rgba[0] = rgb[0];
+        rgba[1] = rgb[1];
+        rgba[2] = rgb[2];
+        rgba[3] = 255;
+      } else {
+        uint8_t* argb = output + static_cast<size_t>(x) * 4;
+        argb[0] = 255;
+        argb[1] = rgb[0];
+        argb[2] = rgb[1];
+        argb[3] = rgb[2];
+      }
+    }
+  }
+  return true;
+}
 
 extern "C" gch::CameraProviderHwl* CreateCameraProviderHwl() {
   std::unique_ptr<gch::CameraProviderHwl> delegate =

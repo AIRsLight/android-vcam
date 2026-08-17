@@ -188,6 +188,8 @@ def main() -> None:
         "camera_service_vcam_defaults", "ANDROID_CAMERA_HWL_LIBRARY",
         "libvcam_googlecamerahwl_impl", "kBackCameraId = 1000",
         "kFrontCameraId = 1001", "kVcamClientPackageTag",
+        "libvcam_frame_core", "libvcam_route_core", "ConfigureRoutedFrame",
+        "VcamSetActiveFrame", "VcamRenderYuv420", "VcamRenderRgb",
     ):
         if required_symbol not in aidl_provider:
             fail(f"AOSP AIDL provider is missing symbol: {required_symbol}")

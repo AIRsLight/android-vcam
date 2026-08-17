@@ -2,20 +2,14 @@ diff --git a/common/apex_update_listener/Android.bp b/common/apex_update_listene
 index 377b99a..6e8b8f7 100644
 --- a/common/apex_update_listener/Android.bp
 +++ b/common/apex_update_listener/Android.bp
-@@ -31,5 +31,5 @@ cc_defaults {
-   static_libs: [
-     "libtinyxml2",
+@@ -33 +33 @@ cc_defaults {
 -    "libapex_update_listener",
 +    "//hardware/google/camera/common/apex_update_listener:libapex_update_listener",
-   ],
- }
 diff --git a/common/hal/aidl_service/Android.bp b/common/hal/aidl_service/Android.bp
 index df5d70e..65930b1 100644
 --- a/common/hal/aidl_service/Android.bp
 +++ b/common/hal/aidl_service/Android.bp
-@@ -69,12 +69,6 @@ cc_genrule {
- }
- 
+@@ -71,8 +71,2 @@ cc_genrule {
 -cc_defaults {
 -    name: "camera_service_defaults_common",
 -    defaults: [
@@ -26,11 +20,7 @@ index df5d70e..65930b1 100644
 -    relative_install_path: "hw",
 +filegroup {
 +    name: "camera_service_common_sources",
-     srcs: [
-         "aidl_camera_device.cc",
-@@ -86,6 +80,22 @@ cc_defaults {
-         "libc_wrappers.cc",
-     ],
+@@ -87,0 +82,16 @@ cc_defaults {
 +}
 +
 +filegroup {
@@ -47,39 +37,26 @@ index df5d70e..65930b1 100644
 +    vendor: true,
 +    relative_install_path: "hw",
 +    srcs: ["//hardware/google/camera/common/hal/aidl_service:camera_service_common_sources"],
-     generated_headers: [
+@@ -89 +99 @@ cc_defaults {
 -        "aidl_camera_build_version",
 +        "//hardware/google/camera/common/hal/aidl_service:aidl_camera_build_version",
-     ],
-     compile_multilib: "first",
-@@ -104,13 +114,13 @@ cc_defaults {
-         "libcutils",
-         "libfmq",
+@@ -106,2 +116,2 @@ cc_defaults {
 -        "libgooglecamerahal",
 -        "libgooglecamerahalutils",
 +        "//hardware/google/camera/common/hal/google_camera_hal:libgooglecamerahal",
 +        "//hardware/google/camera/common/hal/utils:libgooglecamerahalutils",
-         "libhidlbase",
-         "liblog",
-         "libutils",
+@@ -111 +121 @@ cc_defaults {
 -        "lib_profiler",
 +        "//hardware/google/camera/common/profiler:lib_profiler",
-     ],
-     export_shared_lib_headers: [
+@@ -114 +124 @@ cc_defaults {
 -        "lib_profiler",
 +        "//hardware/google/camera/common/profiler:lib_profiler",
-     ],
-     static_libs: [
-@@ -124,10 +134,19 @@ cc_defaults {
-         "camera_service_defaults_common",
-     ],
+@@ -126,3 +136 @@ cc_defaults {
 -    srcs: [
 -        "aidl_service.cc",
 -    ],
 +    srcs: ["//hardware/google/camera/common/hal/aidl_service:camera_service_main_source"],
-     vintf_fragments: [":android.hardware.camera.provider@2.7-service-google.xml"],
- }
- 
+@@ -131,0 +140,11 @@ cc_defaults {
 +// Transport defaults for the collision-free android-vcam provider. The
 +// product-owned binary supplies its own init and VINTF fragments.
 +cc_defaults {
@@ -91,51 +68,32 @@ index df5d70e..65930b1 100644
 +    cflags: ["-DANDROID_VCAM_PROVIDER"],
 +}
 +
- cc_binary {
-     name: "android.hardware.camera.provider@2.7-service-google",
 diff --git a/common/hal/aidl_service/aidl_camera_provider.cc b/common/hal/aidl_service/aidl_camera_provider.cc
 index 7eac3f2..cb798da 100644
 --- a/common/hal/aidl_service/aidl_camera_provider.cc
 +++ b/common/hal/aidl_service/aidl_camera_provider.cc
-@@ -41,8 +41,15 @@ using aidl::android::hardware::camera::common::VendorTagSection;
- using ::android::google_camera_hal::CameraDevice;
- 
+@@ -42,0 +43,6 @@ using ::android::google_camera_hal::CameraDevice;
 +#ifdef ANDROID_VCAM_PROVIDER
 +const std::string AidlCameraProvider::kProviderName = "vcam";
 +// "device@<version>/vcam/<id>"
 +const std::regex AidlCameraProvider::kDeviceNameRegex(
 +    "device@([0-9]+\\.[0-9]+)/vcam/(.+)");
 +#else
- const std::string AidlCameraProvider::kProviderName = "internal";
- // "device@<version>/internal/<id>"
- const std::regex AidlCameraProvider::kDeviceNameRegex(
-     "device@([0-9]+\\.[0-9]+)/internal/(.+)");
+@@ -46,0 +53 @@ const std::regex AidlCameraProvider::kDeviceNameRegex(
 +#endif
- 
- std::shared_ptr<AidlCameraProvider> AidlCameraProvider::Create() {
 diff --git a/common/hal/aidl_service/aidl_service.cc b/common/hal/aidl_service/aidl_service.cc
 index 91f52b1..a1e2478 100644
 --- a/common/hal/aidl_service/aidl_service.cc
 +++ b/common/hal/aidl_service/aidl_service.cc
-@@ -32,4 +32,5 @@
- 
- #include <cinttypes>
+@@ -33,0 +34 @@
 +#include <cstdlib>
- 
- #include "aidl_camera_build_version.h"
-@@ -45,5 +46,9 @@ const bool kLazyService = false;
- #endif
- 
+@@ -46,0 +48,3 @@ const bool kLazyService = false;
 +#ifdef ANDROID_VCAM_PROVIDER
 +const std::string kProviderInstance = "/vcam/0";
 +#else
- const std::string kProviderInstance = "/internal/0";
+@@ -47,0 +52 @@ const std::string kProviderInstance = "/internal/0";
 +#endif
- 
- int main() {
-@@ -61,4 +66,11 @@ int main() {
-   ABinderProcess_startThreadPool();
- 
+@@ -62,0 +68,7 @@ int main() {
 +#ifdef ANDROID_VCAM_PROVIDER
 +  if (setenv("ANDROID_CAMERA_HWL_LIBRARY",
 +             "libvcam_googlecamerahwl_impl.so", 1) != 0) {
@@ -143,28 +101,16 @@ index 91f52b1..a1e2478 100644
 +    return android::NO_INIT;
 +  }
 +#endif
- #ifdef __ANDROID_APEX__
-   int start_count = property_get_int32("vendor.camera.hal.start.count", 0);
 diff --git a/common/hal/google_camera_hal/camera_provider.cc b/common/hal/google_camera_hal/camera_provider.cc
 index 30e184d..6242e0d 100644
 --- a/common/hal/google_camera_hal/camera_provider.cc
 +++ b/common/hal/google_camera_hal/camera_provider.cc
-@@ -21,4 +21,5 @@
- 
- #include <dlfcn.h>
+@@ -22,0 +23 @@
 +#include <cstdlib>
- #include <log/log.h>
- #include <utils/Trace.h>
-@@ -33,4 +34,6 @@
- // HWL layer implementation path
- constexpr std::string_view kCameraHwlLib = "libgooglecamerahwl_impl.so";
+@@ -34,0 +36,2 @@ constexpr std::string_view kCameraHwlLib = "libgooglecamerahwl_impl.so";
 +constexpr std::string_view kCameraHwlLibEnvironment =
 +    "ANDROID_CAMERA_HWL_LIBRARY";
- #endif
- 
-@@ -305,9 +308,14 @@ status_t CameraProvider::CreateHwl(
-   CreateCameraProviderHwl_t create_hwl;
- 
+@@ -307,2 +310,7 @@ status_t CameraProvider::CreateHwl(
 -  ALOGI("%s:Loading %s library", __FUNCTION__, kCameraHwlLib.data());
 -  hwl_lib_handle_ = dlopen(kCameraHwlLib.data(), RTLD_NOW);
 +  const char* selected_hwl = std::getenv(kCameraHwlLibEnvironment.data());
@@ -174,37 +120,24 @@ index 30e184d..6242e0d 100644
 +  }
 +  ALOGI("%s: Loading %s library", __FUNCTION__, selected_hwl);
 +  hwl_lib_handle_ = dlopen(selected_hwl, RTLD_NOW);
- 
-   if (hwl_lib_handle_ == nullptr) {
+@@ -311 +319 @@ status_t CameraProvider::CreateHwl(
 -    ALOGE("HWL loading %s failed due to error: %s", kCameraHwlLib.data(),
 +    ALOGE("HWL loading %s failed due to error: %s", selected_hwl,
-           dlerror());
-     return NO_INIT;
-@@ -317,5 +325,5 @@ status_t CameraProvider::CreateHwl(
-                                                 "CreateCameraProviderHwl");
-   if (create_hwl == nullptr) {
+@@ -319 +327 @@ status_t CameraProvider::CreateHwl(
 -    ALOGE("%s: dlsym failed (%s).", __FUNCTION__, kCameraHwlLib.data());
 +    ALOGE("%s: dlsym failed (%s).", __FUNCTION__, selected_hwl);
-     dlclose(hwl_lib_handle_);
-     hwl_lib_handle_ = nullptr;
 diff --git a/devices/EmulatedCamera/hwl/Android.bp b/devices/EmulatedCamera/hwl/Android.bp
 index fad5ef0..2c620be 100644
 --- a/devices/EmulatedCamera/hwl/Android.bp
 +++ b/devices/EmulatedCamera/hwl/Android.bp
-@@ -4,8 +4,6 @@ package {
- }
- 
+@@ -6,4 +6,2 @@ package {
 -cc_defaults {
 -    name: "libgooglecamerahwl_impl_defaults",
 -    owner: "google",
 -    proprietary: true,
 +filegroup {
 +    name: "emulated_camera_hwl_sources",
-     srcs: [
-         "EmulatedCameraProviderHWLImpl.cpp",
-@@ -18,4 +16,11 @@ cc_defaults {
-         "GrallocSensorBuffer.cpp",
-     ],
+@@ -19,0 +18,7 @@ cc_defaults {
 +}
 +
 +cc_defaults {
@@ -212,48 +145,59 @@ index fad5ef0..2c620be 100644
 +    owner: "google",
 +    proprietary: true,
 +    srcs: ["//hardware/google/camera/devices/EmulatedCamera/hwl:emulated_camera_hwl_sources"],
-     cflags: [
-         "-Werror",
-@@ -34,5 +39,5 @@ cc_defaults {
-         "android.hardware.sensors@1.0",
-         "android.hidl.allocator@1.0",
+@@ -36 +41 @@ cc_defaults {
 -        "lib_profiler",
 +        "//hardware/google/camera/common/profiler:lib_profiler",
-         "libbase",
-         "libcamera_metadata",
-@@ -42,5 +47,5 @@ cc_defaults {
-         "libhardware",
-         "libhidlbase",
+@@ -44 +49 @@ cc_defaults {
 -        "libgooglecamerahalutils",
 +        "//hardware/google/camera/common/hal/utils:libgooglecamerahalutils",
-         "libjpeg",
-         "libjsoncpp",
-@@ -52,5 +57,5 @@ cc_defaults {
-     static_libs: [
-         "android.hardware.camera.common@1.0-helper",
+@@ -54 +59 @@ cc_defaults {
 -        "libgooglecamerahwl_sensor_impl",
 +        "//hardware/google/camera/devices/EmulatedCamera/hwl:libgooglecamerahwl_sensor_impl",
-     ],
-     include_dirs: [
-@@ -58,5 +63,5 @@ cc_defaults {
-     ],
-     header_libs: [
+@@ -60 +65 @@ cc_defaults {
 -        "libgooglecamerahal_headers",
 +        "//hardware/google/camera/common/hal:libgooglecamerahal_headers",
-     ],
- }
 diff --git a/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.h b/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.h
 index e9c086b..e146ec8 100644
 --- a/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.h
 +++ b/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.h
-@@ -97,8 +97,10 @@ class EmulatedCameraProviderHwlImpl : public CameraProviderHwl {
- };
- 
+@@ -98,0 +99 @@ class EmulatedCameraProviderHwlImpl : public CameraProviderHwl {
 +#ifndef ANDROID_VCAM_CUSTOM_FACTORY
- extern "C" CameraProviderHwl* CreateCameraProviderHwl() {
-   auto provider = EmulatedCameraProviderHwlImpl::Create();
-   return provider.release();
- }
+@@ -102,0 +104 @@ extern "C" CameraProviderHwl* CreateCameraProviderHwl() {
 +#endif
- 
- }  // namespace android
+diff --git a/devices/EmulatedCamera/hwl/EmulatedSensor.cpp b/devices/EmulatedCamera/hwl/EmulatedSensor.cpp
+index 7d93ded..22a480c 100644
+--- a/devices/EmulatedCamera/hwl/EmulatedSensor.cpp
++++ b/devices/EmulatedCamera/hwl/EmulatedSensor.cpp
+@@ -46,0 +47,12 @@ namespace android {
++// Optional android-vcam frame hooks. The weak linkage keeps the stock
++// EmulatedCamera behavior unchanged for every other HWL consumer.
++extern "C" void VcamSetActiveFrame(uint32_t camera_id, uint32_t frame_number)
++    __attribute__((weak));
++extern "C" bool VcamRenderYuv420(
++    uint8_t* y, uint8_t* cb, uint8_t* cr, uint32_t width, uint32_t height,
++    uint32_t y_stride, uint32_t cbcr_stride, uint32_t cbcr_step,
++    size_t bytes_per_pixel) __attribute__((weak));
++extern "C" bool VcamRenderRgb(uint8_t* image, uint32_t width, uint32_t height,
++                               uint32_t stride, uint32_t layout)
++    __attribute__((weak));
++
+@@ -796,0 +809,4 @@ bool EmulatedSensor::threadLoop() {
++      if (VcamSetActiveFrame != nullptr) {
++        VcamSetActiveFrame((*b)->camera_id, (*b)->frame_number);
++      }
++
+@@ -1437,0 +1454,5 @@ void EmulatedSensor::CaptureRGB(uint8_t* img, uint32_t width, uint32_t height,
++  if (VcamRenderRgb != nullptr &&
++      VcamRenderRgb(img, width, height, stride,
++                    static_cast<uint32_t>(layout))) {
++    return;
++  }
+@@ -1491,0 +1513,7 @@ void EmulatedSensor::CaptureYUV420(YCbCrPlanes yuv_layout, uint32_t width,
++  if (VcamRenderYuv420 != nullptr &&
++      VcamRenderYuv420(yuv_layout.img_y, yuv_layout.img_cb,
++                       yuv_layout.img_cr, width, height, yuv_layout.y_stride,
++                       yuv_layout.cbcr_stride, yuv_layout.cbcr_step,
++                       yuv_layout.bytesPerPixel)) {
++    return;
++  }

@@ -230,8 +230,8 @@ status_t AppendMetadataTuples(gch::HalCameraMetadata* metadata, uint32_t tag,
     constexpr uint8_t expected_type =
         std::is_same_v<T, int32_t> ? TYPE_INT32 : TYPE_INT64;
     if (entry.type != expected_type || entry.count % 4 != 0) {
-      ALOGE("Unexpected metadata tuple layout tag=%u type=%u count=%zu", tag,
-            entry.type, entry.count);
+      ALOGE("Unexpected metadata tuple layout tag=%u type=%d count=%zu", tag,
+            static_cast<int>(entry.type), entry.count);
       return BAD_VALUE;
     }
     const T* existing = nullptr;

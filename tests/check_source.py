@@ -213,6 +213,7 @@ def main() -> None:
         ROOT / "aosp" / "provider" / "aidl" / "Android.bp",
         ROOT / "aosp" / "provider" / "aidl" / "VcamCameraProviderHwl.cpp",
         ROOT / "aosp" / "provider" / "aidl" / "android-13" / "hardware-google-camera.patch",
+        ROOT / "aosp" / "provider" / "aidl" / "android-14" / "hardware-google-camera.patch",
     ))
     for required_symbol in (
         "camera_service_vcam_defaults", "ANDROID_CAMERA_HWL_LIBRARY",
@@ -220,6 +221,8 @@ def main() -> None:
         "kFrontCameraId = 1001", "kVcamClientPackageTag",
         "libvcam_frame_core", "libvcam_route_core", "ConfigureRoutedFrame",
         "VcamSetActiveFrame", "VcamRenderYuv420", "VcamRenderRgb",
+        "VcamAdjustCameraMetadata", "AddHighResolutionMetadata",
+        "kMaxOutputPixelRate", "outputFps", "emu_camera_back.json",
         "android.hardware.camera.provider-service-vcam-v2",
     ):
         if required_symbol not in aidl_provider:

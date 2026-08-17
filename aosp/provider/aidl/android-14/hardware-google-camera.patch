@@ -355,3 +355,45 @@ index 29953e6..6539e92 100644
    float total_gain = gain / 100.0 * GetBaseGainFactor(chars.max_raw_value);
    // Using fixed-point math with 6 bits of fractional precision.
    // In fixed-point math, calculate total scaling from electrons to 8bpp
+diff --git a/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.cpp b/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.cpp
+index d4fae3e..d8f179c 100644
+--- a/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.cpp
++++ b/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.cpp
+@@ -34,6 +34,10 @@
+ 
+ namespace android {
+ 
++extern "C" bool VcamAdjustCameraMetadata(
++    uint32_t camera_id, google_camera_hal::HalCameraMetadata* metadata)
++    __attribute__((weak));
++
+ // Location of the camera configuration files.
+ constexpr std::string_view kConfigurationFileNames[] = {
+     "emu_camera_back.json",
+@@ -809,6 +813,13 @@ status_t EmulatedCameraProviderHwlImpl::Initialize() {
+       camera_id_map_.emplace(logical_id, std::vector<std::pair<CameraDeviceStatus, uint32_t>>());
+     }
+ 
++    if (VcamAdjustCameraMetadata != nullptr &&
++        static_metadata_[logical_id] != nullptr &&
++        !VcamAdjustCameraMetadata(logical_id, static_metadata_[logical_id].get())) {
++      ALOGE("%s: Unable to apply android-vcam metadata for camera %zu",
++            __FUNCTION__, logical_id);
++      return BAD_VALUE;
++    }
+     logical_id++;
+   }
+ 
+diff --git a/devices/EmulatedCamera/hwl/configs/Android.bp b/devices/EmulatedCamera/hwl/configs/Android.bp
+index 1c74d1d..e4ad9b2 100644
+--- a/devices/EmulatedCamera/hwl/configs/Android.bp
++++ b/devices/EmulatedCamera/hwl/configs/Android.bp
+@@ -23,7 +23,7 @@ prebuilt_defaults {
+     name: "emu_camera_config_defaults",
+     relative_install_path: "config",
+     soc_specific: true,
+-    installable: false,
++    installable: true,
+ }
+ 
+ prebuilt_etc {

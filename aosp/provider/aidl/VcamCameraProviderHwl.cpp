@@ -12,11 +12,15 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
+#include <type_traits>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -35,6 +39,9 @@ constexpr uint32_t kBackCameraId = 1000;
 constexpr uint32_t kFrontCameraId = 1001;
 constexpr uint32_t kDelegateBackCameraId = 0;
 constexpr uint32_t kDelegateFrontCameraId = 1;
+constexpr uint64_t kMaxOutputPixelRate = 1920ULL * 1080ULL * 60ULL;
+constexpr int64_t kDefaultFrameDurationNs = 33333333;
+constexpr int32_t kJpegMaxSize = 16 * 1024 * 1024;
 
 struct RoutedFrameState {
   std::mutex mutex;
@@ -42,6 +49,7 @@ struct RoutedFrameState {
   vcam::RgbTransform transform;
   std::string package_name;
   std::string provider_id;
+  int64_t frame_duration_ns = kDefaultFrameDurationNs;
 };
 
 struct ActiveFrame {
@@ -105,8 +113,26 @@ vcam::RgbTransform LoadSourceTransform(const std::string& frame_path,
   return transform;
 }
 
+int64_t LoadSourceFrameDuration(const std::string& frame_path) {
+  const size_t slash = frame_path.find_last_of('/');
+  if (slash == std::string::npos) return kDefaultFrameDurationNs;
+
+  int fps = 30;
+  int ignored_width = 0;
+  int ignored_height = 0;
+  FILE* source = fopen((frame_path.substr(0, slash) + "/source.cfg").c_str(),
+                       "re");
+  if (source == nullptr) return kDefaultFrameDurationNs;
+  const int parsed =
+      fscanf(source, "%d,%d,%d", &fps, &ignored_width, &ignored_height);
+  fclose(source);
+  if (parsed != 3 || fps < 1 || fps > 60) return kDefaultFrameDurationNs;
+  return 1000000000LL / fps;
+}
+
 status_t ConfigureRoutedFrame(uint32_t camera_id,
-                              const gch::HalCameraMetadata* session_params) {
+                              const gch::HalCameraMetadata* session_params,
+                              int64_t* frame_duration_ns) {
   if (camera_id >= g_routed_frames.size()) return BAD_VALUE;
   const std::string package_name = ClientPackageFrom(session_params);
   if (package_name.empty()) {
@@ -130,7 +156,11 @@ status_t ConfigureRoutedFrame(uint32_t camera_id,
   state.provider_id = selection.providerId;
   state.renderer.setSourcePath(frame_path);
   state.transform = LoadSourceTransform(frame_path, camera_id);
+  state.frame_duration_ns = LoadSourceFrameDuration(frame_path);
   state.renderer.reload();
+  if (frame_duration_ns != nullptr) {
+    *frame_duration_ns = state.frame_duration_ns;
+  }
   ALOGI("Configured frame route camera=%u package='%s' provider='%s'",
         camera_id, package_name.c_str(), selection.providerId.c_str());
   return OK;
@@ -188,6 +218,102 @@ status_t AddRoutingMetadata(gch::HalCameraMetadata* metadata) {
                            vcam::kVcamClientPackageTag);
 }
 
+template <typename T>
+status_t AppendMetadataTuples(gch::HalCameraMetadata* metadata, uint32_t tag,
+                              const T* additions, size_t addition_count) {
+  if (metadata == nullptr || additions == nullptr || addition_count % 4 != 0) {
+    return BAD_VALUE;
+  }
+  camera_metadata_ro_entry_t entry{};
+  std::vector<T> values;
+  if (metadata->Get(tag, &entry) == OK && entry.count > 0) {
+    constexpr uint8_t expected_type =
+        std::is_same_v<T, int32_t> ? TYPE_INT32 : TYPE_INT64;
+    if (entry.type != expected_type || entry.count % 4 != 0) {
+      ALOGE("Unexpected metadata tuple layout tag=%u type=%u count=%zu", tag,
+            entry.type, entry.count);
+      return BAD_VALUE;
+    }
+    const T* existing = nullptr;
+    if constexpr (std::is_same_v<T, int32_t>) {
+      existing = entry.data.i32;
+    } else {
+      existing = entry.data.i64;
+    }
+    values.assign(existing, existing + entry.count);
+  }
+  for (size_t offset = 0; offset < addition_count; offset += 4) {
+    bool found = false;
+    for (size_t current = 0; current + 3 < values.size(); current += 4) {
+      if (values[current] == additions[offset] &&
+          values[current + 1] == additions[offset + 1] &&
+          values[current + 2] == additions[offset + 2]) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      values.insert(values.end(), additions + offset, additions + offset + 4);
+    }
+  }
+  return metadata->Set(tag, values.data(), values.size());
+}
+
+status_t AddHighResolutionMetadata(gch::HalCameraMetadata* metadata) {
+  constexpr int32_t output =
+      ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT;
+  constexpr int32_t configs[] = {
+      HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED, 2560, 1440, output,
+      HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED, 3840, 2160, output,
+      HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED, 4096, 3072, output,
+      HAL_PIXEL_FORMAT_YCBCR_420_888, 2560, 1440, output,
+      HAL_PIXEL_FORMAT_YCBCR_420_888, 3840, 2160, output,
+      HAL_PIXEL_FORMAT_YCBCR_420_888, 4096, 3072, output,
+      HAL_PIXEL_FORMAT_BLOB, 2560, 1440, output,
+      HAL_PIXEL_FORMAT_BLOB, 3840, 2160, output,
+      HAL_PIXEL_FORMAT_BLOB, 4096, 3072, output,
+  };
+  constexpr int64_t min_durations[] = {
+      HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED, 2560, 1440, 33333333,
+      HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED, 3840, 2160, 66666666,
+      HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED, 4096, 3072, 111111111,
+      HAL_PIXEL_FORMAT_YCBCR_420_888, 2560, 1440, 33333333,
+      HAL_PIXEL_FORMAT_YCBCR_420_888, 3840, 2160, 66666666,
+      HAL_PIXEL_FORMAT_YCBCR_420_888, 4096, 3072, 111111111,
+      HAL_PIXEL_FORMAT_BLOB, 2560, 1440, 33333333,
+      HAL_PIXEL_FORMAT_BLOB, 3840, 2160, 66666666,
+      HAL_PIXEL_FORMAT_BLOB, 4096, 3072, 111111111,
+  };
+  constexpr int64_t stall_durations[] = {
+      HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED, 2560, 1440, 0,
+      HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED, 3840, 2160, 0,
+      HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED, 4096, 3072, 0,
+      HAL_PIXEL_FORMAT_YCBCR_420_888, 2560, 1440, 0,
+      HAL_PIXEL_FORMAT_YCBCR_420_888, 3840, 2160, 0,
+      HAL_PIXEL_FORMAT_YCBCR_420_888, 4096, 3072, 0,
+      HAL_PIXEL_FORMAT_BLOB, 2560, 1440, 500000000,
+      HAL_PIXEL_FORMAT_BLOB, 3840, 2160, 800000000,
+      HAL_PIXEL_FORMAT_BLOB, 4096, 3072, 1200000000,
+  };
+  status_t result = AppendMetadataTuples(
+      metadata, ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS, configs,
+      std::size(configs));
+  if (result != OK) return result;
+  result = AppendMetadataTuples(
+      metadata, ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS, min_durations,
+      std::size(min_durations));
+  if (result != OK) return result;
+  result = AppendMetadataTuples(
+      metadata, ANDROID_SCALER_AVAILABLE_STALL_DURATIONS, stall_durations,
+      std::size(stall_durations));
+  if (result != OK) return result;
+  result = metadata->Set(ANDROID_JPEG_MAX_SIZE, &kJpegMaxSize, 1);
+  if (result != OK) return result;
+  constexpr int64_t max_frame_duration = 120000000;
+  return metadata->Set(ANDROID_SENSOR_INFO_MAX_FRAME_DURATION,
+                       &max_frame_duration, 1);
+}
+
 class VcamCameraDeviceSessionHwl final : public gch::CameraDeviceSessionHwl {
  public:
   VcamCameraDeviceSessionHwl(
@@ -205,9 +331,25 @@ class VcamCameraDeviceSessionHwl final : public gch::CameraDeviceSessionHwl {
 
   status_t PrepareConfigureStreams(
       const gch::StreamConfiguration& config) override {
-    status_t route_result =
-        ConfigureRoutedFrame(delegate_id_, config.session_params.get());
+    int64_t source_frame_duration = kDefaultFrameDurationNs;
+    status_t route_result = ConfigureRoutedFrame(
+        delegate_id_, config.session_params.get(), &source_frame_duration);
     if (route_result != OK) return route_result;
+    uint64_t max_output_pixels = 1;
+    for (const auto& stream : config.streams) {
+      if (stream.stream_type == gch::StreamType::kOutput) {
+        max_output_pixels = std::max(
+            max_output_pixels,
+            static_cast<uint64_t>(stream.width) * stream.height);
+      }
+    }
+    const int64_t output_fps = static_cast<int64_t>(std::max<uint64_t>(
+        1, std::min<uint64_t>(60, kMaxOutputPixelRate / max_output_pixels)));
+    frame_duration_ns_ =
+        std::max(source_frame_duration, 1000000000LL / output_fps);
+    next_frame_time_ = {};
+    ALOGI("Configured AIDL route camera=%u outputFps=%lld",
+          public_id_, static_cast<long long>(1000000000LL / frame_duration_ns_));
     return delegate_->PrepareConfigureStreams(config);
   }
 
@@ -256,6 +398,22 @@ class VcamCameraDeviceSessionHwl final : public gch::CameraDeviceSessionHwl {
   status_t SubmitRequests(
       uint32_t frame_number,
       std::vector<gch::HwlPipelineRequest>& requests) override {
+    {
+      std::unique_lock<std::mutex> lock(pacing_mutex_);
+      auto now = std::chrono::steady_clock::now();
+      if (next_frame_time_ > now) {
+        std::this_thread::sleep_until(next_frame_time_);
+        now = std::chrono::steady_clock::now();
+      }
+      next_frame_time_ =
+          now + std::chrono::nanoseconds(frame_duration_ns_);
+    }
+    for (auto& request : requests) {
+      if (request.settings != nullptr) {
+        request.settings->Set(ANDROID_SENSOR_FRAME_DURATION,
+                              &frame_duration_ns_, 1);
+      }
+    }
     return delegate_->SubmitRequests(frame_number, requests);
   }
 
@@ -334,6 +492,9 @@ class VcamCameraDeviceSessionHwl final : public gch::CameraDeviceSessionHwl {
   const uint32_t public_id_;
   const uint32_t delegate_id_;
   std::unique_ptr<gch::CameraDeviceSessionHwl> delegate_;
+  int64_t frame_duration_ns_ = kDefaultFrameDurationNs;
+  std::mutex pacing_mutex_;
+  std::chrono::steady_clock::time_point next_frame_time_{};
 };
 
 class VcamCameraDeviceHwl final : public gch::CameraDeviceHwl {
@@ -530,6 +691,13 @@ extern "C" void VcamSetActiveFrame(uint32_t camera_id,
       .frame_number = frame_number,
       .valid = camera_id < g_routed_frames.size(),
   };
+}
+
+extern "C" bool VcamAdjustCameraMetadata(
+    uint32_t camera_id, gch::HalCameraMetadata* metadata) {
+  if (metadata == nullptr) return false;
+  if (camera_id > kDelegateFrontCameraId) return true;
+  return AddHighResolutionMetadata(metadata) == OK;
 }
 
 extern "C" bool VcamRenderYuv420(uint8_t* y, uint8_t* cb, uint8_t* cr,

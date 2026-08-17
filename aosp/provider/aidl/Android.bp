@@ -26,7 +26,12 @@ cc_binary {
         "//hardware/google/camera/common/hal/aidl_service:camera_service_vcam_defaults",
         "//hardware/google/camera/common/hal/aidl_service:camera_service_eager_hal_defaults",
     ],
-    required: ["libvcam_googlecamerahwl_impl"],
+    required: [
+        "libvcam_googlecamerahwl_impl",
+        "emu_camera_back.json",
+        "emu_camera_front.json",
+        "emu_camera_depth.json",
+    ],
     init_rc: ["android.hardware.camera.provider-service-vcam.rc"],
     vintf_fragments: ["android.hardware.camera.provider-service-vcam.xml"],
 }
@@ -40,7 +45,12 @@ cc_binary {
         "//hardware/google/camera/common/hal/aidl_service:camera_service_vcam_defaults",
         "//hardware/google/camera/common/hal/aidl_service:camera_service_eager_hal_defaults",
     ],
-    required: ["libvcam_googlecamerahwl_impl"],
+    required: [
+        "libvcam_googlecamerahwl_impl",
+        "emu_camera_back.json",
+        "emu_camera_front.json",
+        "emu_camera_depth.json",
+    ],
     init_rc: ["android.hardware.camera.provider-service-vcam.rc"],
     vintf_fragments: ["android-14/android.hardware.camera.provider-service-vcam.xml"],
 }

@@ -28,6 +28,15 @@ module resolves that package against the same `routes.tsv` used by the manager.
 The OnePlus compatibility adapter continues to use its separate
 `com.oplus.packageName` contract.
 
+On Android 14, the AIDL v2 frontend installs the three upstream
+EmulatedCamera configuration files explicitly and extends the back/front
+static stream tables to 2560x1440, 3840x2160 and 4096x3072 for YUV,
+implementation-defined and JPEG outputs. The frame engine renders directly
+into the requested output buffer, so the source image does not have to match
+the advertised sensor size. Output cadence is bounded by both the configured
+source frame rate and a 1920x1080@60 pixel-rate budget; high-resolution streams
+therefore reduce frame rate instead of allocating an unbounded workload.
+
 ## Product integration
 
 Add the relevant service to a product makefile:

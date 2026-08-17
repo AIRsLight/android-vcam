@@ -191,6 +191,7 @@ llvm_readelf=$(find "$aosp_root/prebuilts/clang/host/linux-x86" \
 hwl_symbols=$("$llvm_readelf" -Ws "$hwl_artifact")
 for symbol in \
     CreateCameraProviderHwl \
+    VcamAdjustCameraMetadata \
     VcamSetActiveFrame \
     VcamRenderYuv420 \
     VcamRenderRgb; do

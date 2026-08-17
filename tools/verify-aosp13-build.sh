@@ -71,6 +71,7 @@ google_patch="$source_root/$google_patch_rel"
 managed_copy="$aosp_root/vendor/android_vcam_buildcheck"
 managed_marker="$managed_copy/.vcam-managed-build-copy"
 host_compat_source_dir="$aosp_root/prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8/sysroot/usr/lib"
+llvm_readelf="$aosp_root/prebuilts/clang/host/linux-x86/clang-r450784d/bin/llvm-readelf"
 required_frameworks_av_commit=95be9bad234d69f4a8ded5ee72b60315b1353098
 required_google_camera_commit=4355c55eb23e591e3cdb1f44ca82040f7ddda4a2
 
@@ -100,6 +101,7 @@ git -C "$google_camera" apply --check "$google_patch" ||
 for required in \
     "$aosp_root/build/soong/soong_ui.bash" \
     "$aosp_root/prebuilts/clang/host/linux-x86" \
+    "$llvm_readelf" \
     "$aosp_root/prebuilts/jdk/jdk11" \
     "$host_compat_source_dir/libncurses.so.5" \
     "$host_compat_source_dir/libtinfo.so.5" \
@@ -202,6 +204,18 @@ for artifact in \
     "$OUT_DIR/soong/target/product/generic_arm64/vendor/bin/hw/android.hardware.camera.provider-service-vcam"; do
     [[ -s "$artifact" ]] || fail "expected build artifact is missing: $artifact"
     printf 'Verified artifact: %s\n' "$artifact"
+done
+
+hwl_artifact="$OUT_DIR/soong/target/product/generic_arm64/vendor/lib64/libvcam_googlecamerahwl_impl.so"
+hwl_symbols=$("$llvm_readelf" -Ws "$hwl_artifact")
+for symbol in \
+    CreateCameraProviderHwl \
+    VcamSetActiveFrame \
+    VcamRenderYuv420 \
+    VcamRenderRgb; do
+    grep -q " $symbol$" <<<"$hwl_symbols" ||
+        fail "AIDL HWL frame hook is missing from the linked artifact: $symbol"
+    printf 'Verified AIDL HWL symbol: %s\n' "$symbol"
 done
 
 printf 'Android 13 AOSP targets built successfully in %s\n' "$OUT_DIR"

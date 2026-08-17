@@ -187,6 +187,8 @@ def main() -> None:
     probe = (ROOT / "apmodule" / "device-probe.sh").read_text(encoding="utf-8")
     for required_symbol in (
         "provider_transport", "provider_version", "provider_instance", "adapter_hint",
+        "aidl_service_line", "provider_service_hash", "legacy_module_hash",
+        "cameraservice_hash", "root_manager",
     ):
         if required_symbol not in probe:
             fail(f"device probe is missing field: {required_symbol}")

@@ -12,7 +12,10 @@ pwsh -File tools/probe-device.ps1
 ```
 
 The profile records the Android version and ABI, SELinux state, Camera
-Provider transport/version/instance, legacy camera module path and hashes.
+Provider transport/version/instance, provider executable, legacy camera module
+path and hashes. The host helper uses an already-authorized ADB `su` context
+when available so vendor files hidden from the shell UID can still be hashed;
+the probe remains read-only.
 `adapter_hint` selects the first integration candidate:
 
 | Hint | Intended frontend |
@@ -21,6 +24,11 @@ Provider transport/version/instance, legacy camera module path and hashes.
 | `hidl-provider-service` | Standalone Android 8-12 HIDL provider |
 | `aosp-aidl` | Standalone Android 13+ stable-AIDL provider |
 | `unsupported` | No known Camera Provider transport was discovered |
+
+Stable-AIDL discovery is instance-neutral. Qualcomm names such as
+`vendor_qti/0` and AOSP names such as `internal/0` are both detected from the
+service manager, then matched against the device VINTF manifest to obtain the
+declared interface version.
 
 The profile is diagnostic input, not authorization to install. An adapter
 must still validate the exact binaries and product policy it will interact

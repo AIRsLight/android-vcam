@@ -21,18 +21,37 @@ prop() {
 
 camera_lshal="$(lshal 2>/dev/null | grep 'android.hardware.camera.provider@' || true)"
 camera_services="$(service list 2>/dev/null | grep -i camera || true)"
-aidl_instances="$(service check android.hardware.camera.provider.ICameraProvider/internal/0 2>/dev/null || true)"
+aidl_service_line="$(printf '%s\n' "$camera_services" | sed -n \
+    '/android\.hardware\.camera\.provider\.ICameraProvider\//{p;q;}')"
 
 transport=unknown
 provider_version=unknown
 provider_instance=unknown
-case "$aidl_instances" in
-    *': found')
-        transport=aidl
-        provider_version=1+
-        provider_instance=internal/0
-        ;;
-esac
+if [ -n "$aidl_service_line" ]; then
+    provider_instance="$(printf '%s\n' "$aidl_service_line" | sed -n \
+        's#.*android\.hardware\.camera\.provider\.ICameraProvider/\([^: ]*\):.*#\1#p')"
+    [ -n "$provider_instance" ] || provider_instance=unknown
+    transport=aidl
+    provider_version=1+
+    for manifest in \
+        /vendor/etc/vintf/manifest.xml \
+        /vendor/etc/vintf/manifest_*.xml \
+        /vendor/etc/vintf/manifest/*.xml \
+        /odm/etc/vintf/manifest.xml \
+        /odm/etc/vintf/manifest/*.xml; do
+        [ -r "$manifest" ] || continue
+        grep -q '<name>android.hardware.camera.provider</name>' "$manifest" || continue
+        grep -q "<instance>$provider_instance</instance>" "$manifest" || continue
+        manifest_version="$(sed -n \
+            '/<name>android.hardware.camera.provider<\/name>/,/<\/hal>/ {
+                s/.*<version>\([^<]*\)<\/version>.*/\1/p
+            }' "$manifest" | head -n 1)"
+        if [ -n "$manifest_version" ]; then
+            provider_version="$manifest_version"
+            break
+        fi
+    done
+fi
 if [ "$transport" = unknown ] && [ -n "$camera_lshal" ]; then
     transport=hidl
     provider_version="$(printf '%s\n' "$camera_lshal" | sed -n \
@@ -52,6 +71,17 @@ for candidate in \
     [ -f "$candidate" ] || continue
     case "$candidate" in *camera.vcam.so) continue ;; esac
     legacy_module="$candidate"
+    break
+done
+
+provider_service=""
+for candidate in \
+    /vendor/bin/hw/*camera*provider* \
+    /vendor/bin/*camera*provider* \
+    /odm/bin/hw/*camera*provider*; do
+    [ -f "$candidate" ] || continue
+    case "$candidate" in *vcam*) continue ;; esac
+    provider_service="$candidate"
     break
 done
 
@@ -76,9 +106,22 @@ legacy_module_hash=none
 if [ -n "$legacy_module" ]; then
     legacy_module_hash="$(sha256sum "$legacy_module" 2>/dev/null | awk '{print $1}')"
 fi
+provider_service_hash=none
+if [ -n "$provider_service" ]; then
+    provider_service_hash="$(sha256sum "$provider_service" 2>/dev/null | awk '{print $1}')"
+fi
+
+root_manager=none
+root_context="$(id -Z 2>/dev/null)"
+case "$root_context" in
+    *:ksu:*) root_manager=ksu ;;
+    *:apatch:*|*:magisk:*)
+        if [ -d /data/adb/ap ]; then root_manager=apatch; else root_manager=magisk; fi
+        ;;
+esac
 
 emit_profile() {
-    field schema_version 1
+    field schema_version 2
     field sdk "$(prop ro.build.version.sdk)"
     field release "$(prop ro.build.version.release)"
     field abi "$(prop ro.product.cpu.abi)"
@@ -91,12 +134,16 @@ emit_profile() {
     field provider_transport "$transport"
     field provider_version "$provider_version"
     field provider_instance "$provider_instance"
+    field provider_service "${provider_service:-none}"
+    field provider_service_hash "$provider_service_hash"
     field adapter_hint "$adapter_hint"
     field legacy_module "${legacy_module:-none}"
     field legacy_module_hash "$legacy_module_hash"
     field cameraservice_hash "$cameraservice_hash"
     field camera_count "$camera_count"
     field camera_service_binder "$(printf '%s' "$camera_services" | grep -c 'media.camera')"
+    field probe_uid "$(id -u 2>/dev/null)"
+    field root_manager "$root_manager"
 }
 
 if [ -n "$OUTPUT" ]; then

@@ -32,6 +32,11 @@ struct command_rule {
     uint64_t maximum_payload;
 };
 
+static void reap_handlers(int signal_number) {
+    (void)signal_number;
+    while (waitpid(-1, NULL, WNOHANG) > 0) { }
+}
+
 static const struct command_rule k_rules[] = {
     {"status", 0, 0},
     {"providers", 0, 0},
@@ -40,6 +45,8 @@ static const struct command_rule k_rules[] = {
     {"provider-start", 1, 0},
     {"provider-stop", 1, 0},
     {"source-preview", 2, 0},
+    {"provider-frame", 1, 0},
+    {"provider-update", 8, 0},
     {"provider-publish-stdin", 1, MAX_IMAGE_PAYLOAD},
     {"provider-import-media", 1, MAX_MEDIA_PAYLOAD},
     {"provider-config", 1, 0},
@@ -260,6 +267,7 @@ int main(int argc, char **argv) {
         return 64;
     }
     signal(SIGPIPE, SIG_IGN);
+    signal(SIGCHLD, reap_handlers);
     int server = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (server < 0) return 70;
     struct sockaddr_un address = {0};
@@ -281,7 +289,14 @@ int main(int argc, char **argv) {
             if (errno == EINTR) continue;
             break;
         }
-        handle_client(client, argv[1]);
+        pid_t handler = fork();
+        if (handler == 0) {
+            signal(SIGCHLD, SIG_DFL);
+            close(server);
+            handle_client(client, argv[1]);
+            close(client);
+            _exit(0);
+        }
         close(client);
     }
     close(server);

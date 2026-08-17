@@ -40,6 +40,11 @@ drops to the `camera` UID before opening a socket or parsing media. It scales
 to the configured source limit and atomically publishes `VCAMRGB1` frames.
 HTTPS files still use the ROM's BoringSSL-enabled curl before decoding.
 
+The control daemon forks a short-lived handler per authenticated client. A slow
+network preview therefore does not block provider, route, or status reads. Provider
+metadata updates use a temporary file and restart active streams; a failed restart
+restores the previous metadata and stream configuration.
+
 The manager requests RTSP previews from the same backend decoder used at
 runtime. `provider-start` removes stale output and waits up to 15 seconds for a
 new first frame, so a missing protocol, route or decoder is returned as an

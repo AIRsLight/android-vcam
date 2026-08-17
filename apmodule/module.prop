@@ -1,6 +1,6 @@
 id=android_vcam
 name=Android Virtual Camera HAL (OnePlus 7 Pro)
-version=0.3.3-dev
-versionCode=6
+version=0.3.4-dev
+versionCode=7
 author=android-vcam contributors
 description=App-scoped systemless Camera HAL3 routing with physical, image and network providers for OnePlus7Pro_CH Android 12.

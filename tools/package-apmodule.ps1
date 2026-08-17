@@ -82,7 +82,7 @@ Copy-Item -LiteralPath $inputs.Daemon -Destination $destinations.Daemon -Force
 Copy-Item -LiteralPath $inputs.CameraService -Destination $destinations.CameraService -Force
 Get-ChildItem -LiteralPath $staging -Recurse -Filter .gitkeep | Remove-Item -Force
 
-$zip = Join-Path $dist "android-vcam-apm-v0.3.3-dev.zip"
+$zip = Join-Path $dist "android-vcam-apm-v0.3.4-dev.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 & $Python (Join-Path $PSScriptRoot "create-module-zip.py") $staging $zip
 if ($LASTEXITCODE -ne 0) { throw "APatch ZIP creation failed" }

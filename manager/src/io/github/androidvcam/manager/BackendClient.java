@@ -56,7 +56,7 @@ final class BackendClient {
             } catch (IOException error) {
                 throw new IOException("无法连接虚拟摄像头后端，请确认模块已启用", error);
             }
-            socket.setSoTimeout(30_000);
+            socket.setSoTimeout(45_000);
             DataOutputStream output = new DataOutputStream(socket.getOutputStream());
             output.write(REQUEST_MAGIC);
             output.writeInt(command.length);

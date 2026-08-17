@@ -30,6 +30,26 @@ final class SourceTransformView extends View {
             result.centerX = centerX; result.centerY = centerY;
             return result;
         }
+
+        static Setting decode(String encoded) {
+            Setting result = new Setting();
+            if (encoded == null) return result;
+            String[] fields = encoded.split(",", -1);
+            if (fields.length != 4) return result;
+            try {
+                int rotation = Integer.parseInt(fields[0]);
+                if (rotation == 0 || rotation == 90 || rotation == 180 || rotation == 270) {
+                    result.rotation = rotation;
+                }
+                result.scale = Math.max(.1f, Math.min(8f,
+                        Integer.parseInt(fields[1]) / 1000f));
+                result.centerX = Math.max(0f, Math.min(1f,
+                        Integer.parseInt(fields[2]) / 1000f));
+                result.centerY = Math.max(0f, Math.min(1f,
+                        Integer.parseInt(fields[3]) / 1000f));
+            } catch (NumberFormatException ignored) { }
+            return result;
+        }
     }
 
     private final Bitmap bitmap;

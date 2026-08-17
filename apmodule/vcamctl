@@ -51,7 +51,9 @@ prepare_dirs() {
     chown camera:camera "$ROUTES_FILE"
     chmod 0640 "$ROUTES_FILE"
     restorecon "$FRAME_DIR" "$ROUTES_FILE" >/dev/null 2>&1
-    restorecon -RF "$PROVIDER_FRAME_DIR" >/dev/null 2>&1
+    # Provider contents are labeled when created/published. Avoid recursively
+    # relabeling cached media on every read-only list/status request.
+    restorecon "$PROVIDER_FRAME_DIR" >/dev/null 2>&1
 }
 
 valid_id() {
@@ -135,16 +137,23 @@ print_provider() {
     source="$4"
     removable="$5"
     running="$6"
-    printf 'PROVIDER\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$id" "$type" "$name" "$source" "$removable" "$running"
+    meta="$7"
+    fps=$(config_value fps "$meta" 15)
+    max_width=$(config_value max_width "$meta" 1280)
+    max_height=$(config_value max_height "$meta" 720)
+    view0=$(config_value view0 "$meta" '0,1000,500,500')
+    view1=$(config_value view1 "$meta" '0,1000,500,500')
+    printf 'PROVIDER\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$id" "$type" "$name" "$source" "$removable" "$running" \
+        "$fps" "$max_width" "$max_height" "$view0" "$view1"
 }
 
 list_providers() {
     prepare_dirs || return 1
     print_provider physical-0 physical \
-        "$(printf 'Physical camera 0' | base64 | tr -d '\n')" '' false true
+        "$(printf 'Physical camera 0' | base64 | tr -d '\n')" '' false true /dev/null
     print_provider physical-1 physical \
-        "$(printf 'Physical camera 1' | base64 | tr -d '\n')" '' false true
+        "$(printf 'Physical camera 1' | base64 | tr -d '\n')" '' false true /dev/null
     for directory in "$PROVIDER_STATE_DIR"/*; do
         [ -d "$directory" ] || continue
         meta="$directory/meta"
@@ -164,7 +173,7 @@ list_providers() {
         else
             running=false
         fi
-        print_provider "$id" "$type" "$name" "$source" true "$running"
+        print_provider "$id" "$type" "$name" "$source" true "$running" "$meta"
     done
 }
 
@@ -237,6 +246,63 @@ provider_config_set() {
     chmod 0600 "$meta"
     write_runtime_config "$id" || return 4
     echo "configured"
+}
+
+provider_update() {
+    id="$1"; name_b64="$2"; source_b64="$3"; fps="$4"
+    max_width="$5"; max_height="$6"; view0="$7"; view1="$8"
+    valid_id "$id" && provider_exists "$id" || { echo "provider not found" >&2; return 2; }
+    case "$id" in physical-0|physical-1) echo "physical provider is read-only" >&2; return 3 ;; esac
+    valid_base64 "$name_b64" && valid_base64 "$source_b64" &&
+        valid_number_between "$fps" 1 60 &&
+        valid_number_between "$max_width" 160 1920 &&
+        valid_number_between "$max_height" 120 1920 &&
+        valid_view "$view0" && valid_view "$view1" || {
+            echo "invalid provider update" >&2
+            return 2
+        }
+    meta="$PROVIDER_STATE_DIR/$id/meta"
+    type=$(meta_value type "$meta")
+    source=$(printf '%s' "$source_b64" | base64 -d 2>/dev/null) || return 2
+    case "$type:$source" in
+        pattern:|image:|video:*) ;;
+        https:https://*|http:http://*|hls:http://*|rtsp:rtsp://*) ;;
+        *) echo "source URL does not match provider type" >&2; return 2 ;;
+    esac
+    backup="$meta.backup-$$"
+    temporary="$meta.new-$$"
+    cp "$meta" "$backup" || return 4
+    was_enabled=false
+    [ -e "$PROVIDER_FRAME_DIR/$id/enabled" ] && was_enabled=true
+    awk '!/^(name_b64|source_b64|fps|max_width|max_height|view0|view1)=/' \
+        "$meta" > "$temporary" || { rm -f "$backup" "$temporary"; return 4; }
+    {
+        printf 'name_b64=%s\nsource_b64=%s\n' "$name_b64" "$source_b64"
+        printf 'fps=%s\nmax_width=%s\nmax_height=%s\n' "$fps" "$max_width" "$max_height"
+        printf 'view0=%s\nview1=%s\n' "$view0" "$view1"
+    } >> "$temporary"
+    mv -f "$temporary" "$meta" || { rm -f "$backup"; return 4; }
+    chmod 0600 "$meta"
+    write_runtime_config "$id" || { cp "$backup" "$meta"; rm -f "$backup"; return 4; }
+    case "$type" in pattern|image) ;;
+        *)
+            if [ "$was_enabled" = true ]; then
+                stop_provider "$id"
+                start_error=$(start_provider 2>&1)
+                if [ "$?" -ne 0 ]; then
+                    cp "$backup" "$meta"
+                    chmod 0600 "$meta"
+                    write_runtime_config "$id" >/dev/null 2>&1
+                    start_provider >/dev/null 2>&1
+                    rm -f "$backup"
+                    echo "provider update failed: $start_error" >&2
+                    return 6
+                fi
+            fi
+            ;;
+    esac
+    rm -f "$backup"
+    echo "updated"
 }
 
 stop_provider() {
@@ -328,7 +394,7 @@ start_provider() {
 preview_source() {
     type="$1"
     source_b64="$2"
-    case "$type" in rtsp|http|hls) ;;
+    case "$type" in rtsp|http|https|hls) ;;
         *) echo "unsupported preview source type" >&2; return 2 ;;
     esac
     valid_base64 "$source_b64" || {
@@ -337,7 +403,7 @@ preview_source() {
     }
     source=$(printf '%s' "$source_b64" | base64 -d 2>/dev/null) || return 2
     case "$type:$source" in
-        rtsp:rtsp://*|http:http://*|hls:http://*) ;;
+        rtsp:rtsp://*|http:http://*|https:https://*|hls:http://*) ;;
         *) echo "source URL does not match provider type" >&2; return 2 ;;
     esac
 
@@ -354,12 +420,33 @@ preview_source() {
     chown camera:camera "$preview_dir"
     chmod 0750 "$preview_dir"
     restorecon -RF "$preview_dir" >/dev/null 2>&1
+    preview_input="$source"
+    if [ "$type" = https ]; then
+        preview_input="$preview_dir/source.media"
+        /system/bin/runcon u:r:magisk:s0 /system/bin/curl \
+            --location --fail --silent --show-error --connect-timeout 10 \
+            --max-time 25 --output "$preview_input" "$source" || return 6
+        chown camera:camera "$preview_input"
+        chmod 0640 "$preview_input"
+        restorecon "$preview_input" >/dev/null 2>&1
+    fi
     /system/bin/runcon u:r:magisk:s0 "$streamer" \
-        "$source" "$frame" 1 576 324 --once || return 6
+        "$preview_input" "$frame" 1 576 324 --once || return 6
     [ -s "$frame" ] || {
         echo "preview source produced no frame" >&2
         return 6
     }
+    base64 "$frame" | tr -d '\n'
+}
+
+provider_frame() {
+    id="$1"
+    valid_id "$id" && provider_exists "$id" || { echo "provider not found" >&2; return 2; }
+    case "$id" in physical-0|physical-1) echo "physical provider has no virtual frame" >&2; return 3 ;; esac
+    frame="$PROVIDER_FRAME_DIR/$id/frame.rgb"
+    [ -s "$frame" ] || { echo "provider has no preview frame; start it first" >&2; return 5; }
+    size=$(wc -c < "$frame" 2>/dev/null) || return 5
+    [ "$size" -le 3000000 ] || { echo "provider preview frame is too large" >&2; return 5; }
     base64 "$frame" | tr -d '\n'
 }
 
@@ -613,6 +700,8 @@ case "$1" in
     provider-start) start_provider "$2" ;;
     provider-stop) stop_provider "$2"; echo "stopped" ;;
     source-preview) preview_source "$2" "$3" ;;
+    provider-frame) provider_frame "$2" ;;
+    provider-update) provider_update "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" ;;
     provider-publish) publish_provider "$2" "$3" ;;
     provider-publish-stdin) publish_provider_stdin "$2" ;;
     provider-import-media) import_provider_media "$2" ;;
@@ -627,7 +716,7 @@ case "$1" in
     route-remove) remove_route "$2" "$3" ;;
     apps) pm list packages 2>/dev/null | sed 's/^package://' | sort ;;
     *)
-        echo "usage: vcamctl {status|providers|provider-add|provider-remove|provider-start|provider-stop|source-preview|provider-config|provider-config-set|provider-publish|provider-publish-stdin|provider-import-media|provider-publish-begin|provider-publish-chunk|provider-publish-commit|provider-publish-abort|routes|route-set|route-remove|apps}" >&2
+        echo "usage: vcamctl {status|providers|provider-add|provider-remove|provider-start|provider-stop|source-preview|provider-frame|provider-update|provider-config|provider-config-set|provider-publish|provider-publish-stdin|provider-import-media|provider-publish-begin|provider-publish-chunk|provider-publish-commit|provider-publish-abort|routes|route-set|route-remove|apps}" >&2
         exit 64
         ;;
 esac

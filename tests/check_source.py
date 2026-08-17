@@ -79,6 +79,7 @@ def main() -> None:
     for command in (
         "provider-add", "provider-remove", "provider-start", "route-set",
         "provider-publish-stdin", "provider-import-media", "source-preview",
+        "provider-frame", "provider-update",
     ):
         if command not in controller:
             fail(f"provider controller is missing command: {command}")

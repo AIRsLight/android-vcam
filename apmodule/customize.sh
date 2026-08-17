@@ -18,6 +18,7 @@ MODULE_CAMERASERVICE="$MODPATH/system/lib64/libcameraservice.so"
 FRAME_PUBLISHER="$MODPATH/system/vendor/bin/vcam-publisher"
 STREAM_PROVIDER="$MODPATH/system/bin/vcam-streamer"
 CONTROL_DAEMON="$MODPATH/system/bin/vcamd"
+INSTALLED_MODULE_DIR="/data/adb/modules/android_vcam"
 
 require_equal() {
     label="$1"
@@ -26,6 +27,18 @@ require_equal() {
     if [ "$actual" != "$expected" ]; then
         abort "! $label mismatch: expected '$expected', got '$actual'"
     fi
+}
+
+matches_installed_payload() {
+    actual_hash="$1"
+    shift
+    for relative_path in "$@"; do
+        installed_path="$INSTALLED_MODULE_DIR/$relative_path"
+        [ -f "$installed_path" ] || continue
+        installed_hash="$(sha256sum "$installed_path" | awk '{print $1}')"
+        [ "$actual_hash" = "$installed_hash" ] && return 0
+    done
+    return 1
 }
 
 ui_print "- Checking target device"
@@ -47,15 +60,34 @@ require_equal "fingerprint" "$(getprop ro.build.fingerprint)" "$TARGET_FINGERPRI
 
 actual_hash="$(sha256sum "$HAL_PATH" | awk '{print $1}')"
 if [ "$actual_hash" != "$TARGET_HAL_HASH" ] && [ "$actual_hash" != "$LEGACY_HAL_HASH" ]; then
-    abort "! camera HAL hash mismatch: got '$actual_hash'"
+    if matches_installed_payload "$actual_hash" \
+            "vendor/lib64/hw/camera.qcom.so" \
+            "system/vendor/lib64/hw/camera.qcom.so"; then
+        ui_print "- Recognized mounted HAL from installed android_vcam module"
+    else
+        abort "! camera HAL hash mismatch: got '$actual_hash'"
+    fi
 fi
 proxy_slot_hash="$(sha256sum "$PROXY_SLOT_PATH" | awk '{print $1}')"
-require_equal "proxy mount slot hash" "$proxy_slot_hash" "$PROXY_SLOT_HASH"
+if [ "$proxy_slot_hash" != "$PROXY_SLOT_HASH" ]; then
+    if matches_installed_payload "$proxy_slot_hash" \
+            "vendor/lib64/libvcam_proxy.so" \
+            "system/vendor/lib64/libvcam_proxy.so"; then
+        ui_print "- Recognized mounted proxy from installed android_vcam module"
+    else
+        abort "! proxy mount slot hash mismatch: got '$proxy_slot_hash'"
+    fi
+fi
 camera_service_hash="$(sha256sum "$CAMERASERVICE_PATH" | awk '{print $1}')"
 module_camera_service_hash="$(sha256sum "$MODULE_CAMERASERVICE" | awk '{print $1}')"
 if [ "$camera_service_hash" != "$TARGET_CAMERASERVICE_HASH" ] && \
    [ "$camera_service_hash" != "$module_camera_service_hash" ]; then
-    abort "! cameraservice hash mismatch: got '$camera_service_hash'"
+    if matches_installed_payload "$camera_service_hash" \
+            "system/lib64/libcameraservice.so"; then
+        ui_print "- Recognized mounted CameraService from installed android_vcam module"
+    else
+        abort "! cameraservice hash mismatch: got '$camera_service_hash'"
+    fi
 fi
 
 module_size="$(wc -c < "$MODULE_HAL")"

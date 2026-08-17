@@ -66,6 +66,9 @@ def main() -> None:
         fail("installer is not pinned to the inspected original HAL")
     if not (ROOT / "apmodule" / "skip_mount").is_file():
         fail("direct bind-mount delivery must not require an APatch metamodule")
+    for required_symbol in ("matches_installed_payload", "INSTALLED_MODULE_DIR"):
+        if required_symbol not in installer:
+            fail(f"installer is missing safe in-place upgrade support: {required_symbol}")
 
     for shell_script in (ROOT / "apmodule").glob("*.sh"):
         raw = shell_script.read_bytes()
@@ -80,9 +83,12 @@ def main() -> None:
         "CAMERA3_JPEG_BLOB_ID",
         "ANDROID_SENSOR_TIMESTAMP",
         "setSourcePath",
+        "kMaxStreamDimension",
     ):
         if required_symbol not in source:
             fail(f"HAL is missing expected symbol: {required_symbol}")
+    if "width == 640 && height == 480" in source:
+        fail("HAL must not restrict clients to a fixed preview-size shortlist")
     virtual_camera_header = (ROOT / "hal" / "include" / "vcam" / "VirtualCamera.h").read_text(
         encoding="utf-8"
     )

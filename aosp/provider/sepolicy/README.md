@@ -1,12 +1,17 @@
 # Product SELinux integration
 
-The HIDL service is intended to run in the platform's existing
-`hal_camera_default` domain. Add this directory to the product policy and keep
-the executable label in `file_contexts`:
+The HIDL and stable-AIDL services are intended to run in the platform's
+existing `hal_camera_default` domain. Add this directory to the product policy
+and keep the selected executable label in `file_contexts`:
 
 ```make
 BOARD_VENDOR_SEPOLICY_DIRS += path/to/android_vcam/aosp/provider/sepolicy
 ```
+
+The AIDL mapping is deliberately exact: it labels only
+`android.hardware.camera.provider-service-vcam`. This is also required for a
+systemless delivery because that filename is not covered by the generic
+provider expressions present in Android 14 vendor policy.
 
 Do not add broad permissive rules. A product must verify that its existing
 camera HAL domain can:

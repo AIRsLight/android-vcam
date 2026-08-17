@@ -1,1 +1,2 @@
 /vendor/bin/hw/android\.hardware\.camera\.provider@2\.4-vcam-service  u:object_r:hal_camera_default_exec:s0
+/vendor/bin/hw/android\.hardware\.camera\.provider-service-vcam      u:object_r:hal_camera_default_exec:s0

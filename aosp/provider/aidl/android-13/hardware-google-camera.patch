@@ -177,6 +177,37 @@ index 30e184d..6242e0d 100644
      dlclose(hwl_lib_handle_);
      hwl_lib_handle_ = nullptr;
      return NO_INIT;
+diff --git a/devices/EmulatedCamera/hwl/Android.bp b/devices/EmulatedCamera/hwl/Android.bp
+index fad5ef0..c408183 100644
+--- a/devices/EmulatedCamera/hwl/Android.bp
++++ b/devices/EmulatedCamera/hwl/Android.bp
+@@ -3,10 +3,8 @@ package {
+     default_applicable_licenses: ["Android-Apache-2.0"],
+ }
+ 
+-cc_defaults {
+-    name: "libgooglecamerahwl_impl_defaults",
+-    owner: "google",
+-    proprietary: true,
++filegroup {
++    name: "emulated_camera_hwl_sources",
+     srcs: [
+         "EmulatedCameraProviderHWLImpl.cpp",
+         "EmulatedCameraDeviceHWLImpl.cpp",
+@@ -17,6 +15,13 @@ cc_defaults {
+         "EmulatedTorchState.cpp",
+         "GrallocSensorBuffer.cpp",
+     ],
++}
++
++cc_defaults {
++    name: "libgooglecamerahwl_impl_defaults",
++    owner: "google",
++    proprietary: true,
++    srcs: ["//hardware/google/camera/devices/EmulatedCamera/hwl:emulated_camera_hwl_sources"],
+     cflags: [
+         "-Werror",
+         "-Wextra",
 diff --git a/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.h b/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.h
 index e9c086b..e146ec8 100644
 --- a/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.h

@@ -30,6 +30,9 @@ def main() -> None:
         ROOT / "aosp" / "provider" / "hidl" / "Android.bp",
         ROOT / "aosp" / "provider" / "hidl" / "VcamProvider.cpp",
         ROOT / "aosp" / "provider" / "hidl" / "service.cpp",
+        ROOT / "aosp" / "provider" / "aidl" / "Android.bp",
+        ROOT / "aosp" / "provider" / "aidl" / "VcamCameraProviderHwl.cpp",
+        ROOT / "aosp" / "provider" / "aidl" / "android-13" / "hardware-google-camera.patch",
         ROOT / "aosp" / "provider" / "sepolicy" / "file_contexts",
         ROOT / "hal" / "include" / "vcam" / "FrameRenderer.h",
         ROOT / "hal" / "include" / "vcam" / "RouteResolver.h",
@@ -176,6 +179,18 @@ def main() -> None:
     )
     if 'registerAsService("vcam/0")' not in provider_service:
         fail("AOSP HIDL provider does not register the vcam/0 instance")
+    aidl_provider = "\n".join(path.read_text(encoding="utf-8") for path in (
+        ROOT / "aosp" / "provider" / "aidl" / "Android.bp",
+        ROOT / "aosp" / "provider" / "aidl" / "VcamCameraProviderHwl.cpp",
+        ROOT / "aosp" / "provider" / "aidl" / "android-13" / "hardware-google-camera.patch",
+    ))
+    for required_symbol in (
+        "camera_service_vcam_defaults", "ANDROID_CAMERA_HWL_LIBRARY",
+        "libvcam_googlecamerahwl_impl", "kBackCameraId = 1000",
+        "kFrontCameraId = 1001", "kVcamClientPackageTag",
+    ):
+        if required_symbol not in aidl_provider:
+            fail(f"AOSP AIDL provider is missing symbol: {required_symbol}")
     vendor_tags = (ROOT / "hal" / "include" / "vcam" / "VendorTags.h").read_text(
         encoding="utf-8"
     )

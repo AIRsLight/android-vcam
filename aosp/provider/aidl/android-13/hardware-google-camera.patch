@@ -1,0 +1,151 @@
+diff --git a/common/hal/aidl_service/Android.bp b/common/hal/aidl_service/Android.bp
+index df5d70e..9e5b623 100644
+--- a/common/hal/aidl_service/Android.bp
++++ b/common/hal/aidl_service/Android.bp
+@@ -129,6 +129,19 @@ cc_defaults {
+     vintf_fragments: [":android.hardware.camera.provider@2.7-service-google.xml"],
+ }
+ 
++// Transport defaults for the collision-free android-vcam provider. The
++// product-owned binary supplies its own init and VINTF fragments.
++cc_defaults {
++    name: "camera_service_vcam_defaults",
++    defaults: [
++        "camera_service_defaults_common",
++    ],
++    srcs: [
++        "aidl_service.cc",
++    ],
++    cflags: ["-DANDROID_VCAM_PROVIDER"],
++}
++
+ cc_binary {
+     name: "android.hardware.camera.provider@2.7-service-google",
+     defaults: [
+diff --git a/common/hal/aidl_service/aidl_camera_provider.cc b/common/hal/aidl_service/aidl_camera_provider.cc
+index 7eac3f2..cb798da 100644
+--- a/common/hal/aidl_service/aidl_camera_provider.cc
++++ b/common/hal/aidl_service/aidl_camera_provider.cc
+@@ -40,10 +40,17 @@ using aidl::android::hardware::camera::common::TorchModeStatus;
+ using aidl::android::hardware::camera::common::VendorTagSection;
+ using ::android::google_camera_hal::CameraDevice;
+ 
++#ifdef ANDROID_VCAM_PROVIDER
++const std::string AidlCameraProvider::kProviderName = "vcam";
++// "device@<version>/vcam/<id>"
++const std::regex AidlCameraProvider::kDeviceNameRegex(
++    "device@([0-9]+\\.[0-9]+)/vcam/(.+)");
++#else
+ const std::string AidlCameraProvider::kProviderName = "internal";
+ // "device@<version>/internal/<id>"
+ const std::regex AidlCameraProvider::kDeviceNameRegex(
+     "device@([0-9]+\\.[0-9]+)/internal/(.+)");
++#endif
+ 
+ std::shared_ptr<AidlCameraProvider> AidlCameraProvider::Create() {
+   std::shared_ptr<AidlCameraProvider> provider =
+diff --git a/common/hal/aidl_service/aidl_service.cc b/common/hal/aidl_service/aidl_service.cc
+index 91f52b1..a1e2478 100644
+--- a/common/hal/aidl_service/aidl_service.cc
++++ b/common/hal/aidl_service/aidl_service.cc
+@@ -31,6 +31,7 @@
+ #include <utils/Errors.h>
+ 
+ #include <cinttypes>
++#include <cstdlib>
+ 
+ #include "aidl_camera_build_version.h"
+ #include "aidl_camera_provider.h"
+@@ -44,7 +45,11 @@ const bool kLazyService = true;
+ const bool kLazyService = false;
+ #endif
+ 
++#ifdef ANDROID_VCAM_PROVIDER
++const std::string kProviderInstance = "/vcam/0";
++#else
+ const std::string kProviderInstance = "/internal/0";
++#endif
+ 
+ int main() {
+   ALOGI("Google camera provider service is starting.");
+@@ -60,6 +65,13 @@ int main() {
+   ABinderProcess_setThreadPoolMaxThreadCount(6);
+   ABinderProcess_startThreadPool();
+ 
++#ifdef ANDROID_VCAM_PROVIDER
++  if (setenv("ANDROID_CAMERA_HWL_LIBRARY",
++             "libvcam_googlecamerahwl_impl.so", 1) != 0) {
++    ALOGE("Unable to select the android-vcam HWL library");
++    return android::NO_INIT;
++  }
++#endif
+ #ifdef __ANDROID_APEX__
+   int start_count = property_get_int32("vendor.camera.hal.start.count", 0);
+   property_set("vendor.camera.hal.start.count",
+diff --git a/common/hal/google_camera_hal/camera_provider.cc b/common/hal/google_camera_hal/camera_provider.cc
+index 30e184d..6242e0d 100644
+--- a/common/hal/google_camera_hal/camera_provider.cc
++++ b/common/hal/google_camera_hal/camera_provider.cc
+@@ -20,6 +20,7 @@
+ #include "camera_provider.h"
+ 
+ #include <dlfcn.h>
++#include <cstdlib>
+ #include <log/log.h>
+ #include <utils/Trace.h>
+ 
+@@ -32,6 +33,8 @@
+ #if GCH_HWL_USE_DLOPEN
+ // HWL layer implementation path
+ constexpr std::string_view kCameraHwlLib = "libgooglecamerahwl_impl.so";
++constexpr std::string_view kCameraHwlLibEnvironment =
++    "ANDROID_CAMERA_HWL_LIBRARY";
+ #endif
+ 
+ namespace android {
+@@ -304,11 +307,16 @@ status_t CameraProvider::CreateHwl(
+ #if GCH_HWL_USE_DLOPEN
+   CreateCameraProviderHwl_t create_hwl;
+ 
+-  ALOGI("%s:Loading %s library", __FUNCTION__, kCameraHwlLib.data());
+-  hwl_lib_handle_ = dlopen(kCameraHwlLib.data(), RTLD_NOW);
++  const char* selected_hwl = std::getenv(kCameraHwlLibEnvironment.data());
++  if (selected_hwl == nullptr || selected_hwl[0] == '\0' ||
++      strchr(selected_hwl, '/') != nullptr) {
++    selected_hwl = kCameraHwlLib.data();
++  }
++  ALOGI("%s: Loading %s library", __FUNCTION__, selected_hwl);
++  hwl_lib_handle_ = dlopen(selected_hwl, RTLD_NOW);
+ 
+   if (hwl_lib_handle_ == nullptr) {
+-    ALOGE("HWL loading %s failed due to error: %s", kCameraHwlLib.data(),
++    ALOGE("HWL loading %s failed due to error: %s", selected_hwl,
+           dlerror());
+     return NO_INIT;
+   }
+@@ -316,7 +324,7 @@ status_t CameraProvider::CreateHwl(
+   create_hwl = (CreateCameraProviderHwl_t)dlsym(hwl_lib_handle_,
+                                                 "CreateCameraProviderHwl");
+   if (create_hwl == nullptr) {
+-    ALOGE("%s: dlsym failed (%s).", __FUNCTION__, kCameraHwlLib.data());
++    ALOGE("%s: dlsym failed (%s).", __FUNCTION__, selected_hwl);
+     dlclose(hwl_lib_handle_);
+     hwl_lib_handle_ = nullptr;
+     return NO_INIT;
+diff --git a/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.h b/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.h
+index e9c086b..e146ec8 100644
+--- a/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.h
++++ b/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.h
+@@ -96,10 +96,12 @@ class EmulatedCameraProviderHwlImpl : public CameraProviderHwl {
+   void NotifyPhysicalCameraUnavailable();
+ };
+ 
++#ifndef ANDROID_VCAM_CUSTOM_FACTORY
+ extern "C" CameraProviderHwl* CreateCameraProviderHwl() {
+   auto provider = EmulatedCameraProviderHwlImpl::Create();
+   return provider.release();
+ }
++#endif
+ 
+ }  // namespace android
+ 

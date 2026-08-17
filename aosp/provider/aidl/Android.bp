@@ -1,0 +1,26 @@
+package {
+    default_applicable_licenses: ["android_vcam_license"],
+}
+
+cc_library_shared {
+    name: "libvcam_googlecamerahwl_impl",
+    vendor: true,
+    defaults: ["libgooglecamerahwl_impl_defaults"],
+    srcs: ["VcamCameraProviderHwl.cpp"],
+    cflags: ["-DANDROID_VCAM_CUSTOM_FACTORY"],
+    include_dirs: [
+        "hardware/google/camera/devices/EmulatedCamera/hwl",
+    ],
+    header_libs: ["libvcam_headers"],
+}
+
+cc_binary {
+    name: "android.hardware.camera.provider-service-vcam",
+    defaults: [
+        "camera_service_vcam_defaults",
+        "camera_service_eager_hal_defaults",
+    ],
+    required: ["libvcam_googlecamerahwl_impl"],
+    init_rc: ["android.hardware.camera.provider-service-vcam.rc"],
+    vintf_fragments: ["android.hardware.camera.provider-service-vcam.xml"],
+}

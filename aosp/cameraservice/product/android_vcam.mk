@@ -2,7 +2,8 @@
 # the AOSP source tree.
 PRODUCT_PACKAGES += \
     camera.vcam \
-    android.hardware.camera.provider@2.4-vcam-service
+    android.hardware.camera.provider@2.4-vcam-service \
+    android.hardware.camera.provider-service-vcam
 
 # Do not enable this property until the CameraService patch and product policy
 # have both been built and validated.

@@ -65,14 +65,20 @@ source_root=$(cd -- "$source_root" && pwd)
 frameworks_av="$aosp_root/frameworks/av"
 patch_rel="aosp/cameraservice/android-13/frameworks-av.patch"
 patch="$source_root/$patch_rel"
+google_camera="$aosp_root/hardware/google/camera"
+google_patch_rel="aosp/provider/aidl/android-13/hardware-google-camera.patch"
+google_patch="$source_root/$google_patch_rel"
 managed_copy="$aosp_root/vendor/android_vcam_buildcheck"
 managed_marker="$managed_copy/.vcam-managed-build-copy"
 host_compat_source_dir="$aosp_root/prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8/sysroot/usr/lib"
 required_frameworks_av_commit=95be9bad234d69f4a8ded5ee72b60315b1353098
+required_google_camera_commit=4355c55eb23e591e3cdb1f44ca82040f7ddda4a2
 
 [[ -f "$aosp_root/build/envsetup.sh" ]] || fail "build/envsetup.sh is missing"
 [[ -e "$frameworks_av/.git" ]] || fail "frameworks/av is not a repo checkout"
+[[ -e "$google_camera/.git" ]] || fail "hardware/google/camera is not a repo checkout"
 [[ -f "$patch" ]] || fail "CameraService patch is missing: $patch"
+[[ -f "$google_patch" ]] || fail "Google Camera patch is missing: $google_patch"
 
 head=$(git -C "$frameworks_av" rev-parse HEAD)
 [[ "$head" == "$required_frameworks_av_commit" ]] ||
@@ -80,9 +86,16 @@ head=$(git -C "$frameworks_av" rev-parse HEAD)
 
 [[ -z "$(git -C "$frameworks_av" status --porcelain)" ]] ||
     fail "frameworks/av has local changes; validation requires a pristine checkout"
+google_head=$(git -C "$google_camera" rev-parse HEAD)
+[[ "$google_head" == "$required_google_camera_commit" ]] ||
+    fail "hardware/google/camera must be android-13.0.0_r84 commit $required_google_camera_commit (found $google_head)"
+[[ -z "$(git -C "$google_camera" status --porcelain)" ]] ||
+    fail "hardware/google/camera has local changes; validation requires a pristine checkout"
 
 git -C "$frameworks_av" apply --check "$patch" ||
     fail "CameraService patch does not apply cleanly to frameworks/av $head"
+git -C "$google_camera" apply --check "$google_patch" ||
+    fail "AIDL transport patch does not apply cleanly to hardware/google/camera $google_head"
 
 for required in \
     "$aosp_root/build/soong/soong_ui.bash" \
@@ -116,6 +129,7 @@ rsync -a --delete \
 touch "$managed_marker"
 
 patch_applied=0
+google_patch_applied=0
 cleanup() {
     original_status=$?
     set +e
@@ -129,6 +143,15 @@ cleanup() {
             cleanup_failed=1
         fi
     fi
+    if ((google_patch_applied)); then
+        if git -C "$google_camera" apply -R --check "$managed_copy/$google_patch_rel" &&
+                git -C "$google_camera" apply -R "$managed_copy/$google_patch_rel"; then
+            printf 'Restored pristine hardware/google/camera checkout.\n'
+        else
+            printf 'ERROR: unable to roll back the temporary Google Camera patch\n' >&2
+            cleanup_failed=1
+        fi
+    fi
     trap - EXIT
     if ((original_status != 0)); then
         exit "$original_status"
@@ -139,6 +162,8 @@ trap cleanup EXIT
 
 git -C "$frameworks_av" apply "$managed_copy/$patch_rel"
 patch_applied=1
+git -C "$google_camera" apply "$managed_copy/$google_patch_rel"
+google_patch_applied=1
 
 cd "$aosp_root"
 export OUT_DIR="$aosp_root/out/android-vcam-r84-soong"
@@ -164,13 +189,17 @@ install -m 0755 \
 m --soong-only -j"$jobs" WITH_DEXPREOPT=false \
     libcameraservice \
     camera.vcam \
-    android.hardware.camera.provider@2.4-vcam-service
+    android.hardware.camera.provider@2.4-vcam-service \
+    libvcam_googlecamerahwl_impl \
+    android.hardware.camera.provider-service-vcam
 set -u
 
 for artifact in \
     "$OUT_DIR/soong/target/product/generic_arm64/system/lib64/libcameraservice.so" \
     "$OUT_DIR/soong/target/product/generic_arm64/vendor/lib64/hw/camera.vcam.so" \
-    "$OUT_DIR/soong/target/product/generic_arm64/vendor/bin/hw/android.hardware.camera.provider@2.4-vcam-service"; do
+    "$OUT_DIR/soong/target/product/generic_arm64/vendor/bin/hw/android.hardware.camera.provider@2.4-vcam-service" \
+    "$OUT_DIR/soong/target/product/generic_arm64/vendor/lib64/libvcam_googlecamerahwl_impl.so" \
+    "$OUT_DIR/soong/target/product/generic_arm64/vendor/bin/hw/android.hardware.camera.provider-service-vcam"; do
     [[ -s "$artifact" ]] || fail "expected build artifact is missing: $artifact"
     printf 'Verified artifact: %s\n' "$artifact"
 done

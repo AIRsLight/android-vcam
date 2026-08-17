@@ -102,13 +102,16 @@ projects=(
     platform/external/speex
     platform/external/starlark-go
     platform/external/tagsoup
+    platform/external/tinyxml2
     platform/external/wayland
     platform/external/wayland-protocols
     platform/external/zlib
     platform/frameworks/compile/libbcc
     platform/frameworks/compile/slang
     platform/frameworks/hardware/interfaces
+    platform/frameworks/libs/net
     platform/frameworks/rs
+    platform/hardware/google/camera
     platform/hardware/google/interfaces
     platform/libcore
     platform/libnativehelper
@@ -118,6 +121,7 @@ projects=(
     platform/prebuilts/clang-tools
     platform/prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8
     platform/prebuilts/module_sdk/Media
+    platform/system/bpf
     platform/system/libbase
     platform/system/libfmq
     platform/system/libhwbinder
@@ -125,6 +129,7 @@ projects=(
     platform/system/libvintf
     platform/system/logging
     platform/system/media
+    platform/system/memory/libmeminfo
     platform/system/memory/libdmabufheap
     platform/system/memory/libion
     platform/system/tools/aidl

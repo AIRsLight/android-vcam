@@ -90,6 +90,12 @@ tools/verify-aosp13-build.sh \
 The proxy address is a development-network setting, not a runtime dependency
 of the module, manager, or device-side backend.
 
+For the Android 13+ frontend, `tools/verify-aosp13-aidl-baseline.sh` separately
+builds the tag-pinned Google Camera HAL AIDL service and EmulatedCamera HWL. It
+creates only a deterministic build-number file under the isolated output
+directory. Passing this baseline proves the upstream AIDL transport can be
+built; it does not mean the android-vcam HWL adapter is complete.
+
 ## Recovery
 
 If Android boots, disable `android_vcam` in APatch and reboot. If it does not,

@@ -188,7 +188,7 @@ index 30e184d..6242e0d 100644
      dlclose(hwl_lib_handle_);
      hwl_lib_handle_ = nullptr;
 diff --git a/devices/EmulatedCamera/hwl/Android.bp b/devices/EmulatedCamera/hwl/Android.bp
-index fad5ef0..c408183 100644
+index fad5ef0..2c620be 100644
 --- a/devices/EmulatedCamera/hwl/Android.bp
 +++ b/devices/EmulatedCamera/hwl/Android.bp
 @@ -4,8 +4,6 @@ package {
@@ -214,6 +214,34 @@ index fad5ef0..c408183 100644
 +    srcs: ["//hardware/google/camera/devices/EmulatedCamera/hwl:emulated_camera_hwl_sources"],
      cflags: [
          "-Werror",
+@@ -34,5 +39,5 @@ cc_defaults {
+         "android.hardware.sensors@1.0",
+         "android.hidl.allocator@1.0",
+-        "lib_profiler",
++        "//hardware/google/camera/common/profiler:lib_profiler",
+         "libbase",
+         "libcamera_metadata",
+@@ -42,5 +47,5 @@ cc_defaults {
+         "libhardware",
+         "libhidlbase",
+-        "libgooglecamerahalutils",
++        "//hardware/google/camera/common/hal/utils:libgooglecamerahalutils",
+         "libjpeg",
+         "libjsoncpp",
+@@ -52,5 +57,5 @@ cc_defaults {
+     static_libs: [
+         "android.hardware.camera.common@1.0-helper",
+-        "libgooglecamerahwl_sensor_impl",
++        "//hardware/google/camera/devices/EmulatedCamera/hwl:libgooglecamerahwl_sensor_impl",
+     ],
+     include_dirs: [
+@@ -58,5 +63,5 @@ cc_defaults {
+     ],
+     header_libs: [
+-        "libgooglecamerahal_headers",
++        "//hardware/google/camera/common/hal:libgooglecamerahal_headers",
+     ],
+ }
 diff --git a/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.h b/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.h
 index e9c086b..e146ec8 100644
 --- a/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.h

@@ -35,6 +35,7 @@ namespace {
 constexpr int kFenceTimeoutMs = 5000;
 constexpr int32_t kJpegMaxSize = 4 * 1024 * 1024;
 constexpr int64_t kFrameDurationNs = 33333333;
+constexpr uint32_t kMaxStreamDimension = 16384;
 
 struct JpegErrorManager {
     jpeg_error_mgr base;
@@ -47,10 +48,19 @@ void jpegErrorExit(j_common_ptr compressor) {
     longjmp(error->jump, 1);
 }
 
-bool supportedSize(uint32_t width, uint32_t height) {
-    return (width == 640 && height == 480) ||
-           (width == 1280 && height == 720) ||
-           (width == 1920 && height == 1080);
+bool supportedSize(int format, uint32_t width, uint32_t height) {
+    if (width == 0 || height == 0 ||
+        width > kMaxStreamDimension || height > kMaxStreamDimension) {
+        return false;
+    }
+
+    // CameraService validates requested sizes against the original physical
+    // camera metadata exposed by the proxy. Do not repeat that validation with
+    // a short virtual-only resolution list here: Camera1 and OEM clients often
+    // select device-specific preview sizes such as 2080x960. YUV 4:2:0 output
+    // still requires even dimensions, while JPEG may use odd dimensions.
+    return format == HAL_PIXEL_FORMAT_BLOB ||
+           ((width & 1U) == 0 && (height & 1U) == 0);
 }
 
 uint64_t bootTimeNs() {
@@ -538,16 +548,32 @@ int VirtualCamera::configureStreamsLocked(camera3_stream_configuration_t* config
     accepted.reserve(config->num_streams);
     for (uint32_t i = 0; i < config->num_streams; ++i) {
         camera3_stream_t* stream = config->streams[i];
-        if (stream == nullptr || stream->stream_type != CAMERA3_STREAM_OUTPUT ||
-            stream->rotation != CAMERA3_STREAM_ROTATION_0 ||
-            !supportedSize(stream->width, stream->height)) {
+        if (stream == nullptr) {
+            ALOGE("Rejected null stream camera=%d index=%u", id_, i);
             return -EINVAL;
         }
         if (stream->format != HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED &&
             stream->format != HAL_PIXEL_FORMAT_YCbCr_420_888 &&
             stream->format != HAL_PIXEL_FORMAT_BLOB) {
+            ALOGE("Rejected stream camera=%d index=%u unsupported format=%d",
+                  id_, i, stream->format);
             return -EINVAL;
         }
+        if (stream->stream_type != CAMERA3_STREAM_OUTPUT ||
+            stream->rotation != CAMERA3_STREAM_ROTATION_0 ||
+            !supportedSize(stream->format, stream->width, stream->height)) {
+            ALOGE("Rejected stream camera=%d index=%u type=%d format=%d "
+                  "size=%ux%u rotation=%d",
+                  id_, i, stream->stream_type, stream->format,
+                  stream->width, stream->height, stream->rotation);
+            return -EINVAL;
+        }
+
+        ALOGI("Accepting stream camera=%d index=%u type=%d format=%d "
+              "size=%ux%u rotation=%d usage=%" PRIu64,
+              id_, i, stream->stream_type, stream->format,
+              stream->width, stream->height, stream->rotation,
+              static_cast<uint64_t>(stream->usage));
 
         // Camera3 passes consumer usage into configure_streams. Preserve it so
         // SurfaceTexture buffers retain HW_TEXTURE/display compatibility.

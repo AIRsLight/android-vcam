@@ -1,8 +1,55 @@
 diff --git a/common/hal/aidl_service/Android.bp b/common/hal/aidl_service/Android.bp
-index df5d70e..9e5b623 100644
+index df5d70e..5c03dc1 100644
 --- a/common/hal/aidl_service/Android.bp
 +++ b/common/hal/aidl_service/Android.bp
-@@ -129,6 +129,19 @@ cc_defaults {
+@@ -68,14 +68,8 @@ cc_genrule {
+    out: ["aidl_camera_build_version.h"],
+ }
+ 
+-cc_defaults {
+-    name: "camera_service_defaults_common",
+-    defaults: [
+-        "google_camera_hal_defaults",
+-        "apex_update_listener_cc_defaults_static",
+-    ],
+-    vendor: true,
+-    relative_install_path: "hw",
++filegroup {
++    name: "camera_service_common_sources",
+     srcs: [
+         "aidl_camera_device.cc",
+         "aidl_camera_device_session.cc",
+@@ -85,6 +79,22 @@ cc_defaults {
+         "aidl_utils.cc",
+         "libc_wrappers.cc",
+     ],
++}
++
++filegroup {
++    name: "camera_service_main_source",
++    srcs: ["aidl_service.cc"],
++}
++
++cc_defaults {
++    name: "camera_service_defaults_common",
++    defaults: [
++        "google_camera_hal_defaults",
++        "apex_update_listener_cc_defaults_static",
++    ],
++    vendor: true,
++    relative_install_path: "hw",
++    srcs: ["//hardware/google/camera/common/hal/aidl_service:camera_service_common_sources"],
+     generated_headers: [
+         "aidl_camera_build_version",
+     ],
+@@ -123,12 +133,21 @@ cc_defaults {
+     defaults: [
+         "camera_service_defaults_common",
+     ],
+-    srcs: [
+-        "aidl_service.cc",
+-    ],
++    srcs: ["//hardware/google/camera/common/hal/aidl_service:camera_service_main_source"],
      vintf_fragments: [":android.hardware.camera.provider@2.7-service-google.xml"],
  }
  
@@ -13,9 +60,7 @@ index df5d70e..9e5b623 100644
 +    defaults: [
 +        "camera_service_defaults_common",
 +    ],
-+    srcs: [
-+        "aidl_service.cc",
-+    ],
++    srcs: ["//hardware/google/camera/common/hal/aidl_service:camera_service_main_source"],
 +    cflags: ["-DANDROID_VCAM_PROVIDER"],
 +}
 +

@@ -469,9 +469,21 @@ provider_frame() {
     case "$id" in physical-0|physical-1) echo "physical provider has no virtual frame" >&2; return 3 ;; esac
     frame="$PROVIDER_FRAME_DIR/$id/frame.rgb"
     [ -s "$frame" ] || { echo "provider has no preview frame; start it first" >&2; return 5; }
-    size=$(wc -c < "$frame" 2>/dev/null) || return 5
-    [ "$size" -le 3000000 ] || { echo "provider preview frame is too large" >&2; return 5; }
-    base64 "$frame" | tr -d '\n'
+    publisher=$(find_publisher) || { echo "vcam-publisher not found" >&2; return 4; }
+    preview_dir="$PROVIDER_FRAME_DIR/.frame-preview-$$"
+    preview="$preview_dir/frame.rgb"
+    cleanup_provider_frame() { rm -rf "$preview_dir"; }
+    trap cleanup_provider_frame EXIT HUP INT TERM
+    mkdir -p "$preview_dir" || return 5
+    chown camera:camera "$preview_dir"
+    chmod 0750 "$preview_dir"
+    restorecon -RF "$preview_dir" >/dev/null 2>&1
+    "$publisher" --thumbnail "$frame" "$preview" 640 640 || {
+        echo "provider preview thumbnail failed" >&2
+        return 5
+    }
+    [ -s "$preview" ] || { echo "provider preview thumbnail is empty" >&2; return 5; }
+    base64 "$preview" | tr -d '\n'
 }
 
 remove_provider() {

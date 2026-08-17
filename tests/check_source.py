@@ -84,6 +84,13 @@ def main() -> None:
     ):
         if command not in controller:
             fail(f"provider controller is missing command: {command}")
+    if '--thumbnail "$frame" "$preview" 640 640' not in controller:
+        fail("provider preview must use a bounded backend thumbnail")
+
+    publisher = (ROOT / "native" / "frame_publisher.c").read_text(encoding="utf-8")
+    for required_symbol in ("--thumbnail", "O_NOFOLLOW", "MAX_DIMENSION", "pread_exact"):
+        if required_symbol not in publisher:
+            fail(f"frame publisher lacks safe thumbnail support: {required_symbol}")
 
     manager_manifest = (ROOT / "manager" / "AndroidManifest.xml").read_text(encoding="utf-8")
     manager_sources = "\n".join(
@@ -93,9 +100,12 @@ def main() -> None:
     for forbidden in ("ProcessBuilder", '"su"', "MANAGE_EXTERNAL_STORAGE"):
         if forbidden in manager_manifest or forbidden in manager_sources:
             fail(f"root-free manager contains forbidden capability: {forbidden}")
-    for required_symbol in ("source-preview", "loadBackendNetworkPreview"):
+    for required_symbol in (
+        "source-preview", "loadBackendNetworkPreview", "showProviderPreview",
+        "provider-frame", "刷新帧",
+    ):
         if required_symbol not in manager_sources:
-            fail(f"manager lacks backend network preview support: {required_symbol}")
+            fail(f"manager lacks source preview support: {required_symbol}")
     for required_symbol in ("LocalSocket", "VCAMD001", "SO_PEERCRED", "MANAGER_PACKAGE"):
         daemon_and_manager = manager_sources + (ROOT / "native" / "control_daemon.c").read_text(encoding="utf-8")
         if required_symbol not in daemon_and_manager:

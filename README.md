@@ -19,6 +19,8 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
   source FPS/resolution limits, and independent camera 0/1 framing with a
   fixed viewport, draggable media, pinch zoom and continuous zoom control.
   Slow previews show in-form progress and preserve all entered values on failure.
+  Existing virtual sources expose their currently published frame through a
+  bounded backend thumbnail, with an in-place refresh action.
 - The route tab lists only configured packages. New routes can select only
   unconfigured installed apps; uninstalling an app leaves its package route marked
   temporarily unavailable, and reinstalling the same package restores it automatically.
@@ -65,9 +67,9 @@ tools/build-ffmpeg-android.sh --ndk-root /path/to/android-ndk-r27d
 Outputs:
 
 ```text
-dist/android-vcam-apm-v0.3.6-dev.zip
-dist/android-vcam-manager-v0.3.6-dev-debug.apk
-dist/android-vcam-camera2-test-v0.3.6-dev-debug.apk
+dist/android-vcam-apm-v0.3.7-dev.zip
+dist/android-vcam-manager-v0.3.7-dev-debug.apk
+dist/android-vcam-camera2-test-v0.3.7-dev-debug.apk
 ```
 
 The APatch ZIP contains a patched copy of the pinned OEM HAL, the dependency

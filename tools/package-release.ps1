@@ -27,14 +27,14 @@ if ($LASTEXITCODE -ne 0) { throw "OEM HAL patch failed" }
 & (Join-Path $PSScriptRoot "package-apmodule.ps1") -CameraHal $patched
 if ($LASTEXITCODE -ne 0) { throw "APatch module packaging failed" }
 
-$releaseManager = Join-Path $dist "android-vcam-manager-v0.3.6-dev-debug.apk"
+$releaseManager = Join-Path $dist "android-vcam-manager-v0.3.7-dev-debug.apk"
 Copy-Item -LiteralPath $managerPath -Destination $releaseManager -Force
 $managerHash = Get-FileHash -Algorithm SHA256 -LiteralPath $releaseManager
 Set-Content -LiteralPath "$releaseManager.sha256" `
     -Value ($managerHash.Hash.ToLowerInvariant() + "  " + (Split-Path -Leaf $releaseManager)) `
     -Encoding ascii
 
-$releaseApk = Join-Path $dist "android-vcam-camera2-test-v0.3.6-dev-debug.apk"
+$releaseApk = Join-Path $dist "android-vcam-camera2-test-v0.3.7-dev-debug.apk"
 Copy-Item -LiteralPath $apkPath -Destination $releaseApk -Force
 $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $releaseApk
 Set-Content -LiteralPath "$releaseApk.sha256" `

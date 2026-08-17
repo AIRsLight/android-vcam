@@ -64,15 +64,19 @@ if (Test-Path -LiteralPath $staging) {
 Copy-Item -LiteralPath (Join-Path $root "apmodule") -Destination $staging -Recurse
 
 $destinations = @{
-    Hal = Join-Path $staging "system/vendor/lib64/hw/camera.qcom.so"
-    Proxy = Join-Path $staging "system/vendor/lib64/libvcam_proxy.so"
-    Publisher = Join-Path $staging "system/vendor/bin/vcam-publisher"
+    Hal = Join-Path $staging "vendor/lib64/hw/camera.qcom.so"
+    Proxy = Join-Path $staging "vendor/lib64/libvcam_proxy.so"
+    Publisher = Join-Path $staging "vendor/bin/vcam-publisher"
     Streamer = Join-Path $staging "system/bin/vcam-streamer"
     Daemon = Join-Path $staging "system/bin/vcamd"
     CameraService = Join-Path $staging "system/lib64/libcameraservice.so"
 }
 foreach ($destination in $destinations.Values) {
     New-Item -ItemType Directory -Force (Split-Path -Parent $destination) | Out-Null
+}
+$legacyVendorTree = Join-Path $staging "system/vendor"
+if (Test-Path -LiteralPath $legacyVendorTree) {
+    Remove-Item -LiteralPath $legacyVendorTree -Recurse -Force
 }
 Copy-Item -LiteralPath $inputs.Hal -Destination $destinations.Hal -Force
 Copy-Item -LiteralPath $inputs.Proxy -Destination $destinations.Proxy -Force
@@ -82,7 +86,7 @@ Copy-Item -LiteralPath $inputs.Daemon -Destination $destinations.Daemon -Force
 Copy-Item -LiteralPath $inputs.CameraService -Destination $destinations.CameraService -Force
 Get-ChildItem -LiteralPath $staging -Recurse -Filter .gitkeep | Remove-Item -Force
 
-$zip = Join-Path $dist "android-vcam-apm-v0.3.6-dev.zip"
+$zip = Join-Path $dist "android-vcam-apm-v0.3.7-dev.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 & $Python (Join-Path $PSScriptRoot "create-module-zip.py") $staging $zip
 if ($LASTEXITCODE -ne 0) { throw "APatch ZIP creation failed" }

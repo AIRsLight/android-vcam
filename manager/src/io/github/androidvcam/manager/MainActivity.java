@@ -396,18 +396,24 @@ public final class MainActivity extends Activity {
                 providerCard.addView(source, matchWrapMargins(0, 12, 0, 0));
             }
             if (provider.removable) {
-                LinearLayout actions = horizontal();
+                LinearLayout primaryActions = horizontal();
+                TextView preview = secondaryButton("预览");
+                preview.setOnClickListener(view -> showProviderPreview(provider));
                 TextView edit = secondaryButton("编辑");
                 edit.setOnClickListener(view -> showProviderDialog(provider));
+                primaryActions.addView(preview, weighted());
+                primaryActions.addView(edit, weightedMargins(8, 0, 0, 0));
+                providerCard.addView(primaryActions, matchWrapMargins(0, 12, 0, 0));
+
+                LinearLayout actions = horizontal();
                 TextView toggle = secondaryButton(provider.running ? "停止" : "启动");
                 toggle.setOnClickListener(view -> runProviderAction(
                         provider.running ? "provider-stop" : "provider-start", provider.id));
                 TextView remove = dangerButton("删除");
                 remove.setOnClickListener(view -> confirmRemove(provider));
-                actions.addView(edit, weighted());
-                actions.addView(toggle, weightedMargins(8, 0, 0, 0));
+                actions.addView(toggle, weighted());
                 actions.addView(remove, weightedMargins(8, 0, 0, 0));
-                providerCard.addView(actions, matchWrapMargins(0, 12, 0, 0));
+                providerCard.addView(actions, matchWrapMargins(0, 8, 0, 0));
             }
             providerList.addView(providerCard, matchWrapMargins(0, 0, 0, 12));
         }
@@ -617,14 +623,7 @@ public final class MainActivity extends Activity {
 
     private Bitmap loadPreview(PendingProvider pending) throws IOException {
         if ("pattern".equals(pending.type)) {
-            Bitmap bitmap = Bitmap.createBitmap(640, 360, Bitmap.Config.ARGB_8888);
-            Canvas canvas = new Canvas(bitmap);
-            int[] colors = {Color.WHITE, Color.YELLOW, Color.CYAN, Color.GREEN,
-                    Color.MAGENTA, Color.RED, Color.BLUE, Color.BLACK};
-            for (int i = 0; i < colors.length; ++i) {
-                canvas.drawRect(i * 80, 0, (i + 1) * 80, 360, colorPaint(colors[i]));
-            }
-            return bitmap;
+            return buildPatternPreview();
         }
         if ("image".equals(pending.type)) {
             if (pending.editing && pending.uri == null) return loadBackendProviderPreview(pending.id);
@@ -661,6 +660,78 @@ public final class MainActivity extends Activity {
         BackendClient.Result preview = BackendClient.controller("provider-frame", id);
         preview.requireSuccess();
         return decodeBackendFrame(preview.output);
+    }
+
+    private Bitmap buildPatternPreview() {
+        Bitmap bitmap = Bitmap.createBitmap(640, 360, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        int[] colors = {Color.WHITE, Color.YELLOW, Color.CYAN, Color.GREEN,
+                Color.MAGENTA, Color.RED, Color.BLUE, Color.BLACK};
+        for (int i = 0; i < colors.length; ++i) {
+            canvas.drawRect(i * 80, 0, (i + 1) * 80, 360, colorPaint(colors[i]));
+        }
+        return bitmap;
+    }
+
+    private void showProviderPreview(Provider provider) {
+        LinearLayout body = dialogForm();
+        TextView description = text("显示后端当前实际发布的画面，不改变来源配置。",
+                12, 0xff64748b);
+        body.addView(description);
+
+        FrameLayout frame = new FrameLayout(this);
+        frame.setBackground(roundRect(0xff0f172a, 14));
+        ImageView image = new ImageView(this);
+        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        image.setAdjustViewBounds(true);
+        frame.addView(image, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        ProgressBar progress = new ProgressBar(this);
+        FrameLayout.LayoutParams progressParams = new FrameLayout.LayoutParams(dp(38), dp(38));
+        progressParams.gravity = Gravity.CENTER;
+        frame.addView(progress, progressParams);
+        body.addView(frame, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(320)));
+
+        TextView status = text("正在读取当前帧…", 12, 0xff2563eb);
+        status.setGravity(Gravity.CENTER_HORIZONTAL);
+        body.addView(status, matchWrapMargins(0, 10, 0, 0));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(provider.name + " · 来源预览")
+                .setView(body)
+                .setNegativeButton("关闭", null)
+                .setNeutralButton("刷新帧", null)
+                .create();
+        Runnable refresh = () -> {
+            if (!dialog.isShowing()) return;
+            progress.setVisibility(View.VISIBLE);
+            status.setText("正在读取当前帧…");
+            status.setTextColor(0xff2563eb);
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setEnabled(false);
+            runAsync(() -> new PreviewResult("pattern".equals(provider.type)
+                            ? buildPatternPreview() : loadBackendProviderPreview(provider.id)),
+                    result -> {
+                        if (!dialog.isShowing()) return;
+                        Bitmap bitmap = ((PreviewResult) result).bitmap;
+                        image.setImageBitmap(bitmap);
+                        progress.setVisibility(View.GONE);
+                        status.setText("当前帧 · " + bitmap.getWidth() + "×" + bitmap.getHeight());
+                        status.setTextColor(0xff059669);
+                        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setEnabled(true);
+                    }, error -> {
+                        if (!dialog.isShowing()) return;
+                        progress.setVisibility(View.GONE);
+                        status.setText(friendlyError(error));
+                        status.setTextColor(0xffdc2626);
+                        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setEnabled(true);
+                    });
+        };
+        dialog.setOnShowListener(ignored -> {
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(view -> refresh.run());
+            refresh.run();
+        });
+        dialog.show();
     }
 
     private Bitmap decodeBackendFrame(String encoded) throws IOException {

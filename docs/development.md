@@ -51,8 +51,19 @@ space-conscious platform checkout with the official manifest groups
 `pdk,pdk-fs,-cts,-darwin,-device,-developers`; these retain CameraService,
 Soong, VINTF, AIDL/HIDL interfaces and the generic arm64 product while
 excluding CTS, device-specific kernels, sample trees and the macOS toolchain.
+Run `tools/sync-aosp13-build-deps.sh` after that base sync to fetch the
+supplemental native dependency closure discovered by the camera-only build.
+The helper accepts `--proxy-url`, keeps proxy variables local to its process,
+and requires an explicit `--force-sync` before repo may replace a conflicting
+project checkout.
+
 The validator temporarily applies the versioned patch from
-`aosp/cameraservice/android-13` and restores `frameworks/av` on exit.
+`aosp/cameraservice/android-13` and restores `frameworks/av` on exit. Build
+mode uses `m --soong-only`, output directory
+`out/android-vcam-r84-soong`, and verifies the 64-bit CameraService library,
+virtual camera HAL, and HIDL provider service. On modern Linux hosts it wraps
+only the legacy RenderScript compiler with AOSP's bundled ncurses 5 runtime;
+the host's system libraries and global library search path remain unchanged.
 
 An interrupted first shallow sync can leave `.repo/projects/<path>.git`
 without its `shallow` file. Repo treats that state as a deliberately
@@ -63,11 +74,21 @@ retrying an incomplete checkout, verify the child `git fetch` command contains
 incomplete project checkout before retrying. Never remove a completed AOSP
 project merely to repair another project's shallow state.
 
-When the builder reaches Android source sites through the workstation's local
-proxy, run `tools/start-ci-proxy.ps1`. It starts a hidden SSH reverse tunnel
-from the builder's loopback port 1085 to the workstation's loopback port 1085
-and verifies the path against Android's manifest server. The tunnel process
-must be restarted after Windows reboots; it never listens on a LAN address.
+The current workstation proxy already accepts LAN clients. The builder reaches
+it directly at `http://192.168.130.151:1085`; no SSH reverse tunnel is needed.
+For example:
+
+```bash
+tools/sync-aosp13-build-deps.sh \
+    --aosp-root /aosp/src/android-13.0.0_r84 \
+    --proxy-url http://192.168.130.151:1085
+tools/verify-aosp13-build.sh \
+    --aosp-root /aosp/src/android-13.0.0_r84 \
+    --mode build --jobs 8
+```
+
+The proxy address is a development-network setting, not a runtime dependency
+of the module, manager, or device-side backend.
 
 ## Recovery
 

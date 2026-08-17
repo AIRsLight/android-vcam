@@ -67,6 +67,7 @@ patch_rel="aosp/cameraservice/android-13/frameworks-av.patch"
 patch="$source_root/$patch_rel"
 managed_copy="$aosp_root/vendor/android_vcam_buildcheck"
 managed_marker="$managed_copy/.vcam-managed-build-copy"
+host_compat_source_dir="$aosp_root/prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8/sysroot/usr/lib"
 required_frameworks_av_commit=95be9bad234d69f4a8ded5ee72b60315b1353098
 
 [[ -f "$aosp_root/build/envsetup.sh" ]] || fail "build/envsetup.sh is missing"
@@ -87,6 +88,8 @@ for required in \
     "$aosp_root/build/soong/soong_ui.bash" \
     "$aosp_root/prebuilts/clang/host/linux-x86" \
     "$aosp_root/prebuilts/jdk/jdk11" \
+    "$host_compat_source_dir/libncurses.so.5" \
+    "$host_compat_source_dir/libtinfo.so.5" \
     "$aosp_root/system/core"; do
     [[ -e "$required" ]] || fail "required AOSP build dependency is missing: $required"
 done
@@ -138,23 +141,36 @@ git -C "$frameworks_av" apply "$managed_copy/$patch_rel"
 patch_applied=1
 
 cd "$aosp_root"
-export OUT_DIR="$aosp_root/out/android-vcam-r84"
+export OUT_DIR="$aosp_root/out/android-vcam-r84-soong"
 export ALLOW_MISSING_DEPENDENCIES=true
 export WITH_DEXPREOPT=false
 export DISABLE_PREOPT=true
+host_compat_lib_dir="$OUT_DIR/host-compat-libs"
+mkdir -p "$host_compat_lib_dir"
+ln -sfn "$host_compat_source_dir/libncurses.so.5.9" "$host_compat_lib_dir/libncurses.so.5"
+ln -sfn "$host_compat_source_dir/libtinfo.so.5.9" "$host_compat_lib_dir/libtinfo.so.5"
 set +u
 source build/envsetup.sh >/dev/null
 lunch aosp_arm64-eng >/dev/null
-m -j"$jobs" WITH_DEXPREOPT=false \
+llvm_rs_cc="$OUT_DIR/soong/host/linux-x86/bin/llvm-rs-cc"
+m --soong-only -j"$jobs" "$llvm_rs_cc"
+if file -b "$llvm_rs_cc" | grep -q '^ELF '; then
+    mv -f "$llvm_rs_cc" "$llvm_rs_cc.real"
+fi
+[[ -x "$llvm_rs_cc.real" ]] || fail "real llvm-rs-cc host tool is missing"
+install -m 0755 \
+    "$managed_copy/tools/host-wrappers/llvm-rs-cc" \
+    "$llvm_rs_cc"
+m --soong-only -j"$jobs" WITH_DEXPREOPT=false \
     libcameraservice \
     camera.vcam \
     android.hardware.camera.provider@2.4-vcam-service
 set -u
 
 for artifact in \
-    "$OUT_DIR/target/product/generic_arm64/system/lib64/libcameraservice.so" \
-    "$OUT_DIR/target/product/generic_arm64/vendor/lib64/hw/camera.vcam.so" \
-    "$OUT_DIR/target/product/generic_arm64/vendor/bin/hw/android.hardware.camera.provider@2.4-vcam-service"; do
+    "$OUT_DIR/soong/target/product/generic_arm64/system/lib64/libcameraservice.so" \
+    "$OUT_DIR/soong/target/product/generic_arm64/vendor/lib64/hw/camera.vcam.so" \
+    "$OUT_DIR/soong/target/product/generic_arm64/vendor/bin/hw/android.hardware.camera.provider@2.4-vcam-service"; do
     [[ -s "$artifact" ]] || fail "expected build artifact is missing: $artifact"
     printf 'Verified artifact: %s\n' "$artifact"
 done

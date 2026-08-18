@@ -38,6 +38,7 @@ int main() {
     assert(plan.status == vcam::runtime::Arm64PlanStatus::kReady);
     assert(plan.overwriteSize == 16);
     assert(plan.resumeAddress == target + 16);
+    assert(plan.originalBytes == nx769jPrologue);
     assert(plan.entryPatch.size() == 16);
     assert(plan.trampoline.size() == 36);
     assert(read64(plan.entryPatch, 8) == replacement);

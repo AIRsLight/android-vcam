@@ -92,6 +92,8 @@ Arm64PatchPlan planArm64InlineHook(
     result.message = "ARM64 patch bytes are relocatable; no executable memory was modified";
     result.overwriteSize = kOverwriteSize;
     result.resumeAddress = targetAddress + kOverwriteSize;
+    result.originalBytes.assign(
+            targetPrologue.begin(), targetPrologue.begin() + kOverwriteSize);
     result.entryPatch.reserve(kOverwriteSize);
     appendAbsoluteBranch(&result.entryPatch, replacementAddress);
 

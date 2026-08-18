@@ -49,6 +49,38 @@ cc_library_static {
 }
 
 cc_library_static {
+    name: "libvcam_arm64_patch_transaction",
+    host_supported: true,
+    srcs: [
+        "runtime/Arm64PatchInstallTransaction.cpp",
+        "runtime/Arm64PatchPlanner.cpp",
+    ],
+    local_include_dirs: ["runtime/include"],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    cpp_std: "c++17",
+}
+
+cc_test {
+    name: "vcam_arm64_patch_transaction_test",
+    host_supported: true,
+    device_supported: false,
+    srcs: ["tests/arm64_patch_install_transaction_test.cpp"],
+    local_include_dirs: ["runtime/include"],
+    static_libs: ["libvcam_arm64_patch_transaction"],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-UNDEBUG",
+    ],
+    cpp_std: "c++17",
+}
+
+cc_library_static {
     name: "libvcam_binder_pass_through_bridge",
     host_supported: true,
     srcs: ["runtime/BinderPassThroughBridge.cpp"],

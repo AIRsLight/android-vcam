@@ -68,6 +68,13 @@ if(UNIX)
     target_compile_options(arm64_patch_planner_test PRIVATE -UNDEBUG)
     add_test(NAME arm64_patch_planner_test COMMAND arm64_patch_planner_test)
 
+    add_executable(arm64_patch_install_transaction_test
+        tests/arm64_patch_install_transaction_test.cpp)
+    target_link_libraries(arm64_patch_install_transaction_test PRIVATE vcam_runtime_abi_guard)
+    target_compile_options(arm64_patch_install_transaction_test PRIVATE -UNDEBUG)
+    add_test(NAME arm64_patch_install_transaction_test
+        COMMAND arm64_patch_install_transaction_test)
+
     add_executable(runtime_hook_strategy_test tests/runtime_hook_strategy_test.cpp)
     target_link_libraries(runtime_hook_strategy_test PRIVATE vcam_runtime_abi_guard)
     target_compile_options(runtime_hook_strategy_test PRIVATE -UNDEBUG)

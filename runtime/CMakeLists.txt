@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(vcam_runtime_abi_guard STATIC
+    Arm64PatchInstallTransaction.cpp
     Arm64PatchPlanner.cpp
     BinderPassThroughBridge.cpp
     BinderTransactionClassifier.cpp

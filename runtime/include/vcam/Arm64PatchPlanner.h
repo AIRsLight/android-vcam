@@ -20,6 +20,7 @@ struct Arm64PatchPlan {
     std::string message;
     std::size_t overwriteSize = 0;
     std::uintptr_t resumeAddress = 0;
+    std::vector<std::uint8_t> originalBytes;
     std::vector<std::uint8_t> entryPatch;
     std::vector<std::uint8_t> trampoline;
 

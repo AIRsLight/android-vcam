@@ -78,6 +78,32 @@ must not silently fall back to byte copying. Installation remains disabled until
 thread coordination, instruction-cache synchronization and rollback are
 independently tested.
 
+## Offline patch transaction
+
+The ARM64 plan now carries the exact 16 original target bytes separately from
+the trampoline. A transactional installer validates the complete planner shape,
+non-overlapping target/trampoline ranges, BTI landing pad, absolute-branch
+instructions, resume address and copied original bytes before reading memory.
+
+The installer has `empty`, `prepared`, `committed`, `rolled_back` and `failed`
+states. `prepare()` only snapshots and compares the target. `commit()` requires
+an injected backend to acquire an exclusive execution window, recheck the target
+to close the prepare/commit race, write and synchronize the trampoline, publish
+the original trampoline, then write and synchronize the entry patch. A failed
+or potentially partial entry write, or a failed entry cache synchronization,
+triggers an immediate original-byte restore attempt before leaving the exclusive
+window. Explicit rollback first verifies that the target still contains this
+transaction's entry patch so it cannot overwrite an unrelated later change.
+The revalidation buffer is allocated during `prepare()` and result messages are
+static, so `commit()` and `rollback()` do not allocate inside the exclusive
+window.
+
+There is deliberately no production backend. The repository provides no page-
+permission changer, executable allocator, thread suspender, process-memory
+writer or device activation entry point. Tests inject isolated byte buffers and
+representative partial-write, cache, coordination and rollback faults; passing
+them validates ordering and state handling, not safe live-process installation.
+
 ## Pass-through bridge
 
 The Binder bridge remains policy-free. Its opaque native signature matches

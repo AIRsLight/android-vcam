@@ -74,6 +74,8 @@ candidate, not proof that Nubia used an unmodified r1 tree.
   in offline AOSP r23 host/device builds.
 - Shadow-observer pass-through wiring and counter-only telemetry tests:
   complete offline; not bound by the cameraserver agent.
+- Transactional patch ordering, target revalidation and rollback fault tests:
+  complete with an isolated memory backend only.
 - Runtime route test: not started.
 - Installation on this fingerprint: blocked.
 
@@ -105,4 +107,5 @@ Do not mount the r23 `libcameraservice.so` over the stock library. The likely
 failure modes are a cameraserver dynamic-link failure, virtual-call ABI
 mismatch or an OEM camera feature crash. Any future runtime activation also
 requires a recoverable KernelSU delivery package, exact fingerprint/hash
-allowlist, thread-safe patch installation and tested rollback.
+allowlist, a reviewed live-process backend, and on-device thread/cache/rollback
+qualification. The isolated transaction test is not that qualification.

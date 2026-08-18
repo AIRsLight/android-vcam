@@ -47,3 +47,43 @@ cc_library_static {
     ],
     cpp_std: "c++17",
 }
+
+cc_library_static {
+    name: "libvcam_android14_parcel_observer",
+    host_supported: true,
+    srcs: [
+        "runtime/BinderTransactionClassifier.cpp",
+        "runtime/platform/Android14ParcelObserver.cpp",
+    ],
+    local_include_dirs: ["runtime/include"],
+    shared_libs: [
+        "libbinder",
+        "libutils",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    cpp_std: "c++17",
+}
+
+cc_test {
+    name: "vcam_android14_parcel_observer_test",
+    host_supported: true,
+    device_supported: false,
+    srcs: ["tests/android14_parcel_observer_test.cpp"],
+    local_include_dirs: ["runtime/include"],
+    static_libs: ["libvcam_android14_parcel_observer"],
+    shared_libs: [
+        "libbinder",
+        "libutils",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-UNDEBUG",
+    ],
+    cpp_std: "c++17",
+}

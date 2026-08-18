@@ -8,6 +8,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_library(vcam_runtime_abi_guard STATIC
     Arm64PatchPlanner.cpp
     BinderPassThroughBridge.cpp
+    BinderTransactionClassifier.cpp
     RuntimeAbiGuard.cpp
     RuntimeHookStrategy.cpp
 )

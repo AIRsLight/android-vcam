@@ -78,4 +78,10 @@ if(UNIX)
     target_link_libraries(binder_pass_through_bridge_test PRIVATE vcam_runtime_abi_guard)
     target_compile_options(binder_pass_through_bridge_test PRIVATE -UNDEBUG)
     add_test(NAME binder_pass_through_bridge_test COMMAND binder_pass_through_bridge_test)
+
+    add_executable(binder_transaction_classifier_test
+        tests/binder_transaction_classifier_test.cpp)
+    target_link_libraries(binder_transaction_classifier_test PRIVATE vcam_runtime_abi_guard)
+    target_compile_options(binder_transaction_classifier_test PRIVATE -UNDEBUG)
+    add_test(NAME binder_transaction_classifier_test COMMAND binder_transaction_classifier_test)
 endif()

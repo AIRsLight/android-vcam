@@ -102,6 +102,30 @@ guard validates that exact loaded dependency before resolving hook symbols. This
 prevents an OTA from retaining `libcameraservice.so` while silently changing the
 transaction layout in `libcamera_client.so`.
 
+## Read-only Android 14 Parcel observation
+
+The Android 14 platform adapter can now classify allowlisted transaction codes
+from the ABI recipe and inspect the leading routing fields of a real AOSP
+`android::Parcel`. It validates the `SYST` Binder header and the exact
+`android.hardware.ICameraService` descriptor before reading anything else. The
+implemented payload shapes cover Camera1 and Camera2 connects, string and
+integer camera IDs, listeners, and concurrent-camera enumeration. Concurrent
+session configurations remain explicitly unsupported until their nested typed
+objects have a version-pinned decoder.
+
+Observation is deliberately non-mutating. An RAII guard restores the original
+`dataPosition()` on every return path, including malformed input and unsupported
+payloads. The adapter does not call `enforceInterface()`, because that routine
+also changes `IPCThreadState` work-source state; it performs a local descriptor
+comparison instead. Observed strings are length-bounded and ASCII-only, while
+the authoritative caller UID and PID come from `IPCThreadState`, never from
+client-supplied Parcel fields.
+
+This adapter is not connected to the pass-through bridge yet. It cannot select
+a route, replace a camera, mutate a request, bind a trampoline, or install a
+hook. Its current purpose is to establish and test the exact read-only parsing
+boundary before activation code exists.
+
 ## Planned activation architecture
 
 The compatible path is deliberately split into three layers:

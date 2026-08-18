@@ -292,6 +292,15 @@ def main() -> None:
         if required_symbol not in service_scripts:
             fail(f"provider boot recovery is missing: {required_symbol}")
 
+    device_probe = (ROOT / "apmodule" / "device-probe.sh").read_text(encoding="utf-8")
+    for required_symbol in (
+        "provider_manifest", "provider_init_service", "provider_service_context",
+        "provider_process_context", "camera_ids", "api1_camera_ids",
+        "under_screen_camera",
+    ):
+        if required_symbol not in device_probe:
+            fail(f"device compatibility probe is missing: {required_symbol}")
+
     test_app = (ROOT / "testapp" / "src" / "io" / "github" / "androidvcam" /
                 "test" / "CameraPreviewActivity.java").read_text(encoding="utf-8")
     for required_symbol in ("preview_width", "preview_height", "single_stream"):

@@ -12,7 +12,8 @@ pwsh -File tools/probe-device.ps1
 ```
 
 The profile records the Android version and ABI, SELinux state, Camera
-Provider transport/version/instance, provider executable, legacy camera module
+Provider transport/version/instance, VINTF fragment, init service and SELinux
+labels, Camera2 IDs, Camera1 mappings, provider executable, legacy camera module
 path and hashes. The host helper uses an already-authorized ADB `su` context
 when available so vendor files hidden from the shell UID can still be hashed;
 the probe remains read-only.
@@ -33,6 +34,11 @@ declared interface version.
 The profile is diagnostic input, not authorization to install. An adapter
 must still validate the exact binaries and product policy it will interact
 with. Unknown builds must fail closed and leave physical cameras untouched.
+
+`camera_ids` is the complete Camera2-facing set reported by CameraService;
+`api1_camera_ids` is the smaller ordered set exposed through Camera1. Extra
+Camera2 IDs are treated as separate physical access paths for privacy analysis,
+even when the manager initially exposes only front/back targets.
 
 ## Support tiers
 

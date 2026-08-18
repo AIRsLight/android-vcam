@@ -27,6 +27,7 @@ aidl_service_line="$(printf '%s\n' "$camera_services" | sed -n \
 transport=unknown
 provider_version=unknown
 provider_instance=unknown
+provider_manifest=none
 if [ -n "$aidl_service_line" ]; then
     provider_instance="$(printf '%s\n' "$aidl_service_line" | sed -n \
         's#.*android\.hardware\.camera\.provider\.ICameraProvider/\([^: ]*\):.*#\1#p')"
@@ -48,6 +49,7 @@ if [ -n "$aidl_service_line" ]; then
             }' "$manifest" | head -n 1)"
         if [ -n "$manifest_version" ]; then
             provider_version="$manifest_version"
+            provider_manifest="$manifest"
             break
         fi
     done
@@ -85,6 +87,33 @@ for candidate in \
     break
 done
 
+provider_init_service=unknown
+if [ -n "$provider_service" ]; then
+    for init_rc in /vendor/etc/init/*.rc /odm/etc/init/*.rc; do
+        [ -r "$init_rc" ] || continue
+        init_service="$(awk -v binary="$provider_service" \
+            '$1 == "service" && $3 == binary { print $2; exit }' "$init_rc")"
+        if [ -n "$init_service" ]; then
+            provider_init_service="$init_service"
+            break
+        fi
+    done
+fi
+
+provider_service_context=unknown
+provider_process_context=unknown
+if [ -n "$provider_service" ]; then
+    provider_service_context="$(ls -Z "$provider_service" 2>/dev/null | \
+        awk 'NR == 1 { print $1 }')"
+    provider_process_context="$(ps -AZ 2>/dev/null | awk \
+        -v executable="${provider_service##*/}" '$NF == executable { print $1; exit }')"
+    case "$provider_service_context" in
+        u:object_r:*:s0) ;;
+        *) provider_service_context=unknown ;;
+    esac
+    [ -n "$provider_process_context" ] || provider_process_context=unknown
+fi
+
 adapter_hint=unsupported
 if [ "$transport" = aidl ]; then
     adapter_hint=aosp-aidl
@@ -94,9 +123,30 @@ elif [ "$transport" = hidl ]; then
     adapter_hint=hidl-provider-service
 fi
 
-camera_count="$(dumpsys media.camera 2>/dev/null | \
-    sed -n 's/.*Number of camera devices: //p' | head -n 1)"
+camera_summary="$(dumpsys media.camera 2>/dev/null | awk '
+    /Number of camera devices:/ && camera_count == "" {
+        camera_count = $NF
+    }
+    /^== Camera device [^ ]+ dynamic info: ==$/ {
+        camera_ids = camera_ids camera_separator $4
+        camera_separator = ","
+    }
+    /^[[:space:]]*Device [0-9][0-9]* maps to "/ {
+        api1_id = $5
+        gsub(/"/, "", api1_id)
+        api1_ids = api1_ids api1_separator api1_id
+        api1_separator = ","
+    }
+    END {
+        printf "%s\n%s\n%s\n", camera_count, camera_ids, api1_ids
+    }
+')"
+camera_count="$(printf '%s\n' "$camera_summary" | sed -n '1p')"
 [ -n "$camera_count" ] || camera_count=unknown
+camera_ids="$(printf '%s\n' "$camera_summary" | sed -n '2p')"
+[ -n "$camera_ids" ] || camera_ids=unknown
+api1_camera_ids="$(printf '%s\n' "$camera_summary" | sed -n '3p')"
+[ -n "$api1_camera_ids" ] || api1_camera_ids=none
 
 cameraservice_hash=unknown
 if [ -r /system/lib64/libcameraservice.so ]; then
@@ -121,7 +171,7 @@ case "$root_context" in
 esac
 
 emit_profile() {
-    field schema_version 2
+    field schema_version 3
     field sdk "$(prop ro.build.version.sdk)"
     field release "$(prop ro.build.version.release)"
     field abi "$(prop ro.product.cpu.abi)"
@@ -134,13 +184,21 @@ emit_profile() {
     field provider_transport "$transport"
     field provider_version "$provider_version"
     field provider_instance "$provider_instance"
+    field provider_manifest "$provider_manifest"
     field provider_service "${provider_service:-none}"
+    field provider_init_service "$provider_init_service"
+    field provider_service_context "$provider_service_context"
+    field provider_process_context "$provider_process_context"
     field provider_service_hash "$provider_service_hash"
     field adapter_hint "$adapter_hint"
     field legacy_module "${legacy_module:-none}"
     field legacy_module_hash "$legacy_module_hash"
     field cameraservice_hash "$cameraservice_hash"
     field camera_count "$camera_count"
+    field camera_ids "$camera_ids"
+    field api1_camera_ids "$api1_camera_ids"
+    field reported_physical_camera_count "$(prop ro.vendor.feature.camera_physical_count)"
+    field under_screen_camera "$(prop ro.vendor.feature.camera_under_screen_sensor)"
     field camera_service_binder "$(printf '%s' "$camera_services" | grep -c 'media.camera')"
     field probe_uid "$(id -u 2>/dev/null)"
     field root_manager "$root_manager"

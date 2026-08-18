@@ -76,6 +76,12 @@ code prefixes of `CameraService::onTransact` and
 the inspected binary is loaded; no Binder interception strategy has been enabled
 or installed on the device yet.
 
+The OEM `onTransact` entry begins with `PACIASP`, stack allocation and three
+register-save instructions. The offline ARM64 planner can relocate the first 16
+bytes without encountering a PC-relative or control-flow instruction and emits a
+BTI-compatible trampoline. Its Binder transaction table is still an Android 14
+r1-derived candidate and requires OEM-side read-only confirmation.
+
 Do not mount the r23 `libcameraservice.so` over the stock library. The likely
 failure modes are a cameraserver dynamic-link failure, virtual-call ABI
 mismatch or an OEM camera feature crash. Runtime work may begin only after an

@@ -117,6 +117,25 @@ int main() {
     assert(parsed.symbols.size() == 1);
     assert(vcam::runtime::validateLoadedModule(parsed).status ==
            vcam::runtime::ProbeStatus::kAllowed);
+
+    {
+        std::ofstream output(recipePath);
+        output << "schema\t2\n"
+               << "architecture\tarm64\n"
+               << "module\t" << recipe.moduleSuffix << "\n"
+               << "file_size\t" << recipe.fileSize << "\n"
+               << "sha256\t" << recipe.sha256Hex << "\n"
+               << "build_id\t" << recipe.buildIdHex << "\n"
+               << "symbol\tvcam_runtime_probe_marker\t" << hex(marker, 12) << "\n"
+               << "hook\ton_transact\tvcam_runtime_probe_marker\n"
+               << "transaction\tconnect_device\t4\n";
+    }
+    assert(vcam::runtime::parseAbiRecipe(recipePath, &parsed, &error));
+    assert(parsed.schema == 2);
+    assert(parsed.architecture == "arm64");
+    assert(parsed.hooks.size() == 1);
+    assert(parsed.transactions.size() == 1);
+    assert(parsed.transactions[0].code == 4);
     std::remove(recipePath.c_str());
 
     return 0;

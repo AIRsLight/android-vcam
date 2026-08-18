@@ -368,6 +368,8 @@ bool parseAbiRecipe(const std::string& path, AbiRecipe* recipe, std::string* err
             parsed.sha256Hex = value;
         } else if (key == "build_id") {
             parsed.buildIdHex = value;
+        } else if (key == "architecture") {
+            parsed.architecture = value;
         } else if (key == "symbol") {
             const std::size_t secondTab = value.find('\t');
             if (secondTab == std::string::npos) {
@@ -382,6 +384,27 @@ bool parseAbiRecipe(const std::string& path, AbiRecipe* recipe, std::string* err
                 return false;
             }
             parsed.symbols.push_back(std::move(requirement));
+        } else if (key == "hook") {
+            const std::size_t secondTab = value.find('\t');
+            if (secondTab == std::string::npos || secondTab == 0 ||
+                secondTab + 1 >= value.size()) {
+                if (error != nullptr) *error = "invalid hook on line " + std::to_string(lineNumber);
+                return false;
+            }
+            parsed.hooks.push_back({value.substr(0, secondTab), value.substr(secondTab + 1)});
+        } else if (key == "transaction") {
+            const std::size_t secondTab = value.find('\t');
+            std::uint64_t code = 0;
+            if (secondTab == std::string::npos || secondTab == 0 ||
+                !parseUnsignedDecimal(value.substr(secondTab + 1), &code) ||
+                code == 0 || code > std::numeric_limits<std::uint32_t>::max()) {
+                if (error != nullptr) {
+                    *error = "invalid transaction on line " + std::to_string(lineNumber);
+                }
+                return false;
+            }
+            parsed.transactions.push_back(
+                    {value.substr(0, secondTab), static_cast<std::uint32_t>(code)});
         } else {
             if (error != nullptr) *error = "unknown key on line " + std::to_string(lineNumber) + ": " + key;
             return false;
@@ -390,7 +413,8 @@ bool parseAbiRecipe(const std::string& path, AbiRecipe* recipe, std::string* err
 
     std::vector<std::uint8_t> buildId;
     std::vector<std::uint8_t> sha256;
-    if (parsed.schema != 1 || parsed.moduleSuffix.empty() || parsed.fileSize == 0 ||
+    if ((parsed.schema != 1 && parsed.schema != 2) || parsed.moduleSuffix.empty() ||
+        parsed.fileSize == 0 ||
         !decodeHex(parsed.buildIdHex, &buildId) || buildId.size() < 8 ||
         !decodeHex(parsed.sha256Hex, &sha256) || sha256.size() != 32 ||
         parsed.symbols.empty()) {
@@ -398,6 +422,44 @@ bool parseAbiRecipe(const std::string& path, AbiRecipe* recipe, std::string* err
             *error = "recipe is incomplete or uses an unsupported schema";
         }
         return false;
+    }
+    if (parsed.schema == 2) {
+        if (parsed.architecture != "arm64" || parsed.hooks.empty() ||
+            parsed.transactions.empty()) {
+            if (error != nullptr) *error = "schema 2 recipe has no complete ARM64 strategy";
+            return false;
+        }
+        for (std::size_t i = 0; i < parsed.hooks.size(); ++i) {
+            const HookRequirement& hook = parsed.hooks[i];
+            const auto symbol = std::find_if(parsed.symbols.begin(), parsed.symbols.end(),
+                    [&](const SymbolRequirement& requirement) {
+                        return requirement.name == hook.symbol;
+                    });
+            const auto duplicate = std::find_if(parsed.hooks.begin(), parsed.hooks.begin() + i,
+                    [&](const HookRequirement& existing) { return existing.role == hook.role; });
+            if (symbol == parsed.symbols.end() || duplicate != parsed.hooks.begin() + i) {
+                if (error != nullptr) *error = "schema 2 hook is missing its symbol or duplicates a role";
+                return false;
+            }
+        }
+        for (std::size_t i = 0; i < parsed.transactions.size(); ++i) {
+            const BinderTransaction& transaction = parsed.transactions[i];
+            const auto duplicateRole = std::find_if(
+                    parsed.transactions.begin(), parsed.transactions.begin() + i,
+                    [&](const BinderTransaction& existing) {
+                        return existing.role == transaction.role;
+                    });
+            const auto duplicateCode = std::find_if(
+                    parsed.transactions.begin(), parsed.transactions.begin() + i,
+                    [&](const BinderTransaction& existing) {
+                        return existing.code == transaction.code;
+                    });
+            if (duplicateRole != parsed.transactions.begin() + i ||
+                duplicateCode != parsed.transactions.begin() + i) {
+                if (error != nullptr) *error = "schema 2 transaction role or code is duplicated";
+                return false;
+            }
+        }
     }
     *recipe = std::move(parsed);
     return true;
@@ -436,7 +498,8 @@ ProbeResult validateLoadedModule(const AbiRecipe& recipe) {
     (void)recipe;
     return failure(ProbeStatus::kUnsupportedPlatform, "ELF runtime probing is only supported on Android/Linux");
 #else
-    if (recipe.schema != 1 || recipe.moduleSuffix.empty() || recipe.fileSize == 0 ||
+    if ((recipe.schema != 1 && recipe.schema != 2) || recipe.moduleSuffix.empty() ||
+        recipe.fileSize == 0 ||
         recipe.buildIdHex.empty() || recipe.symbols.empty()) {
         return failure(ProbeStatus::kInvalidRecipe, "incomplete ABI recipe");
     }
@@ -516,6 +579,7 @@ ProbeResult validateLoadedModule(const AbiRecipe& recipe) {
             dlclose(handle);
             return result;
         }
+        result.resolvedSymbols.push_back({requirement.name, address});
     }
     dlclose(handle);
     result.status = ProbeStatus::kAllowed;

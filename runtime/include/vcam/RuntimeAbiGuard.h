@@ -24,13 +24,31 @@ struct SymbolRequirement {
     std::vector<std::uint8_t> codePrefix;
 };
 
+struct HookRequirement {
+    std::string role;
+    std::string symbol;
+};
+
+struct BinderTransaction {
+    std::string role;
+    std::uint32_t code = 0;
+};
+
+struct ResolvedSymbol {
+    std::string name;
+    std::uintptr_t address = 0;
+};
+
 struct AbiRecipe {
     unsigned int schema = 0;
     std::string moduleSuffix;
     std::uint64_t fileSize = 0;
     std::string sha256Hex;
     std::string buildIdHex;
+    std::string architecture;
     std::vector<SymbolRequirement> symbols;
+    std::vector<HookRequirement> hooks;
+    std::vector<BinderTransaction> transactions;
 };
 
 struct ProbeResult {
@@ -39,6 +57,7 @@ struct ProbeResult {
     std::string modulePath;
     std::string observedBuildIdHex;
     std::uintptr_t moduleBase = 0;
+    std::vector<ResolvedSymbol> resolvedSymbols;
 
     explicit operator bool() const { return status == ProbeStatus::kAllowed; }
 };

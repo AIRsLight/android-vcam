@@ -5,7 +5,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-add_library(vcam_runtime_abi_guard STATIC RuntimeAbiGuard.cpp)
+add_library(vcam_runtime_abi_guard STATIC
+    Arm64PatchPlanner.cpp
+    RuntimeAbiGuard.cpp
+    RuntimeHookStrategy.cpp
+)
 target_include_directories(vcam_runtime_abi_guard PUBLIC include)
 target_link_libraries(vcam_runtime_abi_guard PUBLIC dl)
 
@@ -20,3 +24,7 @@ target_compile_options(vcam_cameraserver_agent PRIVATE
     -Wextra
     -Werror
 )
+
+if(ANDROID AND ANDROID_ABI STREQUAL "arm64-v8a")
+    target_compile_options(vcam_cameraserver_agent PRIVATE -mbranch-protection=standard)
+endif()

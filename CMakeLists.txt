@@ -53,3 +53,13 @@ add_test(NAME rgb_frame_test COMMAND rgb_frame_test)
 add_test(NAME frame_renderer_test COMMAND frame_renderer_test)
 add_test(NAME route_resolver_test COMMAND route_resolver_test)
 add_test(NAME scoped_camera_router_test COMMAND scoped_camera_router_test)
+
+if(UNIX)
+    add_subdirectory(runtime)
+
+    add_executable(runtime_abi_guard_test tests/runtime_abi_guard_test.cpp)
+    target_link_libraries(runtime_abi_guard_test PRIVATE vcam_runtime_abi_guard dl)
+    target_link_options(runtime_abi_guard_test PRIVATE -Wl,--export-dynamic)
+    target_compile_options(runtime_abi_guard_test PRIVATE -UNDEBUG)
+    add_test(NAME runtime_abi_guard_test COMMAND runtime_abi_guard_test)
+endif()

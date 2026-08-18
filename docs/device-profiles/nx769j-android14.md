@@ -69,6 +69,13 @@ candidate, not proof that Nubia used an unmodified r1 tree.
 - Runtime route test: not started.
 - Installation on this fingerprint: blocked.
 
+An inactive runtime ABI recipe now exists at
+`runtime/recipes/nx769j-ukq1-20240417.tsv`. It pins the OEM file identity plus the
+code prefixes of `CameraService::onTransact` and
+`CameraService::getCameraCharacteristics`. Passing this guard proves only that
+the inspected binary is loaded; no Binder interception strategy has been enabled
+or installed on the device yet.
+
 Do not mount the r23 `libcameraservice.so` over the stock library. The likely
 failure modes are a cameraserver dynamic-link failure, virtual-call ABI
 mismatch or an OEM camera feature crash. Runtime work may begin only after an

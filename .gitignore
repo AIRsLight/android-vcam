@@ -5,5 +5,7 @@ dist/
 *.zip
 *.so
 *.apk
+*.pyc
+__pycache__/
 .idea/
 .vscode/

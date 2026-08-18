@@ -59,3 +59,9 @@ from physical target IDs to these internal devices and carries the package
 identity in provider-owned session metadata. Pre-connect capability queries
 are routed to the same internal ID, so advertised stream configurations match
 the device that will actually be opened.
+
+## Qualified profiles
+
+- [Nubia NX769J Android 14](device-profiles/nx769j-android14.md) — read-only
+  discovery complete; r23 system-library installation is explicitly blocked
+  by an OEM ABI mismatch.

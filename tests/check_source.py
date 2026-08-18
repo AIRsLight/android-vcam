@@ -58,12 +58,24 @@ def main() -> None:
         ROOT / "tools" / "sync-aosp14-build-deps.sh",
         ROOT / "tools" / "probe-device.ps1",
         ROOT / "docs" / "device-support.md",
+        ROOT / "docs" / "device-profiles" / "nx769j-android14.md",
         ROOT / "docs" / "milestones.md",
         ROOT / "tools" / "build-ffmpeg-android.sh",
     ]
     for path in required:
         if not path.is_file():
             fail(f"missing required file: {path.relative_to(ROOT)}")
+
+    nx769j_profile = (
+        ROOT / "docs" / "device-profiles" / "nx769j-android14.md"
+    ).read_text(encoding="utf-8").lower()
+    for required_symbol in (
+        "ukq1.230917.001", "vendor_qti/0", "camera2 ids `0,1,2,3,4`",
+        "402dbe885fd58af75e4c1d7e790fbf4bb22f29f9",
+        "installation on this fingerprint: blocked",
+    ):
+        if required_symbol not in nx769j_profile:
+            fail(f"NX769J compatibility profile is missing: {required_symbol}")
 
     host_cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
     if "-UNDEBUG" not in host_cmake or "route_resolver_test" not in host_cmake or \

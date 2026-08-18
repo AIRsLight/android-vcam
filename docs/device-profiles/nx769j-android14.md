@@ -1,0 +1,76 @@
+# Nubia NX769J Android 14 profile
+
+This profile was collected read-only on 2026-08-18. It records one exact
+firmware build and does not qualify other NX769J releases.
+
+## Device identity
+
+| Field | Value |
+| --- | --- |
+| Fingerprint | `nubia/NX769J/NX769J:14/UKQ1.230917.001/20240417.145608:user/release-keys` |
+| SDK / release | 34 / Android 14 |
+| Platform | Qualcomm `pineapple` / arm64-v8a |
+| Root delivery | KernelSU |
+| SELinux | Enforcing |
+| Reported physical camera count | 4 |
+| Under-screen camera feature | true |
+
+## Camera stack
+
+The OEM service is stable AIDL v2, not the Android 12 legacy-module path.
+
+| Field | Value |
+| --- | --- |
+| Provider instance | `android.hardware.camera.provider.ICameraProvider/vendor_qti/0` |
+| VINTF fragment | `/vendor/etc/vintf/manifest/vendor.qti.camera.provider.xml` |
+| Init service | `vendor.camera-provider` |
+| Executable | `/vendor/bin/hw/vendor.qti.camera.provider-service_64` |
+| Executable SELinux type | `u:object_r:hal_camera_default_exec:s0` |
+| Process SELinux domain | `u:r:hal_camera_default:s0` |
+| Provider SHA-256 | `ea7b669a7fcb470b6a5e13d818cd650ce897508cc701612d718e4c6487bc9fa0` |
+| CameraService SHA-256 | `a26f8ee10002769428871e042c7993e87ad769703897dd75a2fb93a725c64438` |
+
+CameraService reports Camera2 IDs `0,1,2,3,4`; Camera1 exposes `0,1,3`.
+IDs `2` and `4` are therefore additional physical access paths even though
+they are absent from Camera1. A privacy policy that protects only targets `0`
+and `1` is incomplete on this build.
+
+The OEM provider process also owns ZTE transfer and Qualcomm offline, AON and
+post-processing interfaces. A standalone virtual provider must use a separate
+instance; it must not impersonate or replace `vendor_qti/0`.
+
+## ABI assessment
+
+The stock `libcameraservice.so` was compared with the current
+`android-14.0.0_r23` VCAM build:
+
+| Metric | OEM UKQ1 library | AOSP r23 VCAM library |
+| --- | ---: | ---: |
+| File size | 3,132,936 bytes | 3,178,440 bytes |
+| Dynamic exported symbols | 3,247 | 3,277 |
+| GNU build ID | `747dab9fa491b5af026f143c2c967789` | `3230a4bbcb8e4ffb3505423061c1e632` |
+
+Both libraries declare the same direct `DT_NEEDED` set, but the symbol sets
+are not ABI-equivalent: 49 symbols are OEM-only and 79 are r23-only. The
+differences include `CameraService` virtual thunks, `Camera3Device`
+constructors, rotate-and-crop methods and session-configuration helpers.
+
+The OEM signatures match the corresponding Android 14 initial-release source
+shape more closely than r23. An isolated `android-14.0.0_r1` source tree is
+therefore the next build baseline; its `frameworks/av` commit is
+`402dbe885fd58af75e4c1d7e790fbf4bb22f29f9`. This source match is only a
+candidate, not proof that Nubia used an unmodified r1 tree.
+
+## Qualification status
+
+- Read-only discovery: complete.
+- AOSP r23 generic provider and CameraService compile: complete on CI.
+- OEM-compatible CameraService binary: not built.
+- Runtime route test: not started.
+- Installation on this fingerprint: blocked.
+
+Do not mount the r23 `libcameraservice.so` over the stock library. The likely
+failure modes are a cameraserver dynamic-link failure, virtual-call ABI
+mismatch or an OEM camera feature crash. Runtime work may begin only after an
+r1-based build is compared against the OEM exports and a recoverable KernelSU
+delivery package has an exact fingerprint and binary-hash allowlist.

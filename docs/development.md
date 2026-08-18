@@ -97,9 +97,10 @@ directory. Passing this baseline proves the upstream AIDL transport can be
 built; it does not mean the android-vcam HWL adapter is complete.
 
 Android 14 uses `tools/verify-aosp14-build.sh` against the exact
-`android-14.0.0_r23` tag. Check mode verifies both the CameraService routing
-patch and the Google Camera HWL patch without changing either checkout. Build
-mode temporarily applies both patches, compiles the stable-AIDL v2 provider,
+`android-14.0.0_r23` tag. Check mode verifies the CameraService routing and
+public-boundary patch stack plus the Google Camera HWL patch, leaving both
+checkouts pristine when it returns. Build mode temporarily applies the
+patches, compiles the stable-AIDL v2 provider,
 and verifies the linked routing, metadata and frame-rendering hook symbols
 before restoring the source trees. The resulting frontend advertises outputs
 up to 4096x3072 and applies source-aware, pixel-budgeted frame pacing. This is

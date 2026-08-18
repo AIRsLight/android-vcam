@@ -65,6 +65,8 @@ source_root=$(cd -- "$source_root" && pwd)
 frameworks_av="$aosp_root/frameworks/av"
 patch_rel="aosp/cameraservice/android-14/frameworks-av.patch"
 patch="$source_root/$patch_rel"
+boundary_patch_rel="aosp/cameraservice/android-14/frameworks-av-boundary.patch"
+boundary_patch="$source_root/$boundary_patch_rel"
 google_camera="$aosp_root/hardware/google/camera"
 google_patch_rel="aosp/provider/aidl/android-14/hardware-google-camera.patch"
 google_patch="$source_root/$google_patch_rel"
@@ -77,6 +79,7 @@ required_google_camera_commit=11f9bcc895240629b4cd88a6a595a9ef326490ff
 [[ -e "$frameworks_av/.git" ]] || fail "frameworks/av is not a repo checkout"
 [[ -e "$google_camera/.git" ]] || fail "hardware/google/camera is not a repo checkout"
 [[ -f "$patch" ]] || fail "CameraService patch is missing: $patch"
+[[ -f "$boundary_patch" ]] || fail "CameraService boundary patch is missing: $boundary_patch"
 [[ -f "$google_patch" ]] || fail "Google Camera patch is missing: $google_patch"
 
 head=$(git -C "$frameworks_av" rev-parse HEAD)
@@ -93,6 +96,15 @@ google_head=$(git -C "$google_camera" rev-parse HEAD)
 
 git -C "$frameworks_av" apply --check "$patch" ||
     fail "CameraService patch does not apply cleanly to frameworks/av $head"
+git -C "$frameworks_av" apply "$patch"
+if ! git -C "$frameworks_av" apply --check "$boundary_patch"; then
+    git -C "$frameworks_av" apply -R "$patch" || true
+    fail "CameraService boundary patch does not apply after the routing patch"
+fi
+git -C "$frameworks_av" apply -R "$patch" ||
+    fail "unable to restore frameworks/av after boundary patch preflight"
+[[ -z "$(git -C "$frameworks_av" status --porcelain)" ]] ||
+    fail "frameworks/av is not pristine after CameraService patch preflight"
 git -C "$google_camera" apply --check "$google_patch" ||
     fail "AIDL transport patch does not apply cleanly to hardware/google/camera $google_head"
 
@@ -134,11 +146,21 @@ rsync -a --delete \
 touch "$managed_marker"
 
 patch_applied=0
+boundary_patch_applied=0
 google_patch_applied=0
 cleanup() {
     original_status=$?
     set +e
     cleanup_failed=0
+    if ((boundary_patch_applied)); then
+        if git -C "$frameworks_av" apply -R --check "$managed_copy/$boundary_patch_rel" &&
+                git -C "$frameworks_av" apply -R "$managed_copy/$boundary_patch_rel"; then
+            printf 'Removed temporary CameraService boundary patch.\n'
+        else
+            printf 'ERROR: unable to roll back the CameraService boundary patch\n' >&2
+            cleanup_failed=1
+        fi
+    fi
     if ((patch_applied)); then
         if git -C "$frameworks_av" apply -R --check "$managed_copy/$patch_rel" &&
                 git -C "$frameworks_av" apply -R "$managed_copy/$patch_rel"; then
@@ -167,6 +189,8 @@ trap cleanup EXIT
 
 git -C "$frameworks_av" apply "$managed_copy/$patch_rel"
 patch_applied=1
+git -C "$frameworks_av" apply "$managed_copy/$boundary_patch_rel"
+boundary_patch_applied=1
 git -C "$google_camera" apply "$managed_copy/$google_patch_rel"
 google_patch_applied=1
 

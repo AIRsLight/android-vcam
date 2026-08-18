@@ -49,6 +49,7 @@ def main() -> None:
         ROOT / "tests" / "scoped_camera_router_test.cpp",
         ROOT / "aosp" / "cameraservice" / "android-12" / "frameworks-av.patch",
         ROOT / "aosp" / "cameraservice" / "android-14" / "frameworks-av.patch",
+        ROOT / "aosp" / "cameraservice" / "android-14" / "frameworks-av-boundary.patch",
         ROOT / "aosp" / "cameraservice" / "android-12" / "frameworks-base-license.bp",
         ROOT / "tools" / "create-module-zip.py",
         ROOT / "tools" / "apply-aosp-cameraservice-patch.ps1",
@@ -57,6 +58,7 @@ def main() -> None:
         ROOT / "tools" / "sync-aosp14-build-deps.sh",
         ROOT / "tools" / "probe-device.ps1",
         ROOT / "docs" / "device-support.md",
+        ROOT / "docs" / "milestones.md",
         ROOT / "tools" / "build-ffmpeg-android.sh",
     ]
     for path in required:
@@ -251,6 +253,16 @@ def main() -> None:
     ):
         if required_symbol not in cameraservice14_patch:
             fail(f"Android 14 CameraService patch is missing: {required_symbol}")
+    cameraservice14_boundary_patch = (
+        ROOT / "aosp" / "cameraservice" / "android-14" /
+        "frameworks-av-boundary.patch"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "getTorchStrengthLevel", "turnOnTorchWithStrengthLevel", "setTorchMode",
+        "containsInternalCamera", "Configured virtual camera source is unavailable",
+    ):
+        if required_symbol not in cameraservice14_boundary_patch:
+            fail(f"Android 14 CameraService boundary patch is missing: {required_symbol}")
     vendor_tags = (ROOT / "hal" / "include" / "vcam" / "VendorTags.h").read_text(
         encoding="utf-8"
     )

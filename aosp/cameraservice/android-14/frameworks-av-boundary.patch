@@ -1,0 +1,114 @@
+diff --git a/services/camera/libcameraservice/CameraService.cpp b/services/camera/libcameraservice/CameraService.cpp
+--- a/services/camera/libcameraservice/CameraService.cpp
++++ b/services/camera/libcameraservice/CameraService.cpp
+@@ -108,4 +108,4 @@ String16 firstPackageNameForUid(uid_t uid) {
+-    sp<IBinder> permissionBinder = defaultServiceManager()->getService(
++    sp<IBinder> permissionBinder = defaultServiceManager()->checkService(
+             String16(kPermissionServiceName));
+     if (permissionBinder == nullptr) return {};
+ 
+@@ -1045,8 +1045,7 @@ Status CameraService::resolveScopedCameraId(const String8& requestedCameraId,
+                 packageName.string(), requestedCameraId.string(),
+                 scopedRoute.providerId.c_str());
+-        return STATUS_ERROR_FMT(ERROR_DISCONNECTED,
+-                "Configured virtual camera provider \"%s\" is unavailable",
+-                scopedRoute.providerId.c_str());
++        return STATUS_ERROR(ERROR_DISCONNECTED,
++                "Configured virtual camera source is unavailable");
+     }
+     if (!scopedRoute.redirected) return Status::ok();
+ 
+@@ -1061,8 +1060,7 @@ Status CameraService::resolveScopedCameraId(const String8& requestedCameraId,
+                 "internal=%s", packageName.string(), requestedCameraId.string(),
+                 scopedRoute.providerId.c_str(), candidate.string());
+-        return STATUS_ERROR_FMT(ERROR_DISCONNECTED,
+-                "Configured virtual camera provider \"%s\" is unavailable",
+-                scopedRoute.providerId.c_str());
++        return STATUS_ERROR(ERROR_DISCONNECTED,
++                "Configured virtual camera source is unavailable");
+     }
+ 
+     *selectedCameraId = candidate;
+@@ -1170,7 +1168,17 @@ Status CameraService::getTorchStrengthLevel(const String16& unresolvedCameraId,
+         int32_t* torchStrength) {
+     ATRACE_CALL();
+-    String8 cameraId = resolveCameraId(String8(unresolvedCameraId),
+-            CameraThreadState::getCallingUid());
++    const int callingUid = CameraThreadState::getCallingUid();
++    const String8 requestedCameraId = resolveCameraId(
++            String8(unresolvedCameraId), callingUid);
++    String8 cameraId;
++    Status routeStatus = resolveScopedCameraId(requestedCameraId,
++            firstPackageNameForUid(callingUid), &cameraId);
++    if (!routeStatus.isOk()) return routeStatus;
++    if (cameraId != requestedCameraId) {
++        return STATUS_ERROR_FMT(ERROR_ILLEGAL_ARGUMENT,
++                "Camera \"%s\" does not have a flash unit",
++                requestedCameraId.string());
++    }
+     Mutex::Autolock l(mServiceLock);
+     if (!mInitialized) {
+         ALOGE("%s: Camera HAL couldn't be initialized.", __FUNCTION__);
+@@ -2581,12 +2589,20 @@ Status CameraService::turnOnTorchWithStrengthLevel(const String16& unresolvedCam
+                 "Torch client binder in null.");
+     }
+ 
+-    int uid = CameraThreadState::getCallingUid();
+-    String8 id = resolveCameraId(String8(unresolvedCameraId), uid);
++    const int uid = CameraThreadState::getCallingUid();
++    const String8 requestedId = resolveCameraId(String8(unresolvedCameraId), uid);
++    String8 id;
++    Status routeStatus = resolveScopedCameraId(
++            requestedId, firstPackageNameForUid(uid), &id);
++    if (!routeStatus.isOk()) return routeStatus;
++    if (id != requestedId) {
++        return STATUS_ERROR_FMT(ERROR_ILLEGAL_ARGUMENT,
++                "Camera \"%s\" does not have a flash unit", requestedId.string());
++    }
+ 
+-    if (shouldRejectSystemCameraConnection(id)) {
++    if (shouldRejectSystemCameraConnection(requestedId)) {
+         return STATUS_ERROR_FMT(ERROR_ILLEGAL_ARGUMENT, "Unable to change the strength level"
+-                "for system only device %s: ", id.string());
++                "for system only device %s: ", requestedId.string());
+     }
+ 
+     // verify id is valid
+@@ -2712,12 +2730,20 @@ Status CameraService::setTorchMode(const String16& unresolvedCameraId,
+                 "Torch client Binder is null");
+     }
+ 
+-    int uid = CameraThreadState::getCallingUid();
+-    String8 id = resolveCameraId(String8(unresolvedCameraId), uid);
++    const int uid = CameraThreadState::getCallingUid();
++    const String8 requestedId = resolveCameraId(String8(unresolvedCameraId), uid);
++    String8 id;
++    Status routeStatus = resolveScopedCameraId(
++            requestedId, firstPackageNameForUid(uid), &id);
++    if (!routeStatus.isOk()) return routeStatus;
++    if (id != requestedId) {
++        return STATUS_ERROR_FMT(ERROR_ILLEGAL_ARGUMENT,
++                "Camera \"%s\" does not have a flash unit", requestedId.string());
++    }
+ 
+-    if (shouldRejectSystemCameraConnection(id)) {
++    if (shouldRejectSystemCameraConnection(requestedId)) {
+         return STATUS_ERROR_FMT(ERROR_ILLEGAL_ARGUMENT, "Unable to set torch mode"
+-                " for system only device %s: ", id.string());
++                " for system only device %s: ", requestedId.string());
+     }
+     // verify id is valid.
+     auto state = getCameraState(id);
+@@ -2996,5 +3020,12 @@ Status CameraService::getConcurrentCameraIds(
+             mCameraProviderManager->getConcurrentCameraIds();
+     for (auto &combination : concurrentCameraCombinations) {
++        const bool containsInternalCamera = std::any_of(
++                combination.begin(), combination.end(), [](const std::string& cameraId) {
++                    return vcam::ScopedCameraRouter::isInternalCameraId(cameraId);
++                });
++        if (containsInternalCamera) {
++            continue;
++        }
+         std::vector<std::string> validCombination;
+         for (auto &cameraId : combination) {
+             // if the camera state is not present, skip

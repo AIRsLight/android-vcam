@@ -108,5 +108,6 @@ docs/       Architecture, frame format and recovery notes
 aosp/       AOSP HIDL/AIDL Camera Provider frontends
 ```
 
-See [architecture](docs/architecture.md), [development and recovery](docs/development.md),
-[device support](docs/device-support.md), and [source format](docs/source-format.md).
+See [architecture](docs/architecture.md), [delivery milestones](docs/milestones.md),
+[development and recovery](docs/development.md), [device support](docs/device-support.md),
+and [source format](docs/source-format.md).

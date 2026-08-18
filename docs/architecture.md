@@ -30,8 +30,9 @@ unless `ro.vendor.vcam.provider.enabled=true`.
 `RouteResolver` is shared by the OEM proxy and standalone module. The latter
 accepts `configureStreams` only when the framework-provided client package has
 a matching, enabled, non-physical provider in `routes.tsv`. Missing scope,
-invalid provider IDs and physical routes fail closed; CameraService must keep
-those sessions on the OEM provider. AOSP transports use the provider-owned
+invalid provider IDs and physical routes are rejected by the standalone module;
+CameraService must keep those sessions on the OEM provider. AOSP transports use
+the provider-owned
 `io.github.androidvcam.clientPackage` session tag, while the current OnePlus
 adapter retains its OEM-specific tag.
 
@@ -67,7 +68,7 @@ package.name<TAB>targetCameraId<TAB>providerId
 Physical providers are fixed IDs `physical-0` and `physical-1`. User provider
 frames live at `/data/vendor/camera/vcam/providers/<id>/frame.rgb`; the
 presence of `enabled` activates that provider. Missing or disabled providers
-fail closed to the target camera's physical source.
+currently fall back to the target camera's physical source.
 
 Remote providers run one background `vcam-streamer` process. FFmpeg 4.2.2 is
 linked statically into that executable so RTSP/HTTP/HLS availability does not

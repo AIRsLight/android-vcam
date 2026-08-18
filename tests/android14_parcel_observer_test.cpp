@@ -1,4 +1,6 @@
 #include "vcam/Android14ParcelObserver.h"
+#include "vcam/Android14BinderShadowObserver.h"
+#include "vcam/BinderPassThroughBridge.h"
 
 #include <binder/Binder.h>
 #include <binder/Parcel.h>
@@ -7,6 +9,17 @@
 #include <cassert>
 
 namespace {
+
+std::size_t expectedOriginalPosition = 0;
+bool originalObservedRestoredPosition = false;
+
+std::int32_t originalOnTransact(
+        void*, std::uint32_t code, const void* dataParcel, void*, std::uint32_t flags) {
+    const auto* parcel = static_cast<const android::Parcel*>(dataParcel);
+    originalObservedRestoredPosition =
+            parcel != nullptr && parcel->dataPosition() == expectedOriginalPosition;
+    return static_cast<std::int32_t>(code + flags + 100);
+}
 
 vcam::runtime::AbiRecipe recipe() {
     vcam::runtime::AbiRecipe value;
@@ -108,5 +121,25 @@ int main() {
     assert(vcam::runtime::observeAndroid14CameraServiceParcel(
             transactions, 9, nullptr).status ==
            vcam::runtime::ParcelObservationStatus::kNullParcel);
+
+    vcam::runtime::Android14BinderShadowObserver shadow(transactions);
+    vcam::runtime::BinderPassThroughBridge bridge;
+    assert(bridge.bindObserverOnce(
+            &vcam::runtime::Android14BinderShadowObserver::bridgeCallback, &shadow));
+    assert(bridge.bindOnce(&originalOnTransact));
+    expectedOriginalPosition = metadata.dataPosition();
+    assert(bridge.invoke(nullptr, 9, &metadata, nullptr, 2) == 111);
+    assert(originalObservedRestoredPosition);
+    assert(metadata.dataPosition() == expectedOriginalPosition);
+
+    assert(bridge.invoke(nullptr, 999, nullptr, nullptr, 0) == 1099);
+    assert(bridge.invoke(nullptr, 7, &unsupported, nullptr, 0) == 107);
+    assert(bridge.invoke(nullptr, 9, nullptr, nullptr, 0) == 109);
+    const auto stats = shadow.stats();
+    assert(stats.total == 4);
+    assert(stats.observed == 1);
+    assert(stats.ignored == 1);
+    assert(stats.rejected == 1);
+    assert(stats.unsupported == 1);
     return 0;
 }

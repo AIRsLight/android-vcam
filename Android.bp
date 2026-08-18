@@ -49,10 +49,24 @@ cc_library_static {
 }
 
 cc_library_static {
+    name: "libvcam_binder_pass_through_bridge",
+    host_supported: true,
+    srcs: ["runtime/BinderPassThroughBridge.cpp"],
+    local_include_dirs: ["runtime/include"],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    cpp_std: "c++17",
+}
+
+cc_library_static {
     name: "libvcam_android14_parcel_observer",
     host_supported: true,
     srcs: [
         "runtime/BinderTransactionClassifier.cpp",
+        "runtime/platform/Android14BinderShadowObserver.cpp",
         "runtime/platform/Android14ParcelObserver.cpp",
     ],
     local_include_dirs: ["runtime/include"],
@@ -74,7 +88,10 @@ cc_test {
     device_supported: false,
     srcs: ["tests/android14_parcel_observer_test.cpp"],
     local_include_dirs: ["runtime/include"],
-    static_libs: ["libvcam_android14_parcel_observer"],
+    static_libs: [
+        "libvcam_android14_parcel_observer",
+        "libvcam_binder_pass_through_bridge",
+    ],
     shared_libs: [
         "libbinder",
         "libutils",

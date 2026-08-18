@@ -80,16 +80,27 @@ independently tested.
 
 ## Pass-through bridge
 
-The first Binder bridge is intentionally policy-free. Its opaque native
-signature matches `CameraService::onTransact` and forwards `this`, transaction
-code, both Parcel pointers, flags and the exact `status_t` result to the original
-trampoline. Binding is one-shot and atomic; an unbound bridge returns `-ENOSYS`.
+The Binder bridge remains policy-free. Its opaque native signature matches
+`CameraService::onTransact` and forwards `this`, transaction code, both Parcel
+pointers, flags and the exact `status_t` result to the original trampoline.
+Original and observer binding are separate, one-shot atomic publications; an
+unbound original returns `-ENOSYS`.
 
 On ARM64 the optimized bridge is a `BTI C` landing pad followed by an acquire
-load and a tail branch to the trampoline. It does not decode or mutate Parcel
-contents. This establishes the ABI-preserving baseline required before routing
-logic is added. There is still no code path that installs the planned entry
-patch or binds executable trampoline memory.
+load. Without an observer it still tail-branches directly to the trampoline.
+With an observer, the generated path saves all five original arguments, calls
+the read-only callback, restores the arguments, authenticates the return address
+and tail-branches to the trampoline. The observer receives only the transaction
+code, const data-Parcel pointer and its bridge-lifetime context; it cannot
+replace the original result through the bridge API.
+
+The Android 14 shadow adapter records only atomic totals for observed, ignored,
+rejected and unsupported transactions. It does not persist package names,
+camera IDs, UIDs or PIDs. Tests call the real global bridge entry and
+prove that the observer runs first, the original receives an unchanged Parcel
+cursor, and the original `status_t` is returned exactly. There is still no code
+path that installs the planned entry patch or binds executable trampoline
+memory.
 
 Binder transaction numbers in a strategy are part of the allowlisted build
 recipe. An AOSP AIDL layout is only a candidate until the OEM
@@ -121,10 +132,12 @@ comparison instead. Observed strings are length-bounded and ASCII-only, while
 the authoritative caller UID and PID come from `IPCThreadState`, never from
 client-supplied Parcel fields.
 
-This adapter is not connected to the pass-through bridge yet. It cannot select
-a route, replace a camera, mutate a request, bind a trampoline, or install a
-hook. Its current purpose is to establish and test the exact read-only parsing
-boundary before activation code exists.
+The observer now has a tested adapter for the pass-through bridge, but the
+cameraserver agent does not instantiate or bind it and the planned entry patch
+is still never installed. It cannot select a route, replace a camera, mutate a
+request, bind a trampoline, or install a hook. Its current purpose is to
+establish and test the exact read-only parsing boundary before activation code
+exists.
 
 ## Planned activation architecture
 

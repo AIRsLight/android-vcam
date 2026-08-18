@@ -72,6 +72,8 @@ candidate, not proof that Nubia used an unmodified r1 tree.
 - Offline ARM64 planning and pure pass-through bridge tests: complete.
 - Android 14 Parcel classification and cursor-restoring observation: complete
   in offline AOSP r23 host/device builds.
+- Shadow-observer pass-through wiring and counter-only telemetry tests:
+  complete offline; not bound by the cameraserver agent.
 - Runtime route test: not started.
 - Installation on this fingerprint: blocked.
 
@@ -95,8 +97,9 @@ The next layer now has an AOSP r23 platform implementation that validates the
 CameraService Binder token and reads only the leading camera/package fields for
 the allowlisted transaction shape. Its tests use real `android::Parcel`
 instances and verify that `dataPosition()` is unchanged after successful,
-malformed, wrong-interface, unsupported and null observations. This observer is
-not invoked by the bridge and has not been installed on the device.
+malformed, wrong-interface, unsupported and null observations. This observer
+has a tested optional bridge adapter, but the cameraserver agent does not bind
+it and nothing has been installed on the device.
 
 Do not mount the r23 `libcameraservice.so` over the stock library. The likely
 failure modes are a cameraserver dynamic-link failure, virtual-call ABI

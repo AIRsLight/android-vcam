@@ -126,6 +126,8 @@ int main() {
                << "file_size\t" << recipe.fileSize << "\n"
                << "sha256\t" << recipe.sha256Hex << "\n"
                << "build_id\t" << recipe.buildIdHex << "\n"
+               << "dependency\t" << recipe.moduleSuffix << "\t" << recipe.fileSize
+               << "\t" << recipe.sha256Hex << "\t" << recipe.buildIdHex << "\n"
                << "symbol\tvcam_runtime_probe_marker\t" << hex(marker, 12) << "\n"
                << "hook\ton_transact\tvcam_runtime_probe_marker\n"
                << "transaction\tconnect_device\t4\n";
@@ -136,6 +138,13 @@ int main() {
     assert(parsed.hooks.size() == 1);
     assert(parsed.transactions.size() == 1);
     assert(parsed.transactions[0].code == 4);
+    assert(parsed.dependencies.size() == 1);
+    assert(vcam::runtime::validateLoadedModule(parsed).status ==
+           vcam::runtime::ProbeStatus::kAllowed);
+    parsed.dependencies[0].sha256Hex[0] =
+            parsed.dependencies[0].sha256Hex[0] == '0' ? '1' : '0';
+    assert(vcam::runtime::validateLoadedModule(parsed).status ==
+           vcam::runtime::ProbeStatus::kFileHashMismatch);
     std::remove(recipePath.c_str());
 
     return 0;

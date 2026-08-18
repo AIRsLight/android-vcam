@@ -110,6 +110,10 @@ def parse_args() -> argparse.Namespace:
         "--transaction", action="append", default=[], metavar="ROLE=CODE",
         help="bind a Binder transaction role to its positive decimal code",
     )
+    parser.add_argument(
+        "--dependency", action="append", default=[], metavar="MODULE=ELF",
+        help="pin a loaded dependency that defines strategy ABI or transaction IDs",
+    )
     parser.add_argument("--prefix-bytes", type=int, default=16)
     parser.add_argument("--output", required=True, type=pathlib.Path)
     return parser.parse_args()
@@ -132,9 +136,11 @@ def main() -> int:
         if not code_text.isdecimal() or int(code_text) <= 0 or int(code_text) > 0xFFFFFFFF:
             raise ElfError(f"invalid Binder transaction code: {value}")
         transactions.append((role, int(code_text)))
-    strategy_requested = bool(args.architecture or hooks or transactions)
-    if strategy_requested and not (args.architecture and hooks and transactions):
-        raise ElfError("strategy recipes require --architecture, --hook and --transaction")
+    strategy_requested = bool(args.architecture or hooks or transactions or args.dependency)
+    if strategy_requested and not (args.architecture and hooks and transactions and args.dependency):
+        raise ElfError(
+            "strategy recipes require --architecture, --hook, --transaction and --dependency"
+        )
     if len({role for role, _ in hooks}) != len(hooks):
         raise ElfError("hook roles must be unique")
     if len({role for role, _ in transactions}) != len(transactions) or \
@@ -153,6 +159,23 @@ def main() -> int:
     build_id = read_build_id(data, headers)
     dynamic_symbols = read_dynamic_symbols(args.llvm_nm, args.elf)
 
+    dependencies: list[tuple[str, bytes, bytes]] = []
+    for value in args.dependency:
+        if "=" not in value or not all(value.split("=", 1)):
+            raise ElfError(f"invalid --dependency value: {value}")
+        module, dependency_path_text = value.split("=", 1)
+        dependency_path = pathlib.Path(dependency_path_text)
+        dependency_data = dependency_path.read_bytes()
+        dependency_headers = read_program_headers(dependency_data)
+        dependency_machine = struct.unpack_from("<H", dependency_data, 18)[0]
+        if args.architecture == "arm64" and dependency_machine != EM_AARCH64:
+            raise ElfError(f"dependency is not EM_AARCH64: {dependency_path}")
+        dependencies.append(
+            (module, dependency_data, read_build_id(dependency_data, dependency_headers))
+        )
+    if len({module for module, _, _ in dependencies}) != len(dependencies):
+        raise ElfError("dependency module suffixes must be unique")
+
     requirements: list[tuple[str, bytes]] = []
     for name in requested_symbols:
         if name not in dynamic_symbols:
@@ -170,6 +193,11 @@ def main() -> int:
         f"sha256\t{hashlib.sha256(data).hexdigest()}",
         f"build_id\t{build_id.hex()}",
     ]
+    lines.extend(
+        f"dependency\t{module}\t{len(dependency_data)}\t"
+        f"{hashlib.sha256(dependency_data).hexdigest()}\t{dependency_build_id.hex()}"
+        for module, dependency_data, dependency_build_id in dependencies
+    )
     lines.extend(f"symbol\t{name}\t{prefix.hex()}" for name, prefix in requirements)
     lines.extend(f"hook\t{role}\t{symbol}" for role, symbol in hooks)
     lines.extend(f"transaction\t{role}\t{code}" for role, code in transactions)

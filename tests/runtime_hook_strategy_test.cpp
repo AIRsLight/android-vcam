@@ -20,6 +20,8 @@ int main() {
     recipe.hooks.push_back({"on_transact", onTransact});
     recipe.transactions.push_back({"connect_device", 4});
     recipe.transactions.push_back({"get_camera_characteristics", 9});
+    recipe.dependencies.push_back({"libcamera_client.so", 1, std::string(64, '0'),
+                                   "0011223344556677"});
 
     vcam::runtime::ProbeResult probe;
     probe.status = vcam::runtime::ProbeStatus::kAllowed;

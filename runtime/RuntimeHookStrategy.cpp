@@ -22,7 +22,8 @@ OnTransactStrategyPlan planOnTransactStrategy(
         return failure(HookStrategyStatus::kAbiNotAllowed,
                        "ABI guard did not allow this loaded module");
     }
-    if (recipe.schema != 2 || recipe.hooks.empty() || recipe.transactions.empty()) {
+    if (recipe.schema != 2 || recipe.hooks.empty() || recipe.transactions.empty() ||
+        recipe.dependencies.empty()) {
         return failure(HookStrategyStatus::kIncompleteRecipe,
                        "schema 2 hook and transaction data are required");
     }

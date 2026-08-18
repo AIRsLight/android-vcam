@@ -7,6 +7,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(vcam_runtime_abi_guard STATIC
     Arm64PatchPlanner.cpp
+    BinderPassThroughBridge.cpp
     RuntimeAbiGuard.cpp
     RuntimeHookStrategy.cpp
 )
@@ -26,5 +27,6 @@ target_compile_options(vcam_cameraserver_agent PRIVATE
 )
 
 if(ANDROID AND ANDROID_ABI STREQUAL "arm64-v8a")
+    target_compile_options(vcam_runtime_abi_guard PRIVATE -mbranch-protection=standard)
     target_compile_options(vcam_cameraserver_agent PRIVATE -mbranch-protection=standard)
 endif()

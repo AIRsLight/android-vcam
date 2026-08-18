@@ -405,6 +405,29 @@ bool parseAbiRecipe(const std::string& path, AbiRecipe* recipe, std::string* err
             }
             parsed.transactions.push_back(
                     {value.substr(0, secondTab), static_cast<std::uint32_t>(code)});
+        } else if (key == "dependency") {
+            std::vector<std::string> fields;
+            std::size_t start = 0;
+            while (start <= value.size()) {
+                const std::size_t tab = value.find('\t', start);
+                fields.push_back(value.substr(start, tab - start));
+                if (tab == std::string::npos) break;
+                start = tab + 1;
+            }
+            std::uint64_t dependencySize = 0;
+            std::vector<std::uint8_t> dependencySha;
+            std::vector<std::uint8_t> dependencyBuildId;
+            if (fields.size() != 4 || fields[0].empty() ||
+                !parseUnsignedDecimal(fields[1], &dependencySize) || dependencySize == 0 ||
+                !decodeHex(fields[2], &dependencySha) || dependencySha.size() != 32 ||
+                !decodeHex(fields[3], &dependencyBuildId) || dependencyBuildId.size() < 8) {
+                if (error != nullptr) {
+                    *error = "invalid dependency on line " + std::to_string(lineNumber);
+                }
+                return false;
+            }
+            parsed.dependencies.push_back(
+                    {fields[0], dependencySize, fields[2], fields[3]});
         } else {
             if (error != nullptr) *error = "unknown key on line " + std::to_string(lineNumber) + ": " + key;
             return false;
@@ -425,7 +448,7 @@ bool parseAbiRecipe(const std::string& path, AbiRecipe* recipe, std::string* err
     }
     if (parsed.schema == 2) {
         if (parsed.architecture != "arm64" || parsed.hooks.empty() ||
-            parsed.transactions.empty()) {
+            parsed.transactions.empty() || parsed.dependencies.empty()) {
             if (error != nullptr) *error = "schema 2 recipe has no complete ARM64 strategy";
             return false;
         }
@@ -457,6 +480,17 @@ bool parseAbiRecipe(const std::string& path, AbiRecipe* recipe, std::string* err
             if (duplicateRole != parsed.transactions.begin() + i ||
                 duplicateCode != parsed.transactions.begin() + i) {
                 if (error != nullptr) *error = "schema 2 transaction role or code is duplicated";
+                return false;
+            }
+        }
+        for (std::size_t i = 0; i < parsed.dependencies.size(); ++i) {
+            const auto duplicate = std::find_if(
+                    parsed.dependencies.begin(), parsed.dependencies.begin() + i,
+                    [&](const ModuleIdentity& existing) {
+                        return existing.moduleSuffix == parsed.dependencies[i].moduleSuffix;
+                    });
+            if (duplicate != parsed.dependencies.begin() + i) {
+                if (error != nullptr) *error = "schema 2 dependency is duplicated";
                 return false;
             }
         }
@@ -503,6 +537,11 @@ ProbeResult validateLoadedModule(const AbiRecipe& recipe) {
         recipe.buildIdHex.empty() || recipe.symbols.empty()) {
         return failure(ProbeStatus::kInvalidRecipe, "incomplete ABI recipe");
     }
+    if (recipe.schema == 2 &&
+        (recipe.architecture != "arm64" || recipe.hooks.empty() ||
+         recipe.transactions.empty() || recipe.dependencies.empty())) {
+        return failure(ProbeStatus::kInvalidRecipe, "incomplete schema 2 strategy recipe");
+    }
 
     LoadedModule module;
     FindModuleContext context{&recipe.moduleSuffix, &module};
@@ -536,6 +575,37 @@ ProbeResult validateLoadedModule(const AbiRecipe& recipe) {
         result.status = ProbeStatus::kFileHashMismatch;
         result.message = hashError.empty() ? "loaded module SHA-256 does not match recipe" : hashError;
         return result;
+    }
+    for (const ModuleIdentity& dependency : recipe.dependencies) {
+        LoadedModule loadedDependency;
+        FindModuleContext dependencyContext{&dependency.moduleSuffix, &loadedDependency};
+        dl_iterate_phdr(findModuleCallback, &dependencyContext);
+        if (loadedDependency.programHeaders == nullptr) {
+            result.status = ProbeStatus::kModuleNotLoaded;
+            result.message = "required dependency is not loaded: " + dependency.moduleSuffix;
+            return result;
+        }
+        struct stat dependencyMetadata {};
+        if (stat(loadedDependency.path.c_str(), &dependencyMetadata) != 0 ||
+            static_cast<std::uint64_t>(dependencyMetadata.st_size) != dependency.fileSize) {
+            result.status = ProbeStatus::kFileSizeMismatch;
+            result.message = "dependency file size does not match: " + dependency.moduleSuffix;
+            return result;
+        }
+        if (readBuildId(loadedDependency) != dependency.buildIdHex) {
+            result.status = ProbeStatus::kBuildIdMismatch;
+            result.message = "dependency Build ID does not match: " + dependency.moduleSuffix;
+            return result;
+        }
+        std::string dependencySha256;
+        if (!sha256FileHex(loadedDependency.path, &dependencySha256, &hashError) ||
+            dependencySha256 != dependency.sha256Hex) {
+            result.status = ProbeStatus::kFileHashMismatch;
+            result.message = hashError.empty()
+                    ? "dependency SHA-256 does not match: " + dependency.moduleSuffix
+                    : hashError;
+            return result;
+        }
     }
 
     const bool mainExecutable = module.path == currentExecutablePath();

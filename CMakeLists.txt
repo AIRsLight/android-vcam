@@ -72,4 +72,10 @@ if(UNIX)
     target_link_libraries(runtime_hook_strategy_test PRIVATE vcam_runtime_abi_guard)
     target_compile_options(runtime_hook_strategy_test PRIVATE -UNDEBUG)
     add_test(NAME runtime_hook_strategy_test COMMAND runtime_hook_strategy_test)
+
+    add_executable(binder_pass_through_bridge_test
+        tests/binder_pass_through_bridge_test.cpp)
+    target_link_libraries(binder_pass_through_bridge_test PRIVATE vcam_runtime_abi_guard)
+    target_compile_options(binder_pass_through_bridge_test PRIVATE -UNDEBUG)
+    add_test(NAME binder_pass_through_bridge_test COMMAND binder_pass_through_bridge_test)
 endif()

@@ -21,9 +21,12 @@ Any missing or mismatched field rejects activation. A matching Android release,
 SDK level, device model or symbol name alone is not sufficient. Recipes are
 immutable build identities, not broad device-family rules.
 
-The current `libvcam_cameraserver_agent.so` exposes only
-`vcam_cameraserver_agent_validate()`. It has no constructor side effects and no
-activation or patching entry point. Loading it alone cannot alter camera traffic.
+The current `libvcam_cameraserver_agent.so` exposes validation and planning
+entry points. `vcam_cameraserver_agent_plan()` produces an internal byte plan
+against the pass-through bridge, but neither entry point changes page
+permissions, allocates executable memory or writes code. The library has no
+constructor side effects or activation entry point, so loading it alone cannot
+alter camera traffic.
 
 ## Recipe format
 
@@ -37,6 +40,7 @@ module<TAB>libcameraservice.so
 file_size<TAB>3132936
 sha256<TAB>...
 build_id<TAB>...
+dependency<TAB>libcamera_client.so<TAB>size<TAB>sha256<TAB>build_id
 symbol<TAB>exact_mangled_name<TAB>machine_code_prefix_hex
 hook<TAB>on_transact<TAB>exact_mangled_name
 transaction<TAB>connect_device<TAB>4
@@ -70,14 +74,33 @@ branches to the first untouched instruction.
 
 Planning is rejected if any stolen instruction is PC-relative or performs
 control flow. Supporting such an instruction requires an explicit relocator and
-must not silently fall back to byte copying. Installation will remain disabled
-until thread coordination, instruction-cache synchronization, rollback and a
-pass-through Binder bridge are independently tested.
+must not silently fall back to byte copying. Installation remains disabled until
+thread coordination, instruction-cache synchronization and rollback are
+independently tested.
+
+## Pass-through bridge
+
+The first Binder bridge is intentionally policy-free. Its opaque native
+signature matches `CameraService::onTransact` and forwards `this`, transaction
+code, both Parcel pointers, flags and the exact `status_t` result to the original
+trampoline. Binding is one-shot and atomic; an unbound bridge returns `-ENOSYS`.
+
+On ARM64 the optimized bridge is a `BTI C` landing pad followed by an acquire
+load and a tail branch to the trampoline. It does not decode or mutate Parcel
+contents. This establishes the ABI-preserving baseline required before routing
+logic is added. There is still no code path that installs the planned entry
+patch or binds executable trampoline memory.
 
 Binder transaction numbers in a strategy are part of the allowlisted build
-recipe. Android 14 initial-release AIDL currently supplies the NX769J candidate
-mapping, but that mapping is not considered device-qualified until the OEM
-`libcamera_client.so` or read-only Binder probes confirm it.
+recipe. An AOSP AIDL layout is only a candidate until the OEM
+`libcamera_client.so` or read-only Binder probes confirm it. The NX769J mapping
+has been confirmed directly from its OEM `BpCameraService` machine code.
+
+For qualified recipes, the library that implements the Binder client/server
+stubs is pinned as a dependency with its own size, SHA-256 and GNU Build ID. The
+guard validates that exact loaded dependency before resolving hook symbols. This
+prevents an OTA from retaining `libcameraservice.so` while silently changing the
+transaction layout in `libcamera_client.so`.
 
 ## Planned activation architecture
 

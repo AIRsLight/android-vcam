@@ -29,6 +29,8 @@ The OEM service is stable AIDL v2, not the Android 12 legacy-module path.
 | Process SELinux domain | `u:r:hal_camera_default:s0` |
 | Provider SHA-256 | `ea7b669a7fcb470b6a5e13d818cd650ce897508cc701612d718e4c6487bc9fa0` |
 | CameraService SHA-256 | `a26f8ee10002769428871e042c7993e87ad769703897dd75a2fb93a725c64438` |
+| Camera client SHA-256 | `1cf518e86a2e5461e585d8dbd7a1dbc93e7ba2bcc95c3e254ebdcc72ee0433c5` |
+| Camera client Build ID | `f7cea72167468ee2dfac06e4433d8fa8` |
 
 CameraService reports Camera2 IDs `0,1,2,3,4`; Camera1 exposes `0,1,3`.
 IDs `2` and `4` are therefore additional physical access paths even though
@@ -66,6 +68,8 @@ candidate, not proof that Nubia used an unmodified r1 tree.
 - Read-only discovery: complete.
 - AOSP r23 generic provider and CameraService compile: complete on CI.
 - OEM-compatible CameraService binary: not built.
+- OEM Binder transaction extraction: complete for eleven routed operations.
+- Offline ARM64 planning and pure pass-through bridge tests: complete.
 - Runtime route test: not started.
 - Installation on this fingerprint: blocked.
 
@@ -79,11 +83,14 @@ or installed on the device yet.
 The OEM `onTransact` entry begins with `PACIASP`, stack allocation and three
 register-save instructions. The offline ARM64 planner can relocate the first 16
 bytes without encountering a PC-relative or control-flow instruction and emits a
-BTI-compatible trampoline. Its Binder transaction table is still an Android 14
-r1-derived candidate and requires OEM-side read-only confirmation.
+BTI-compatible trampoline. The Binder transaction table has now been confirmed
+directly from all eleven relevant OEM `BpCameraService` stubs. The OEM library
+does not export the later `remapCameraIds` method, and the observed constants
+match the Android 14 initial-release layout. The exact `libcamera_client.so`
+identity is included in the runtime allowlist.
 
 Do not mount the r23 `libcameraservice.so` over the stock library. The likely
 failure modes are a cameraserver dynamic-link failure, virtual-call ABI
-mismatch or an OEM camera feature crash. Runtime work may begin only after an
-r1-based build is compared against the OEM exports and a recoverable KernelSU
-delivery package has an exact fingerprint and binary-hash allowlist.
+mismatch or an OEM camera feature crash. Any future runtime activation also
+requires a recoverable KernelSU delivery package, exact fingerprint/hash
+allowlist, thread-safe patch installation and tested rollback.

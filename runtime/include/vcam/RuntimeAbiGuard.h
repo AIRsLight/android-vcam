@@ -39,6 +39,13 @@ struct ResolvedSymbol {
     std::uintptr_t address = 0;
 };
 
+struct ModuleIdentity {
+    std::string moduleSuffix;
+    std::uint64_t fileSize = 0;
+    std::string sha256Hex;
+    std::string buildIdHex;
+};
+
 struct AbiRecipe {
     unsigned int schema = 0;
     std::string moduleSuffix;
@@ -49,6 +56,7 @@ struct AbiRecipe {
     std::vector<SymbolRequirement> symbols;
     std::vector<HookRequirement> hooks;
     std::vector<BinderTransaction> transactions;
+    std::vector<ModuleIdentity> dependencies;
 };
 
 struct ProbeResult {

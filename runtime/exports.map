@@ -1,6 +1,7 @@
 VCAM_AGENT_1.0 {
     global:
         vcam_cameraserver_agent_validate;
+        vcam_cameraserver_agent_plan;
     local:
         *;
 };

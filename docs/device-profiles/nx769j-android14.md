@@ -76,6 +76,8 @@ candidate, not proof that Nubia used an unmodified r1 tree.
   complete offline; not bound by the cameraserver agent.
 - Transactional patch ordering, target revalidation and rollback fault tests:
   complete with an isolated memory backend only.
+- Read-only maps, target-byte and thread-inventory preflight: complete in
+  host/ARM builds; not yet executed inside the device cameraserver.
 - Runtime route test: not started.
 - Installation on this fingerprint: blocked.
 

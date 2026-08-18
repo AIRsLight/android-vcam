@@ -11,6 +11,7 @@ add_library(vcam_runtime_abi_guard STATIC
     BinderPassThroughBridge.cpp
     BinderTransactionClassifier.cpp
     RuntimeAbiGuard.cpp
+    RuntimeActivationPreflight.cpp
     RuntimeHookStrategy.cpp
 )
 target_include_directories(vcam_runtime_abi_guard PUBLIC include)

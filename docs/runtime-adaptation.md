@@ -21,12 +21,13 @@ Any missing or mismatched field rejects activation. A matching Android release,
 SDK level, device model or symbol name alone is not sufficient. Recipes are
 immutable build identities, not broad device-family rules.
 
-The current `libvcam_cameraserver_agent.so` exposes validation and planning
-entry points. `vcam_cameraserver_agent_plan()` produces an internal byte plan
-against the pass-through bridge, but neither entry point changes page
-permissions, allocates executable memory or writes code. The library has no
-constructor side effects or activation entry point, so loading it alone cannot
-alter camera traffic.
+The current `libvcam_cameraserver_agent.so` exposes validation, planning and
+read-only preflight entry points. `vcam_cameraserver_agent_plan()` produces an
+internal byte plan against the pass-through bridge, while
+`vcam_cameraserver_agent_preflight()` repeats those gates and inspects current
+process state. None changes page permissions, allocates executable memory,
+stops a thread or writes code. The library has no constructor side effects or
+activation entry point, so loading it alone cannot alter camera traffic.
 
 ## Recipe format
 
@@ -104,6 +105,28 @@ writer or device activation entry point. Tests inject isolated byte buffers and
 representative partial-write, cache, coordination and rollback faults; passing
 them validates ordering and state handling, not safe live-process installation.
 
+## Read-only activation preflight
+
+Immediately before any future backend is considered, the agent can collect a
+fresh process snapshot. It strictly parses sorted, non-overlapping entries from
+`/proc/self/maps`, locates the complete 16-byte target range and requires a
+private `r-xp` mapping whose basename exactly matches the recipe module. It then
+opens `/proc/self/mem` with `O_RDONLY` and uses `pread()` to compare the live
+bytes with the reviewed ARM64 plan. Direct pointer dereference is deliberately
+avoided so an invalid or short read becomes a rejected preflight instead of a
+segmentation fault.
+
+The same snapshot enumerates `/proc/self/task`, requires positive sorted unique
+thread IDs and verifies that the calling thread is present. Permission denial,
+malformed maps, mapping-boundary crossing, a writable target page, module or
+byte mismatch, partial task enumeration, or a missing caller all fail closed.
+
+This inventory does not suspend threads and cannot prove that another thread
+will remain outside the patch range. A passing result means only that the
+read-only prerequisites were observable at that instant. The future live
+backend must still provide and independently qualify a real exclusive execution
+window.
+
 ## Pass-through bridge
 
 The Binder bridge remains policy-free. Its opaque native signature matches
@@ -122,8 +145,8 @@ replace the original result through the bridge API.
 
 The Android 14 shadow adapter records only atomic totals for observed, ignored,
 rejected and unsupported transactions. It does not persist package names,
-camera IDs, UIDs or PIDs. Tests call the real global bridge entry and
-prove that the observer runs first, the original receives an unchanged Parcel
+camera IDs, UIDs or PIDs. Tests call the real global bridge entry and prove that
+the observer runs first, the original receives an unchanged Parcel
 cursor, and the original `status_t` is returned exactly. There is still no code
 path that installs the planned entry patch or binds executable trampoline
 memory.

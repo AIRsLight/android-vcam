@@ -49,6 +49,38 @@ cc_library_static {
 }
 
 cc_library_static {
+    name: "libvcam_activation_preflight",
+    host_supported: true,
+    srcs: ["runtime/RuntimeActivationPreflight.cpp"],
+    local_include_dirs: ["runtime/include"],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    cpp_std: "c++17",
+}
+
+cc_test {
+    name: "vcam_activation_preflight_test",
+    host_supported: true,
+    device_supported: false,
+    srcs: ["tests/runtime_activation_preflight_test.cpp"],
+    local_include_dirs: ["runtime/include"],
+    static_libs: [
+        "libvcam_activation_preflight",
+        "libvcam_arm64_patch_transaction",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-UNDEBUG",
+    ],
+    cpp_std: "c++17",
+}
+
+cc_library_static {
     name: "libvcam_arm64_patch_transaction",
     host_supported: true,
     srcs: [

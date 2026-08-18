@@ -14,6 +14,11 @@ int vcam_cameraserver_agent_validate(
 int vcam_cameraserver_agent_plan(
         const char* recipePath, char* message, size_t messageCapacity);
 
+// Repeats validation and planning, then inspects this process's maps, target
+// bytes and thread inventory. It remains read-only and never commits a patch.
+int vcam_cameraserver_agent_preflight(
+        const char* recipePath, char* message, size_t messageCapacity);
+
 #ifdef __cplusplus
 }
 #endif

@@ -14,6 +14,9 @@ struct Android14ShadowObservationStats {
     std::uint64_t ignored = 0;
     std::uint64_t rejected = 0;
     std::uint64_t unsupported = 0;
+    std::uint64_t claimedPackage = 0;
+    std::uint64_t uidOnly = 0;
+    std::uint64_t identityUnavailable = 0;
 };
 
 // Thread-safe telemetry adapter for the pass-through bridge. It intentionally
@@ -35,6 +38,9 @@ private:
     std::atomic<std::uint64_t> ignored_{0};
     std::atomic<std::uint64_t> rejected_{0};
     std::atomic<std::uint64_t> unsupported_{0};
+    std::atomic<std::uint64_t> claimedPackage_{0};
+    std::atomic<std::uint64_t> uidOnly_{0};
+    std::atomic<std::uint64_t> identityUnavailable_{0};
 };
 
 }  // namespace vcam::runtime

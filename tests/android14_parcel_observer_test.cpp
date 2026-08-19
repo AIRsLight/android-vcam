@@ -2,6 +2,7 @@
 #include "vcam/Android14BinderShadowObserver.h"
 #include "vcam/Android14CameraServiceProfile.h"
 #include "vcam/BinderPassThroughBridge.h"
+#include "vcam/CameraCallerIdentityClassifier.h"
 
 #include <binder/Binder.h>
 #include <binder/Parcel.h>
@@ -42,6 +43,25 @@ void writeToken(android::Parcel* parcel, const char16_t* descriptor) {
 }  // namespace
 
 int main() {
+    const auto claimedIdentity =
+            vcam::runtime::classifyCameraCallerIdentity(
+                    true, true, 10123, 456, "com.example.camera");
+    assert(claimedIdentity.kind ==
+           vcam::runtime::CameraCallerIdentityKind::kClaimedPackage);
+    assert(claimedIdentity.requiresPackageVerification);
+    const auto uidOnlyIdentity =
+            vcam::runtime::classifyCameraCallerIdentity(
+                    true, false, 10123, 456, "");
+    assert(uidOnlyIdentity.kind ==
+           vcam::runtime::CameraCallerIdentityKind::kUidOnly);
+    assert(!uidOnlyIdentity.requiresPackageVerification);
+    assert(vcam::runtime::classifyCameraCallerIdentity(
+            true, true, -1, 456, "com.example.camera").kind ==
+           vcam::runtime::CameraCallerIdentityKind::kUnavailable);
+    assert(vcam::runtime::classifyCameraCallerIdentity(
+            false, true, 10123, 456, "com.example.camera").kind ==
+           vcam::runtime::CameraCallerIdentityKind::kNotApplicable);
+
     assert(vcam::runtime::matchesNx769jAndroid14CameraServiceProfile(
             vcam::runtime::kNx769jAndroid14Fingerprint));
     assert(!vcam::runtime::matchesNx769jAndroid14CameraServiceProfile(
@@ -151,5 +171,8 @@ int main() {
     assert(stats.ignored == 1);
     assert(stats.rejected == 1);
     assert(stats.unsupported == 1);
+    assert(stats.claimedPackage == 0);
+    assert(stats.uidOnly == 1);
+    assert(stats.identityUnavailable == 0);
     return 0;
 }

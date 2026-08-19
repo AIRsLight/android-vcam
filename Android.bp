@@ -313,6 +313,7 @@ cc_library_static {
     host_supported: true,
     srcs: [
         "runtime/BinderTransactionClassifier.cpp",
+        "runtime/CameraCallerIdentityClassifier.cpp",
         "runtime/platform/Android14BinderShadowObserver.cpp",
         "runtime/platform/Android14CameraServiceProfile.cpp",
         "runtime/platform/Android14ParcelObserver.cpp",

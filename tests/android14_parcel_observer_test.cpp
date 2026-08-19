@@ -1,5 +1,6 @@
 #include "vcam/Android14ParcelObserver.h"
 #include "vcam/Android14BinderShadowObserver.h"
+#include "vcam/Android14CameraIdRewriter.h"
 #include "vcam/Android14CameraServiceProfile.h"
 #include "vcam/BinderPassThroughBridge.h"
 #include "vcam/CameraCallerIdentityClassifier.h"
@@ -9,6 +10,8 @@
 #include <utils/String16.h>
 
 #include <cassert>
+#include <cstring>
+#include <vector>
 
 namespace {
 
@@ -112,6 +115,38 @@ int main() {
     assert(camera2Observation.cameraId == "0");
     assert(camera2Observation.packageName == "com.example.camera2");
     assert(camera2.dataPosition() == camera2Position);
+    const std::vector<std::uint8_t> originalCamera2Bytes(
+            camera2.data(), camera2.data() + camera2.dataSize());
+    android::Parcel rewrittenCamera2;
+    assert(vcam::runtime::rewriteAndroid14CameraIdSameWidth(
+            camera2Observation, "1", camera2, &rewrittenCamera2) ==
+           vcam::runtime::CameraIdRewriteStatus::kRewritten);
+    assert(camera2.dataPosition() == camera2Position);
+    assert(camera2.dataSize() == rewrittenCamera2.dataSize());
+    assert(std::memcmp(camera2.data(), originalCamera2Bytes.data(),
+                       originalCamera2Bytes.size()) == 0);
+    assert(camera2.debugReadAllStrongBinders().size() == 1);
+    assert(rewrittenCamera2.debugReadAllStrongBinders().size() == 1);
+    const auto rewrittenCamera2Observation =
+            vcam::runtime::observeAndroid14CameraServiceParcel(
+                    transactions, 4, &rewrittenCamera2);
+    assert(rewrittenCamera2Observation.status ==
+           vcam::runtime::ParcelObservationStatus::kObserved);
+    assert(rewrittenCamera2Observation.cameraId == "1");
+    assert(rewrittenCamera2Observation.packageName == "com.example.camera2");
+    assert(vcam::runtime::rewriteAndroid14CameraIdSameWidth(
+            camera2Observation, "1000", camera2, &rewrittenCamera2) ==
+           vcam::runtime::CameraIdRewriteStatus::kEncodedSizeMismatch);
+
+    android::Parcel rewrittenCamera1;
+    assert(vcam::runtime::rewriteAndroid14CameraIdSameWidth(
+            camera1Observation, "0", camera1, &rewrittenCamera1) ==
+           vcam::runtime::CameraIdRewriteStatus::kRewritten);
+    const auto rewrittenCamera1Observation =
+            vcam::runtime::observeAndroid14CameraServiceParcel(
+                    transactions, 3, &rewrittenCamera1);
+    assert(rewrittenCamera1Observation.cameraId == "0");
+    assert(rewrittenCamera1Observation.packageName == "com.example.camera1");
 
     android::Parcel wrongInterface;
     writeToken(&wrongInterface, u"android.hardware.NotCameraService");

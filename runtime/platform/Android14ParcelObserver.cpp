@@ -124,20 +124,28 @@ ParcelObservation observeAndroid14CameraServiceParcel(
     bool decoded = false;
     switch (result.transaction.payloadShape) {
         case BinderPayloadShape::kConnectApi1:
-            decoded = skipStrongBinder(parcel) &&
-                    readIntegerCameraId(parcel, &result.cameraId) &&
-                    readAsciiString16(parcel, &result.packageName);
+            decoded = skipStrongBinder(parcel);
+            result.cameraIdStart = parcel.dataPosition();
+            decoded = decoded && readIntegerCameraId(parcel, &result.cameraId);
+            result.cameraIdEnd = parcel.dataPosition();
+            decoded = decoded && readAsciiString16(parcel, &result.packageName);
             break;
         case BinderPayloadShape::kConnectDevice:
-            decoded = skipStrongBinder(parcel) &&
-                    readAsciiString16(parcel, &result.cameraId) &&
-                    readAsciiString16(parcel, &result.packageName);
+            decoded = skipStrongBinder(parcel);
+            result.cameraIdStart = parcel.dataPosition();
+            decoded = decoded && readAsciiString16(parcel, &result.cameraId);
+            result.cameraIdEnd = parcel.dataPosition();
+            decoded = decoded && readAsciiString16(parcel, &result.packageName);
             break;
         case BinderPayloadShape::kStringCameraId:
+            result.cameraIdStart = parcel.dataPosition();
             decoded = readAsciiString16(parcel, &result.cameraId);
+            result.cameraIdEnd = parcel.dataPosition();
             break;
         case BinderPayloadShape::kIntegerCameraId:
+            result.cameraIdStart = parcel.dataPosition();
             decoded = readIntegerCameraId(parcel, &result.cameraId);
+            result.cameraIdEnd = parcel.dataPosition();
             break;
         case BinderPayloadShape::kListener:
         case BinderPayloadShape::kConcurrentIds:

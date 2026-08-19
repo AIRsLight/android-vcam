@@ -27,6 +27,8 @@ struct ParcelObservation {
     std::string packageName;
     std::size_t initialDataPosition = 0;
     std::size_t finalDataPosition = 0;
+    std::size_t cameraIdStart = 0;
+    std::size_t cameraIdEnd = 0;
 
     explicit operator bool() const { return status == ParcelObservationStatus::kObserved; }
 };

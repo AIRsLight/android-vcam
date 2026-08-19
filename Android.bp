@@ -316,6 +316,7 @@ cc_library_static {
         "runtime/BinderTransactionClassifier.cpp",
         "runtime/CameraCallerIdentityClassifier.cpp",
         "runtime/platform/Android14BinderShadowObserver.cpp",
+        "runtime/platform/Android14CameraIdRewriter.cpp",
         "runtime/platform/Android14CameraServiceProfile.cpp",
         "runtime/platform/Android14ParcelObserver.cpp",
     ],

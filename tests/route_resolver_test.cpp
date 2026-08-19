@@ -28,7 +28,9 @@ int main() {
     assert(table.good());
     table << "com.example.app\t0\tdemo\n"
           << "com.example.app\t1\tphysical-0\n"
-          << "com.invalid.app\t0\t../escape\n";
+          << "com.invalid.app\t0\t../escape\n"
+          << "*\t0\tdemo\n"
+          << "*\t1\tphysical-1\n";
     table.close();
 
     assert(vcam::RouteResolver::providerForPackage(
@@ -36,7 +38,9 @@ int main() {
     assert(vcam::RouteResolver::providerForPackage(
             "com.example.app", 1, routes, providers) == "physical-0");
     assert(vcam::RouteResolver::providerForPackage(
-            "com.unknown", 0, routes, providers) == "physical-0");
+            "com.unknown", 0, routes, providers) == "demo");
+    assert(vcam::RouteResolver::providerForPackage(
+            "", 1, routes, providers) == "physical-1");
     assert(vcam::RouteResolver::providerForPackage(
             "com.invalid.app", 0, routes, providers) == "physical-0");
     const auto configured = vcam::RouteResolver::resolveProviderForPackage(
@@ -50,7 +54,7 @@ int main() {
     assert(!invalid.available);
     const auto missing = vcam::RouteResolver::resolveProviderForPackage(
             "com.unknown", 0, routes, providers);
-    assert(!missing.configured);
+    assert(missing.configured);
     assert(missing.available);
     assert(vcam::RouteResolver::physicalIdFromProvider("physical-1") == 1);
     assert(vcam::RouteResolver::physicalIdFromProvider("demo") == -1);

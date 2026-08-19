@@ -29,7 +29,8 @@ int main() {
     table << "com.example.virtual\t0\tmovie\n"
           << "com.example.virtual\t1\tmovie\n"
           << "com.example.physical\t0\tphysical-1\n"
-          << "com.example.stopped\t0\tstopped\n";
+          << "com.example.stopped\t0\tstopped\n"
+          << "*\t1\tmovie\n";
     table.close();
 
     const auto back = vcam::ScopedCameraRouter::resolve(
@@ -65,6 +66,14 @@ int main() {
     assert(unknown.available);
     assert(unknown.effectiveCameraId == "0");
     assert(unknown.providerId == "physical-0");
+
+    const auto global = vcam::ScopedCameraRouter::resolve(
+            "", "1", routes, providers);
+    assert(global.configured);
+    assert(global.available);
+    assert(global.redirected);
+    assert(global.providerId == "movie");
+    assert(global.effectiveCameraId == "1001");
 
     const auto explicitInternal = vcam::ScopedCameraRouter::resolve(
             "com.example.virtual", "1000", routes, providers);

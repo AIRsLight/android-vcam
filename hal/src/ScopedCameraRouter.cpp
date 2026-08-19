@@ -32,7 +32,7 @@ ScopedCameraRoute ScopedCameraRouter::resolve(
     };
 
     const int target = targetId(requestedCameraId);
-    if (target < 0 || packageName.empty()) return route;
+    if (target < 0) return route;
 
     const ProviderSelection selection = RouteResolver::resolveProviderForPackage(
             packageName, target, routesPath, providersPath);

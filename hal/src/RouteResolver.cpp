@@ -40,9 +40,19 @@ ProviderSelection RouteResolver::resolveProviderForPackage(
         const std::string& packageName, int cameraId,
         const std::string& routesPath, const std::string& providersPath) {
     const std::string fallback = defaultPhysicalProvider(cameraId);
-    if (packageName.empty()) return {fallback, false, true};
     std::ifstream input(routesPath);
     if (!input) return {fallback, false, true};
+    const auto selectionForProvider = [&](const std::string& provider) {
+        if (!validProviderId(provider)) {
+            return ProviderSelection {provider, true, false};
+        }
+        if (physicalIdFromProvider(provider) >= 0) {
+            return ProviderSelection {provider, true, true};
+        }
+        const std::string enabled = providersPath + "/" + provider + "/enabled";
+        return ProviderSelection {provider, true, std::ifstream(enabled).good()};
+    };
+    std::string globalProvider;
     std::string line;
     while (std::getline(input, line)) {
         if (!line.empty() && line.back() == '\r') line.pop_back();
@@ -50,19 +60,20 @@ ProviderSelection RouteResolver::resolveProviderForPackage(
         const size_t second = first == std::string::npos
                 ? std::string::npos : line.find('\t', first + 1);
         if (first == std::string::npos || second == std::string::npos ||
-                line.substr(0, first) != packageName ||
-                line.substr(first + 1, second - first - 1) !=
-                        std::to_string(cameraId)) {
+            line.substr(first + 1, second - first - 1) !=
+                    std::to_string(cameraId)) {
             continue;
         }
+        const std::string routePackage = line.substr(0, first);
         const std::string provider = line.substr(second + 1);
-        if (!validProviderId(provider)) return {provider, true, false};
-        if (physicalIdFromProvider(provider) >= 0) {
-            return {provider, true, true};
+        if (!packageName.empty() && routePackage == packageName) {
+            return selectionForProvider(provider);
         }
-        const std::string enabled = providersPath + "/" + provider + "/enabled";
-        return {provider, true, std::ifstream(enabled).good()};
+        if (routePackage == "*" && globalProvider.empty()) {
+            globalProvider = provider;
+        }
     }
+    if (!globalProvider.empty()) return selectionForProvider(globalProvider);
     return {fallback, false, true};
 }
 

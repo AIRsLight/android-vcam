@@ -218,6 +218,18 @@ through `dumpsys`, with no fatal trace. After returning to stock, PID `18614`
 remained stable for 12 seconds, the router was not mapped, and both the stats
 file and pending marker were absent.
 
+Portable module `0.5.0-dev.7` qualifies the read-only route decision layer. A
+temporary runtime table mapped `com.android.camera` camera 0 to an enabled test
+provider and used the reserved `*` package for a camera 1 global provider. The
+OEM camera cold-start produced one exact-package candidate, one global
+candidate, and seven physical-camera decisions. The proxy still forwarded all
+Parcels unchanged, so the OEM camera displayed a live physical preview. There
+were zero rejected transactions, unavailable providers, package mismatches or
+fatal traces, and cameraserver PID `16080` remained stable through `dumpsys`.
+The temporary route/provider files were removed. After restoring stock, PID
+`18588` remained stable for 12 seconds; the router was not mapped and the stats,
+routes, providers and pending paths were all absent.
+
 Do not mount the r23 `libcameraservice.so` over the stock library. The likely
 failure modes are a cameraserver dynamic-link failure, virtual-call ABI
 mismatch or an OEM camera feature crash. Any future runtime activation also

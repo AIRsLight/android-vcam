@@ -65,6 +65,12 @@ Routes use three tab-separated fields:
 package.name<TAB>targetCameraId<TAB>providerId
 ```
 
+The reserved package field `*` is an explicit global fallback. An exact package
+route wins over `*`; when the runtime cannot verify an application identity it
+may consult only `*`, never guess a package from ambiguous UID-only traffic.
+The manager must present global routing as a separate setting rather than as an
+installed application.
+
 Physical providers are fixed IDs `physical-0` and `physical-1`. User provider
 frames live at `/data/vendor/camera/vcam/providers/<id>/frame.rgb`; the
 presence of `enabled` activates that provider. Missing or disabled providers

@@ -237,6 +237,14 @@ cursor, and the original `status_t` is returned exactly. There is still no code
 path that installs the planned entry patch or binds executable trampoline
 memory.
 
+The qualified same-process proxy also classifies the identity material without
+authorizing a route. A package name in a connect Parcel remains an untrusted
+claim until the platform `IPermissionController` returns that exact package in
+`getPackagesForUid(Binder calling UID)`. Empty or UID-only operations are not
+guessed. Lookup failures and mismatches fail closed for per-application scope;
+global or unchanged routing remains possible. The runtime stats snapshot under
+`/dev/vcam` publishes counters for these outcomes but no identity values.
+
 Binder transaction numbers in a strategy are part of the allowlisted build
 recipe. An AOSP AIDL layout is only a candidate until the OEM
 `libcamera_client.so` or read-only Binder probes confirm it. The NX769J mapping

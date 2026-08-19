@@ -203,6 +203,21 @@ CameraService or cameraserver fatal trace was present. The device was then
 returned to `stock`; PID `19247` remained stable for 12 seconds, the router was
 not mapped, and `media.camera` remained available.
 
+Portable module `0.5.0-dev.6` adds a system `IPermissionController` lookup for
+claimed connect-package names and a privacy-safe `/dev/vcam/router.stats`
+snapshot. The file contains aggregate counters only; it never records a package
+name, UID, PID or camera ID, and the launcher removes it on every cameraserver
+start so stock mode cannot expose stale state. On the OEM camera cold-start
+test, the qualified proxy saw 79 transactions: 27 recognized and 52 passed
+through as non-routed, with zero malformed or unsupported observations. Two
+connect calls carried package claims and both matched the package list returned
+for the Binder calling UID. Thirteen camera-scoped calls had UID/PID only and
+were deliberately not assigned to a package. There were zero rejected claims
+and zero unavailable package lookups. Cameraserver PID `14816` remained stable
+through `dumpsys`, with no fatal trace. After returning to stock, PID `18614`
+remained stable for 12 seconds, the router was not mapped, and both the stats
+file and pending marker were absent.
+
 Do not mount the r23 `libcameraservice.so` over the stock library. The likely
 failure modes are a cameraserver dynamic-link failure, virtual-call ABI
 mismatch or an OEM camera feature crash. Any future runtime activation also

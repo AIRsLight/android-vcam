@@ -57,6 +57,14 @@ add_test(NAME scoped_camera_router_test COMMAND scoped_camera_router_test)
 if(UNIX)
     add_subdirectory(runtime)
 
+    add_executable(camera_service_router_mode_test
+        tests/camera_service_router_mode_test.cpp
+        runtime/CameraServiceRouterMode.cpp)
+    target_include_directories(camera_service_router_mode_test PRIVATE runtime/include)
+    target_compile_options(camera_service_router_mode_test PRIVATE -UNDEBUG)
+    add_test(NAME camera_service_router_mode_test
+        COMMAND camera_service_router_mode_test)
+
     add_executable(runtime_abi_guard_test tests/runtime_abi_guard_test.cpp)
     target_link_libraries(runtime_abi_guard_test PRIVATE vcam_runtime_abi_guard dl)
     target_link_options(runtime_abi_guard_test PRIVATE -Wl,--export-dynamic)

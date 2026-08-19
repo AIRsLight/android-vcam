@@ -59,6 +59,7 @@ def main() -> None:
         ROOT / "tools" / "probe-device.ps1",
         ROOT / "tools" / "run-signal-quiescence-device-test.ps1",
         ROOT / "tools" / "verify-arm64-signal-handler.ps1",
+        ROOT / "docs" / "portable-integration-strategy.md",
         ROOT / "docs" / "device-support.md",
         ROOT / "docs" / "device-profiles" / "nx769j-android14.md",
         ROOT / "docs" / "milestones.md",
@@ -93,6 +94,16 @@ def main() -> None:
     ):
         if required_symbol not in runtime_exports:
             fail(f"runtime agent export is missing: {required_symbol}")
+
+    router_exports = (ROOT / "runtime" / "camera_service_router.exports").read_text(
+        encoding="utf-8"
+    )
+    for required_symbol in (
+        "vcam_camera_service_router_state",
+        "vcam_camera_service_router_state_name",
+    ):
+        if required_symbol not in router_exports:
+            fail(f"camera service router export is missing: {required_symbol}")
 
     module = (ROOT / "apmodule" / "module.prop").read_text(encoding="utf-8")
     if not re.search(r"^id=android_vcam$", module, re.MULTILINE):

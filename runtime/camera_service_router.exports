@@ -1,0 +1,7 @@
+VCAM_CAMERA_SERVICE_ROUTER_1.0 {
+    global:
+        vcam_camera_service_router_state;
+        vcam_camera_service_router_state_name;
+    local:
+        *;
+};

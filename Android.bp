@@ -16,6 +16,55 @@ cc_library_headers {
 }
 
 cc_library_static {
+    name: "libvcam_camera_service_router_mode",
+    host_supported: true,
+    srcs: ["runtime/CameraServiceRouterMode.cpp"],
+    local_include_dirs: ["runtime/include"],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    cpp_std: "c++17",
+}
+
+cc_test {
+    name: "vcam_camera_service_router_mode_test",
+    host_supported: true,
+    srcs: ["tests/camera_service_router_mode_test.cpp"],
+    local_include_dirs: ["runtime/include"],
+    static_libs: ["libvcam_camera_service_router_mode"],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-UNDEBUG",
+    ],
+    cpp_std: "c++17",
+}
+
+cc_library_shared {
+    name: "libvcam_cameraserver_router",
+    compile_multilib: "64",
+    srcs: ["runtime/platform/AndroidCameraServiceRouter.cpp"],
+    local_include_dirs: ["runtime/include"],
+    static_libs: ["libvcam_camera_service_router_mode"],
+    shared_libs: [
+        "libbinder",
+        "liblog",
+        "libutils",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fvisibility=hidden",
+    ],
+    version_script: "runtime/camera_service_router.exports",
+    cpp_std: "c++17",
+}
+
+cc_library_static {
     name: "libvcam_frame_core",
     vendor_available: true,
     srcs: [

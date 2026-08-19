@@ -1,6 +1,7 @@
 #define LOG_TAG "VcamCameraRouter"
 
 #include "vcam/Android14BinderShadowObserver.h"
+#include "vcam/Android14CameraDeviceUserRouter.h"
 #include "vcam/Android14CameraIdRewriter.h"
 #include "vcam/Android14CameraServiceProfile.h"
 #include "vcam/AndroidCameraServiceRouter.h"
@@ -103,7 +104,11 @@ void* statsPublisher(void*) {
                 "route_providers_unavailable=%llu\n"
                 "physical_rewrite_attempts=%llu\n"
                 "physical_rewrite_successes=%llu\n"
-                "physical_rewrite_failures=%llu\n",
+                "physical_rewrite_failures=%llu\n"
+                "device_user_wrappers=%llu\n"
+                "request_batches_rewritten=%llu\n"
+                "requests_rewritten=%llu\n"
+                "request_batches_skipped=%llu\n",
                 androidCameraServiceRouterStateName(
                         gState.load(std::memory_order_acquire)),
                 gObserverProfile.load(std::memory_order_acquire),
@@ -145,7 +150,15 @@ void* statsPublisher(void*) {
                 static_cast<unsigned long long>(
                         gPhysicalRewriteSuccesses.load(std::memory_order_relaxed)),
                 static_cast<unsigned long long>(
-                        gPhysicalRewriteFailures.load(std::memory_order_relaxed)));
+                        gPhysicalRewriteFailures.load(std::memory_order_relaxed)),
+                static_cast<unsigned long long>(
+                        android14CameraDeviceUserWrappers()),
+                static_cast<unsigned long long>(
+                        android14CameraRequestBatchesRewritten()),
+                static_cast<unsigned long long>(
+                        android14CameraRequestsRewritten()),
+                static_cast<unsigned long long>(
+                        android14CameraRequestBatchesSkipped()));
         if (length > 0 && static_cast<std::size_t>(length) < sizeof(payload)) {
             const int fd = open(
                     bootstrap::kRouterStatsPath,
@@ -293,7 +306,25 @@ protected:
                             &rewritten);
             if (rewriteStatus == CameraIdRewriteStatus::kRewritten) {
                 gPhysicalRewriteSuccesses.fetch_add(1, std::memory_order_relaxed);
-                return target_->transact(code, rewritten, reply, flags);
+                const android::status_t forwardStatus =
+                        target_->transact(code, rewritten, reply, flags);
+                if (forwardStatus == android::OK &&
+                    observation.transaction.payloadShape ==
+                            BinderPayloadShape::kConnectDevice) {
+                    const CameraDeviceUserReplyRouteStatus replyStatus =
+                            wrapAndroid14CameraDeviceUserReply(
+                                    reply,
+                                    observation.cameraId,
+                                    physicalReplacementCameraId);
+                    if (replyStatus !=
+                                CameraDeviceUserReplyRouteStatus::kWrapped &&
+                        replyStatus !=
+                                CameraDeviceUserReplyRouteStatus::kServiceError) {
+                        ALOGW("device-user reply route failed: status=%s",
+                              cameraDeviceUserReplyRouteStatusName(replyStatus));
+                    }
+                }
+                return forwardStatus;
             }
             gPhysicalRewriteFailures.fetch_add(1, std::memory_order_relaxed);
         }

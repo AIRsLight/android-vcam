@@ -1,6 +1,6 @@
 id=android_vcam_portable
 name=Android Virtual Camera Portable Bootstrap
-version=0.5.0-dev.9
-versionCode=21
+version=0.5.0-dev.10
+versionCode=22
 author=android-vcam contributors
 description=Systemless cameraserver Binder-router bootstrap for Android 10-14. Installs in physical-only stock mode by default.

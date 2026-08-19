@@ -87,7 +87,8 @@ candidate, not proof that Nubia used an unmodified r1 tree.
   installs the handler.
 - Read-only maps, target-byte and thread-inventory preflight: complete in
   host/ARM builds; not yet executed inside the device cameraserver.
-- Runtime route test: not started.
+- Standard Camera2 single-stream physical route: passed for target `0` to
+  device `1`; OEM camera and multi-stream routes remain unqualified.
 - Portable bootstrap stock-mode test: passed on device, including the OEM camera
   app opening Camera 0 with live preview.
 - Read-only in-process Binder preflight: passed on device.
@@ -267,10 +268,33 @@ characteristics, stream combinations and request metadata are kept consistent
 with the routed source. The device was returned to stock, all temporary runtime
 files were removed, and PID `27660` remained stable for 12 seconds.
 
+Portable module `0.5.0-dev.10` closes the first Camera2 request-consistency gap
+without linking the OEM `libcamera_client` ABI. A raw Binder device-user proxy
+wraps only the successful `ICameraDeviceUser` returned by the rewritten
+`connectDevice` call. For the exact Android 14 `submitRequest` and
+`submitRequestList` Parcel layouts it copies the complete request, preserves
+the Binder object table and changes the logical settings ID from public `0` to
+opened device `1`; unknown or malformed layouts remain byte-for-byte
+pass-through. The AOSP r23 host test passed for single and batched requests,
+source immutability, Binder-object preservation and unexpected-ID fallback.
+
+The same regular `io.github.androidvcam.test` application then completed a
+true routed Camera2 preview at 1280x720. The activity remained foreground with
+a live image, cameraserver PID `17036` stayed stable, and aggregate counters
+reported two connect rewrite attempts, two successes, zero failures, one
+device-user wrapper, one rewritten request batch, one rewritten request and
+zero skipped batches. This qualifies the standard single-stream route on this
+exact firmware; it does not yet qualify Nubia's OEM camera, multi-stream
+sessions, explicit physical-camera settings or arbitrary third-party clients.
+After the test, the route and runtime telemetry were removed, stock mode was
+restored, and cameraserver PID `17600` remained stable for 12 seconds with
+`media.camera` available.
+
 Do not mount the r23 `libcameraservice.so` over the stock library. The likely
 failure modes are a cameraserver dynamic-link failure, virtual-call ABI
 mismatch or an OEM camera feature crash. Any future runtime activation also
 requires a recoverable KernelSU delivery package, exact fingerprint/hash
 allowlist, a reviewed live-process backend, and on-device thread/cache/rollback
-qualification. Read-only observation and pass-through are qualified on this
-fingerprint; transaction mutation and visual routing are not.
+qualification. Read-only observation, pass-through and the narrowly scoped
+standard Camera2 single-stream route are qualified on this fingerprint;
+general transaction mutation and visual routing are not.

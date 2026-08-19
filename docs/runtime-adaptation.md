@@ -272,6 +272,17 @@ combination checks, connect/open, default request templates and capture
 requests. Until that contract exists, `physical-route` remains a diagnostic
 mode and must not be enabled by normal manager routes.
 
+The Android 14 diagnostic path now wraps only the `ICameraDeviceUser` returned
+by a successfully rewritten Camera2 connect. The wrapper forwards every unknown
+device transaction unchanged and inspects only the platform-confirmed
+`submitRequest` and `submitRequestList` codes. For a request containing exactly
+one logical settings block, it copies the complete Parcel with `appendFrom()`,
+preserves Binder objects, and changes the same-width public ID to the opened
+device ID. Multiple physical settings, malformed payloads, unknown IDs and
+variable-width IDs are passed through unchanged and counted. This adapter uses
+only raw Binder/Parcel APIs; it deliberately avoids a `libcamera_client`
+dependency and therefore does not import the full OEM camera client ABI.
+
 Binder transaction numbers in a strategy are part of the allowlisted build
 recipe. An AOSP AIDL layout is only a candidate until the OEM
 `libcamera_client.so` or read-only Binder probes confirm it. The NX769J mapping

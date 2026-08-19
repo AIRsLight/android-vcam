@@ -89,7 +89,10 @@ cc_binary {
 cc_library_shared {
     name: "libvcam_cameraserver_router",
     compile_multilib: "64",
-    srcs: ["runtime/platform/AndroidCameraServiceRouter.cpp"],
+    srcs: [
+        "runtime/platform/Android14CameraDeviceUserRouter.cpp",
+        "runtime/platform/AndroidCameraServiceRouter.cpp",
+    ],
     local_include_dirs: ["runtime/include"],
     static_libs: [
         "libvcam_android14_parcel_observer",
@@ -108,6 +111,29 @@ cc_library_shared {
         "-fvisibility=hidden",
     ],
     version_script: "runtime/camera_service_router.exports",
+    cpp_std: "c++17",
+}
+
+cc_test {
+    name: "vcam_android14_camera_device_user_router_test",
+    host_supported: true,
+    device_supported: false,
+    compile_multilib: "64",
+    srcs: [
+        "runtime/platform/Android14CameraDeviceUserRouter.cpp",
+        "tests/android14_camera_device_user_router_test.cpp",
+    ],
+    local_include_dirs: ["runtime/include"],
+    shared_libs: [
+        "libbinder",
+        "libutils",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-UNDEBUG",
+    ],
     cpp_std: "c++17",
 }
 

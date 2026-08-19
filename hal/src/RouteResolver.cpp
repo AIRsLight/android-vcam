@@ -41,16 +41,18 @@ ProviderSelection RouteResolver::resolveProviderForPackage(
         const std::string& routesPath, const std::string& providersPath) {
     const std::string fallback = defaultPhysicalProvider(cameraId);
     std::ifstream input(routesPath);
-    if (!input) return {fallback, false, true};
-    const auto selectionForProvider = [&](const std::string& provider) {
+    if (!input) return {fallback, false, true, RouteMatchKind::None};
+    const auto selectionForProvider = [&](
+            const std::string& provider, RouteMatchKind match) {
         if (!validProviderId(provider)) {
-            return ProviderSelection {provider, true, false};
+            return ProviderSelection {provider, true, false, match};
         }
         if (physicalIdFromProvider(provider) >= 0) {
-            return ProviderSelection {provider, true, true};
+            return ProviderSelection {provider, true, true, match};
         }
         const std::string enabled = providersPath + "/" + provider + "/enabled";
-        return ProviderSelection {provider, true, std::ifstream(enabled).good()};
+        return ProviderSelection {
+                provider, true, std::ifstream(enabled).good(), match};
     };
     std::string globalProvider;
     std::string line;
@@ -67,14 +69,16 @@ ProviderSelection RouteResolver::resolveProviderForPackage(
         const std::string routePackage = line.substr(0, first);
         const std::string provider = line.substr(second + 1);
         if (!packageName.empty() && routePackage == packageName) {
-            return selectionForProvider(provider);
+            return selectionForProvider(provider, RouteMatchKind::Package);
         }
         if (routePackage == "*" && globalProvider.empty()) {
             globalProvider = provider;
         }
     }
-    if (!globalProvider.empty()) return selectionForProvider(globalProvider);
-    return {fallback, false, true};
+    if (!globalProvider.empty()) {
+        return selectionForProvider(globalProvider, RouteMatchKind::Global);
+    }
+    return {fallback, false, true, RouteMatchKind::None};
 }
 
 int RouteResolver::physicalIdFromProvider(const std::string& provider) {

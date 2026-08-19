@@ -29,6 +29,7 @@ ScopedCameraRoute ScopedCameraRouter::resolve(
             false,
             true,
             false,
+            RouteMatchKind::None,
     };
 
     const int target = targetId(requestedCameraId);
@@ -39,6 +40,7 @@ ScopedCameraRoute ScopedCameraRouter::resolve(
     route.providerId = selection.providerId;
     route.configured = selection.configured;
     route.available = selection.available;
+    route.match = selection.match;
     if (RouteResolver::physicalIdFromProvider(route.providerId) >= 0) {
         return route;
     }

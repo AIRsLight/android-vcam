@@ -8,10 +8,17 @@
 
 namespace vcam {
 
+enum class RouteMatchKind {
+    None = 0,
+    Package,
+    Global,
+};
+
 struct ProviderSelection {
     std::string providerId;
     bool configured = false;
     bool available = true;
+    RouteMatchKind match = RouteMatchKind::None;
 };
 
 class RouteResolver final {

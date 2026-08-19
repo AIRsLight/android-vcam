@@ -6,6 +6,7 @@
 #include "vcam/CameraServerBootstrapPaths.h"
 #include "vcam/CameraCallerIdentityClassifier.h"
 #include "vcam/CameraServiceRouterMode.h"
+#include "vcam/ScopedCameraRouter.h"
 
 #include <atomic>
 #include <cerrno>
@@ -36,6 +37,8 @@ constexpr char16_t kCameraServiceDescriptor[] = u"android.hardware.ICameraServic
 constexpr std::uint32_t kServiceWaitAttempts = 3000;
 constexpr useconds_t kServiceWaitDelayMicroseconds = 10000;
 constexpr unsigned int kStatsPublishIntervalSeconds = 1;
+constexpr char kRuntimeRoutesPath[] = "/dev/vcam/routes.tsv";
+constexpr char kRuntimeProvidersPath[] = "/dev/vcam/providers";
 
 std::atomic<AndroidCameraServiceRouterState> gState {
         AndroidCameraServiceRouterState::kNotStarted};
@@ -46,6 +49,10 @@ std::atomic<const char*> gObserverProfile {"none"};
 std::atomic<std::uint64_t> gVerifiedPackageClaims {0};
 std::atomic<std::uint64_t> gRejectedPackageClaims {0};
 std::atomic<std::uint64_t> gUnavailablePackageLookups {0};
+std::atomic<std::uint64_t> gPackageRouteCandidates {0};
+std::atomic<std::uint64_t> gGlobalRouteCandidates {0};
+std::atomic<std::uint64_t> gPhysicalRouteDecisions {0};
+std::atomic<std::uint64_t> gUnavailableRouteProviders {0};
 
 std::string buildFingerprint() {
     char value[PROP_VALUE_MAX] {};
@@ -78,7 +85,11 @@ void* statsPublisher(void*) {
                 "identity_unavailable=%llu\n"
                 "package_claims_verified=%llu\n"
                 "package_claims_rejected=%llu\n"
-                "package_lookups_unavailable=%llu\n",
+                "package_lookups_unavailable=%llu\n"
+                "route_candidates_package=%llu\n"
+                "route_candidates_global=%llu\n"
+                "route_decisions_physical=%llu\n"
+                "route_providers_unavailable=%llu\n",
                 androidCameraServiceRouterStateName(
                         gState.load(std::memory_order_acquire)),
                 gObserverProfile.load(std::memory_order_acquire),
@@ -96,6 +107,15 @@ void* statsPublisher(void*) {
                         gRejectedPackageClaims.load(std::memory_order_relaxed)),
                 static_cast<unsigned long long>(
                         gUnavailablePackageLookups.load(
+                                std::memory_order_relaxed)),
+                static_cast<unsigned long long>(
+                        gPackageRouteCandidates.load(std::memory_order_relaxed)),
+                static_cast<unsigned long long>(
+                        gGlobalRouteCandidates.load(std::memory_order_relaxed)),
+                static_cast<unsigned long long>(
+                        gPhysicalRouteDecisions.load(std::memory_order_relaxed)),
+                static_cast<unsigned long long>(
+                        gUnavailableRouteProviders.load(
                                 std::memory_order_relaxed)));
         if (length > 0 && static_cast<std::size_t>(length) < sizeof(payload)) {
             const int fd = open(
@@ -154,6 +174,7 @@ protected:
                         observation.callingUid,
                         observation.callingPid,
                         observation.packageName);
+        std::string verifiedPackage;
         if (observation.status == ParcelObservationStatus::kObserved &&
             identity.kind == CameraCallerIdentityKind::kClaimedPackage) {
             android::Vector<android::String16> packages;
@@ -174,6 +195,32 @@ protected:
                 }
                 (verified ? gVerifiedPackageClaims : gRejectedPackageClaims)
                         .fetch_add(1, std::memory_order_relaxed);
+                if (verified) {
+                    verifiedPackage = observation.packageName;
+                }
+            }
+        }
+        if (observation.status == ParcelObservationStatus::kObserved &&
+            observation.transaction.cameraScoped &&
+            !observation.cameraId.empty()) {
+            const ::vcam::ScopedCameraRoute route =
+                    ::vcam::ScopedCameraRouter::resolve(
+                    verifiedPackage,
+                    observation.cameraId,
+                    kRuntimeRoutesPath,
+                    kRuntimeProvidersPath);
+            if (route.configured && !route.available) {
+                gUnavailableRouteProviders.fetch_add(
+                        1, std::memory_order_relaxed);
+            } else if (route.redirected) {
+                std::atomic<std::uint64_t>& counter =
+                        route.match == ::vcam::RouteMatchKind::Package
+                        ? gPackageRouteCandidates
+                        : gGlobalRouteCandidates;
+                counter.fetch_add(1, std::memory_order_relaxed);
+            } else {
+                gPhysicalRouteDecisions.fetch_add(
+                        1, std::memory_order_relaxed);
             }
         }
         // target_ is a local BBinder in this process. Calling transact() here

@@ -6,6 +6,8 @@
 
 #include <string>
 
+#include "vcam/RouteResolver.h"
+
 namespace vcam {
 
 struct ScopedCameraRoute {
@@ -15,6 +17,7 @@ struct ScopedCameraRoute {
     bool configured = false;
     bool available = true;
     bool redirected = false;
+    RouteMatchKind match = RouteMatchKind::None;
 };
 
 class ScopedCameraRouter final {

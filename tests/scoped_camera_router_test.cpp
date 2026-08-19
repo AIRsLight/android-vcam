@@ -39,6 +39,7 @@ int main() {
     assert(back.requestedCameraId == "0");
     assert(back.effectiveCameraId == "1000");
     assert(back.providerId == "movie");
+    assert(back.match == vcam::RouteMatchKind::Package);
 
     const auto front = vcam::ScopedCameraRouter::resolve(
             "com.example.virtual", "1", routes, providers);
@@ -74,6 +75,7 @@ int main() {
     assert(global.redirected);
     assert(global.providerId == "movie");
     assert(global.effectiveCameraId == "1001");
+    assert(global.match == vcam::RouteMatchKind::Global);
 
     const auto explicitInternal = vcam::ScopedCameraRouter::resolve(
             "com.example.virtual", "1000", routes, providers);

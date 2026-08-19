@@ -48,6 +48,7 @@ int main() {
     assert(configured.configured);
     assert(configured.available);
     assert(configured.providerId == "demo");
+    assert(configured.match == vcam::RouteMatchKind::Package);
     const auto invalid = vcam::RouteResolver::resolveProviderForPackage(
             "com.invalid.app", 0, routes, providers);
     assert(invalid.configured);
@@ -56,6 +57,7 @@ int main() {
             "com.unknown", 0, routes, providers);
     assert(missing.configured);
     assert(missing.available);
+    assert(missing.match == vcam::RouteMatchKind::Global);
     assert(vcam::RouteResolver::physicalIdFromProvider("physical-1") == 1);
     assert(vcam::RouteResolver::physicalIdFromProvider("demo") == -1);
     assert(vcam::RouteResolver::framePath("demo", providers) ==

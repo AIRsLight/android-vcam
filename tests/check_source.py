@@ -130,7 +130,8 @@ def main() -> None:
                      "AndroidCameraServiceRouter.cpp").read_text(encoding="utf-8")
     for required_symbol in (
         "kRouterStatsPath", "transactions_total", "identity_claimed_package",
-        "package_claims_verified",
+        "package_claims_verified", "route_candidates_package",
+        "kRuntimeRoutesPath", "ScopedCameraRouter::resolve",
     ):
         if required_symbol not in router_source:
             fail(f"camera service router telemetry is missing: {required_symbol}")

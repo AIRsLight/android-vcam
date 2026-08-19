@@ -94,6 +94,7 @@ cc_library_shared {
     static_libs: [
         "libvcam_android14_parcel_observer",
         "libvcam_camera_service_router_mode",
+        "libvcam_route_core",
     ],
     shared_libs: [
         "libbinder",

@@ -230,6 +230,17 @@ The temporary route/provider files were removed. After restoring stock, PID
 `18588` remained stable for 12 seconds; the router was not mapped and the stats,
 routes, providers and pending paths were all absent.
 
+Portable module `0.5.0-dev.8` resolves UID-only camera calls to an exact package
+only when `IPermissionController` returns a single package for that UID. With
+the same temporary rules, the OEM camera produced twelve UID-only observations:
+nine had one package and three were ambiguous shared-UID cases. The exact-route
+candidate count increased to four while ambiguous callers were not guessed;
+one global candidate and eight physical decisions remained. There were zero
+unavailable lookups, rejected claims, malformed transactions, unavailable
+providers or fatal traces, and PID `7599` stayed stable through `dumpsys`. The
+test files were removed and stock PID `16974` then remained stable for 12
+seconds with no mapped router or runtime artifacts.
+
 Do not mount the r23 `libcameraservice.so` over the stock library. The likely
 failure modes are a cameraserver dynamic-link failure, virtual-call ABI
 mismatch or an OEM camera feature crash. Any future runtime activation also

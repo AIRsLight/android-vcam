@@ -245,6 +245,14 @@ guessed. Lookup failures and mismatches fail closed for per-application scope;
 global or unchanged routing remains possible. The runtime stats snapshot under
 `/dev/vcam` publishes counters for these outcomes but no identity values.
 
+For camera-scoped transactions without a package field, the router consults the
+same permission service only while a runtime route table exists. A UID with one
+package can use that package's exact rule. Empty and multi-package results are
+never disambiguated from `/proc` or process names and therefore remain eligible
+only for the explicit global fallback. This keeps metadata queries and connect
+decisions consistent where identity is provable without weakening shared-UID
+privacy.
+
 Binder transaction numbers in a strategy are part of the allowlisted build
 recipe. An AOSP AIDL layout is only a candidate until the OEM
 `libcamera_client.so` or read-only Binder probes confirm it. The NX769J mapping

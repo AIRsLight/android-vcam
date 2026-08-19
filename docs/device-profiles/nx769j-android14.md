@@ -106,9 +106,10 @@ is now installed and its ext4 module image mounts successfully. Regular modules
 created before the KernelSU 3.x migration were not copied into that image and
 must be reinstalled separately.
 
-The first VCAM package uses a dedicated `android_vcam_portable` module ID and
-ships no `bootstrap.mode`, so the launcher always removes loader variables and
-executes the captured physical cameraserver. Installation captures and hashes
+The VCAM package uses a dedicated `android_vcam_portable` module ID and ships a
+`bootstrap.mode` whose installation default is `stock`. In that mode the
+launcher removes loader variables and executes the captured physical
+cameraserver. Installation captures and hashes
 the exact `/system/bin/cameraserver` before the overlay is activated. At
 post-mount, the module verifies launcher and stock hashes plus both
 `cameraserver_exec` labels; a failure disables the module and bind-mounts the
@@ -181,17 +182,31 @@ does not export the later `remapCameraIds` method, and the observed constants
 match the Android 14 initial-release layout. The exact `libcamera_client.so`
 identity is included in the runtime allowlist.
 
-The next layer now has an AOSP r23 platform implementation that validates the
+The next layer has an AOSP r23 platform implementation that validates the
 CameraService Binder token and reads only the leading camera/package fields for
 the allowlisted transaction shape. Its tests use real `android::Parcel`
 instances and verify that `dataPosition()` is unchanged after successful,
-malformed, wrong-interface, unsupported and null observations. This observer
-has a tested optional bridge adapter, but the cameraserver agent does not bind
-it and nothing has been installed on the device.
+malformed, wrong-interface, unsupported and null observations. The same
+observer is now attached read-only to the qualified NX769J same-process proxy.
+The exact fingerprint selects the eleven-operation table; an unknown build
+still receives byte-for-byte pass-through but no Parcel decoding. Only atomic
+aggregate counts are retained, and observed package names, camera IDs, UIDs and
+PIDs are discarded when each call returns.
+
+Portable module `0.5.0-dev.5` installed this observer build. Its router SHA-256
+is `6e6b0cd4c8960663c4b93b810648c4f3acbc9f9a7a4939c332301050e3571d56`.
+Stock mode remained stable after reboot. A temporary `passthrough` run loaded
+that exact DSO, cleared the circuit-breaker marker only after registration,
+kept cameraserver PID `7525` stable across `dumpsys`, returned all five camera
+devices, and cold-started the OEM camera with a live Camera 0 preview. No
+CameraService or cameraserver fatal trace was present. The device was then
+returned to `stock`; PID `19247` remained stable for 12 seconds, the router was
+not mapped, and `media.camera` remained available.
 
 Do not mount the r23 `libcameraservice.so` over the stock library. The likely
 failure modes are a cameraserver dynamic-link failure, virtual-call ABI
 mismatch or an OEM camera feature crash. Any future runtime activation also
 requires a recoverable KernelSU delivery package, exact fingerprint/hash
 allowlist, a reviewed live-process backend, and on-device thread/cache/rollback
-qualification. The isolated transaction test is not that qualification.
+qualification. Read-only observation and pass-through are qualified on this
+fingerprint; transaction mutation and visual routing are not.

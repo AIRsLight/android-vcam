@@ -164,12 +164,17 @@ installation. Its fixed runtime contract is:
   `passthrough`; a missing, empty, oversized, non-regular, or unrecognized value
   fails to `stock`;
 - preload is allowed only after the launcher observes the `cameraserver` SELinux
-  domain, a distinct executable stock inode, and a readable router library.
+  domain, a distinct executable stock inode, and a readable router library;
+- the launcher atomically creates `bootstrap.pending` before preload. A second
+  launch with that marker still present selects `stock`; only a router that has
+  verified the original local CameraService Binder (and, for `passthrough`, the
+  replacement registration) clears the marker.
 
 The launcher can retry the stock `exec` when `execve` itself fails. A dynamic
-linker failure after a successful `execve` cannot return to the launcher, so the
-boot-attempt marker in step 6 remains a required delivery gate before enabling
-`preflight` automatically on a device.
+linker failure after a successful `execve` cannot return to the launcher; the
+remaining marker makes the following init restart physical-only. Enabling a new
+attempt therefore requires an explicit control-daemon operation that removes
+the marker, rather than an automatic retry loop.
 
 ## Version and vendor adaptation boundary
 

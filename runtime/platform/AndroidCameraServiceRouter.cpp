@@ -1,9 +1,11 @@
 #define LOG_TAG "VcamCameraRouter"
 
 #include "vcam/AndroidCameraServiceRouter.h"
+#include "vcam/CameraServerBootstrapPaths.h"
 #include "vcam/CameraServiceRouterMode.h"
 
 #include <atomic>
+#include <cerrno>
 #include <cstdint>
 #include <cstdlib>
 #include <pthread.h>
@@ -60,6 +62,12 @@ void setTerminalState(AndroidCameraServiceRouterState state, const char* detail)
     gState.store(state, std::memory_order_release);
     ALOGI("router state=%s detail=%s",
           androidCameraServiceRouterStateName(state), detail);
+    if (state == AndroidCameraServiceRouterState::kPreflightReady ||
+        state == AndroidCameraServiceRouterState::kPassThroughReady) {
+        if (unlink(bootstrap::kPendingPath) != 0 && errno != ENOENT) {
+            ALOGE("could not clear successful bootstrap marker: errno=%d", errno);
+        }
+    }
 }
 
 void* routerMonitor(void*) {

@@ -1,6 +1,7 @@
 #define LOG_TAG "VcamCameraLauncher"
 
 #include "vcam/CameraServerBootstrapMode.h"
+#include "vcam/CameraServerBootstrapPaths.h"
 
 #include <cerrno>
 #include <cstddef>
@@ -13,18 +14,22 @@
 
 namespace {
 
-constexpr char kStockCameraServerPath[] = "/system/bin/vcam/cameraserver";
-constexpr char kRouterLibraryPath[] = "/system/lib64/libvcam_cameraserver_router.so";
-constexpr char kBootstrapModePath[] = "/data/vendor/camera/vcam/bootstrap.mode";
-constexpr char kExpectedDomainPrefix[] = "u:r:cameraserver:";
 constexpr std::size_t kMaximumModeBytes = 32;
+constexpr char kPendingPayload[] = "pending\n";
+
+enum class AttemptArmStatus {
+    kArmed,
+    kAlreadyPending,
+    kError,
+};
 
 bool isTrimCharacter(char value) {
     return value == ' ' || value == '\t' || value == '\r' || value == '\n';
 }
 
 vcam::runtime::CameraServerBootstrapMode readBootstrapMode() {
-    const int fd = open(kBootstrapModePath, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    const int fd = open(vcam::runtime::bootstrap::kModePath,
+                        O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0) {
         return vcam::runtime::CameraServerBootstrapMode::kStock;
     }
@@ -70,29 +75,53 @@ bool isCameraServerDomain() {
         return false;
     }
     buffer[count] = '\0';
-    return std::strncmp(buffer, kExpectedDomainPrefix,
-                        std::strlen(kExpectedDomainPrefix)) == 0;
+    return std::strncmp(buffer, vcam::runtime::bootstrap::kExpectedDomainPrefix,
+                        std::strlen(vcam::runtime::bootstrap::kExpectedDomainPrefix)) == 0;
 }
 
 bool stockExecutableIsSafe() {
     struct stat selfMetadata {};
     struct stat stockMetadata {};
     if (stat("/proc/self/exe", &selfMetadata) != 0 ||
-        stat(kStockCameraServerPath, &stockMetadata) != 0 ||
-        access(kStockCameraServerPath, X_OK) != 0) {
+        stat(vcam::runtime::bootstrap::kStockCameraServerPath, &stockMetadata) != 0 ||
+        access(vcam::runtime::bootstrap::kStockCameraServerPath, X_OK) != 0) {
         return false;
     }
     return selfMetadata.st_dev != stockMetadata.st_dev ||
            selfMetadata.st_ino != stockMetadata.st_ino;
 }
 
+AttemptArmStatus armBootstrapAttempt() {
+    const int fd = open(vcam::runtime::bootstrap::kPendingPath,
+                        O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW,
+                        0600);
+    if (fd < 0) {
+        return errno == EEXIST
+                ? AttemptArmStatus::kAlreadyPending
+                : AttemptArmStatus::kError;
+    }
+
+    const ssize_t written = write(fd, kPendingPayload, sizeof(kPendingPayload) - 1);
+    const bool durable = written == static_cast<ssize_t>(sizeof(kPendingPayload) - 1) &&
+                         fsync(fd) == 0;
+    const int markerError = errno;
+    close(fd);
+    if (!durable) {
+        unlink(vcam::runtime::bootstrap::kPendingPath);
+        errno = markerError;
+        return AttemptArmStatus::kError;
+    }
+    return AttemptArmStatus::kArmed;
+}
+
 [[noreturn]] void runStockCameraServer(char* const argv[]) {
     unsetenv("LD_PRELOAD");
     unsetenv("VCAM_BINDER_ROUTER_MODE");
-    execv(kStockCameraServerPath, argv);
+    execv(vcam::runtime::bootstrap::kStockCameraServerPath, argv);
     const int launchError = errno;
     ALOGE("stock cameraserver exec failed: path=%s errno=%d (%s)",
-          kStockCameraServerPath, launchError, std::strerror(launchError));
+          vcam::runtime::bootstrap::kStockCameraServerPath,
+          launchError, std::strerror(launchError));
     _exit(127);
 }
 
@@ -117,8 +146,17 @@ int main(int, char* argv[]) {
         ALOGE("launcher did not enter cameraserver SELinux domain; skipping preload");
         runStockCameraServer(argv);
     }
-    if (access(kRouterLibraryPath, R_OK) != 0) {
+    if (access(vcam::runtime::bootstrap::kRouterLibraryPath, R_OK) != 0) {
         ALOGE("router library is unavailable; starting stock cameraserver");
+        runStockCameraServer(argv);
+    }
+
+    const AttemptArmStatus attempt = armBootstrapAttempt();
+    if (attempt != AttemptArmStatus::kArmed) {
+        ALOGE("bootstrap attempt not armed (%s); starting stock cameraserver",
+              attempt == AttemptArmStatus::kAlreadyPending
+                      ? "previous attempt pending"
+                      : "marker creation failed");
         runStockCameraServer(argv);
     }
 
@@ -127,14 +165,14 @@ int main(int, char* argv[]) {
             ? "preflight"
             : "passthrough";
     if (setenv("VCAM_BINDER_ROUTER_MODE", routerMode, 1) != 0 ||
-        setenv("LD_PRELOAD", kRouterLibraryPath, 1) != 0) {
+        setenv("LD_PRELOAD", vcam::runtime::bootstrap::kRouterLibraryPath, 1) != 0) {
         ALOGE("could not prepare preload environment; starting stock cameraserver");
         runStockCameraServer(argv);
     }
 
     ALOGI("starting cameraserver with router mode=%s",
           vcam::runtime::cameraServerBootstrapModeName(mode));
-    execv(kStockCameraServerPath, argv);
+    execv(vcam::runtime::bootstrap::kStockCameraServerPath, argv);
 
     const int preloadError = errno;
     ALOGE("preloaded cameraserver exec failed: errno=%d (%s); retrying stock",

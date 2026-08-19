@@ -61,6 +61,7 @@ def main() -> None:
         ROOT / "tools" / "verify-arm64-signal-handler.ps1",
         ROOT / "docs" / "portable-integration-strategy.md",
         ROOT / "runtime" / "platform" / "CameraServerLauncher.cpp",
+        ROOT / "runtime" / "include" / "vcam" / "CameraServerBootstrapPaths.h",
         ROOT / "docs" / "device-support.md",
         ROOT / "docs" / "device-profiles" / "nx769j-android14.md",
         ROOT / "docs" / "milestones.md",

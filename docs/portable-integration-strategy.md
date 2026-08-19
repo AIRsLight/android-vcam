@@ -160,12 +160,12 @@ installation. Its fixed runtime contract is:
 
 - `/system/bin/vcam/cameraserver` is the captured stock executable;
 - `/system/lib64/libvcam_cameraserver_router.so` is the in-process router;
-- `/data/vendor/camera/vcam/bootstrap.mode` selects `stock`, `preflight`, or
+- `/system/etc/android_vcam/bootstrap.mode` selects `stock`, `preflight`, or
   `passthrough`; a missing, empty, oversized, non-regular, or unrecognized value
   fails to `stock`;
 - preload is allowed only after the launcher observes the `cameraserver` SELinux
   domain, a distinct executable stock inode, and a readable router library;
-- the launcher atomically creates `bootstrap.pending` before preload. A second
+- the launcher atomically creates `/dev/vcam/bootstrap.pending` before preload. A second
   launch with that marker still present selects `stock`; only a router that has
   verified the original local CameraService Binder (and, for `passthrough`, the
   replacement registration) clears the marker.

@@ -11,8 +11,9 @@ live_cameraserver="/system/bin/cameraserver"
 launcher="$MODPATH/system/bin/cameraserver"
 stock="$MODPATH/system/bin/vcam/cameraserver"
 router="$MODPATH/system/lib64/libvcam_cameraserver_router.so"
+mode_file="$MODPATH/system/etc/android_vcam/bootstrap.mode"
 
-for required in "$live_cameraserver" "$launcher" "$router"; do
+for required in "$live_cameraserver" "$launcher" "$router" "$mode_file"; do
     [ -f "$required" ] || abort "! Required file is missing: $required"
 done
 
@@ -45,11 +46,13 @@ printf '%s  %s\n' "$launcher_hash" "/system/bin/cameraserver" > "$MODPATH/launch
 set_perm "$launcher" 0 2000 0755
 set_perm "$stock" 0 2000 0755
 set_perm "$router" 0 0 0644
+set_perm "$mode_file" 0 0 0644
 set_perm "$MODPATH/post-mount.sh" 0 0 0755
 set_perm "$MODPATH/service.sh" 0 0 0755
 chcon u:object_r:cameraserver_exec:s0 "$launcher" "$stock" || \
     abort "! Unable to label cameraserver executables"
-chcon u:object_r:system_file:s0 "$router" || abort "! Unable to label router library"
+chcon u:object_r:system_file:s0 "$router" "$mode_file" || \
+    abort "! Unable to label router configuration"
 
 ui_print "- Captured stock cameraserver: $stock_hash"
 ui_print "- Bootstrap defaults to stock mode; no Binder routing is enabled"

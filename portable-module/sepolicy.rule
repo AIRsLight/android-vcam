@@ -1,1 +1,3 @@
 allow cameraserver cameraserver_exec file execute_no_trans
+allow cameraserver cameraserver_tmpfs dir { search read write add_name remove_name getattr }
+allow cameraserver cameraserver_tmpfs file { create open read write getattr unlink }

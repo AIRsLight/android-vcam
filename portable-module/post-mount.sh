@@ -6,6 +6,8 @@ LOG_FILE=$LOG_DIR/bootstrap.log
 LIVE=/system/bin/cameraserver
 STOCK=/system/bin/vcam/cameraserver
 ROUTER=/system/lib64/libvcam_cameraserver_router.so
+MODE=/system/etc/android_vcam/bootstrap.mode
+RUNTIME_DIR=/dev/vcam
 
 mkdir -p "$LOG_DIR"
 chmod 0700 "$LOG_DIR"
@@ -34,6 +36,11 @@ actual_stock="$(sha256sum "$STOCK" 2>/dev/null | awk '{print $1}')"
 [ "$actual_stock" = "$expected_stock" ] || \
     fail_bootstrap "stock hash mismatch: $actual_stock"
 [ -r "$ROUTER" ] || fail_bootstrap "router library missing"
+configured_mode="$(sed -n '1p' "$MODE" 2>/dev/null)"
+case "$configured_mode" in
+    stock|preflight|passthrough) ;;
+    *) fail_bootstrap "invalid bootstrap mode: $configured_mode" ;;
+esac
 
 live_context="$(ls -Zd "$LIVE" 2>/dev/null | awk '{print $1}')"
 stock_context="$(ls -Zd "$STOCK" 2>/dev/null | awk '{print $1}')"
@@ -41,6 +48,12 @@ stock_context="$(ls -Zd "$STOCK" 2>/dev/null | awk '{print $1}')"
     fail_bootstrap "launcher context mismatch: $live_context"
 [ "$stock_context" = "u:object_r:cameraserver_exec:s0" ] || \
     fail_bootstrap "stock context mismatch: $stock_context"
+
+mkdir -p "$RUNTIME_DIR" || fail_bootstrap "runtime directory creation failed"
+chown cameraserver:camera "$RUNTIME_DIR"
+chmod 0770 "$RUNTIME_DIR"
+chcon u:object_r:cameraserver_tmpfs:s0 "$RUNTIME_DIR" || \
+    fail_bootstrap "runtime directory labeling failed"
 
 {
     echo "post-mount $(date '+%Y-%m-%dT%H:%M:%S%z')"

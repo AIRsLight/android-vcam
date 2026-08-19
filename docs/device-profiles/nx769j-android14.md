@@ -127,11 +127,15 @@ The first stock-mode boot reached the launcher in the correct cameraserver
 domain, but the OEM policy denied `execute_no_trans` from `cameraserver` to the
 captured `cameraserver_exec` file. The launcher reported `EACCES`; no router was
 loaded. Disabling the module and rebooting restored the exact stock hash and
-both camera Binder services. The next package adds only the observed
-`cameraserver cameraserver_exec:file execute_no_trans` permission. Its service
-stage also waits up to 30 seconds for `media.camera`; on failure it disables the
-module, binds the captured stock executable over the launcher and requests a
-cameraserver restart for same-boot recovery.
+both camera Binder services. The second package carried the intended permission
+using traditional `target:class` syntax, but KernelSU module rules require the
+four-part `source target class permission` syntax; the unparsed rule therefore
+left the same denial in place. The next package uses
+`allow cameraserver cameraserver_exec file execute_no_trans`. Its service stage
+also requires one PID and the exact `media.camera: found` result to remain
+stable for 10 seconds. On failure it disables the module, binds the captured
+stock executable over the launcher and requests a cameraserver restart for
+same-boot recovery.
 
 An inactive runtime ABI recipe now exists at
 `runtime/recipes/nx769j-ukq1-20240417.tsv`. It pins the OEM file identity plus the

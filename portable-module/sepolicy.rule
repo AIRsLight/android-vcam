@@ -1,1 +1,1 @@
-allow cameraserver cameraserver_exec:file execute_no_trans
+allow cameraserver cameraserver_exec file execute_no_trans

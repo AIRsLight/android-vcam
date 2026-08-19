@@ -253,6 +253,25 @@ only for the explicit global fallback. This keeps metadata queries and connect
 decisions consistent where identity is provable without weakening shared-UID
 privacy.
 
+`physical-route` is a separate experimental mode; `passthrough` never mutates a
+Parcel. The Android 14 copier currently accepts only same-width existing camera
+IDs. It duplicates the complete Parcel with `appendFrom()` so Binder objects
+remain owned and indexed correctly, overwrites the decoded ID at recorded type
+boundaries, and fails open to the original Parcel on any offset, copy, size or
+write mismatch. Variable-width virtual IDs remain disabled until a registered
+virtual provider and segmented-Parcel reconstruction are both qualified.
+
+A successful connect-ID rewrite is not an end-to-end physical route. Camera2
+clients commonly query characteristics and choose output sizes before opening a
+device; capture requests must then be valid for the device that CameraService
+actually opened. On NX769J, routing target `0` to physical `1` produced valid
+rewritten Binder transactions but the first repeating request was rejected as
+`Invalid camera request settings`. A qualified implementation must present one
+coherent routed contract across camera enumeration, characteristics, stream
+combination checks, connect/open, default request templates and capture
+requests. Until that contract exists, `physical-route` remains a diagnostic
+mode and must not be enabled by normal manager routes.
+
 Binder transaction numbers in a strategy are part of the allowlisted build
 recipe. An AOSP AIDL layout is only a candidate until the OEM
 `libcamera_client.so` or read-only Binder probes confirm it. The NX769J mapping

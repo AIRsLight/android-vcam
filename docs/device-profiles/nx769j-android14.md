@@ -241,6 +241,32 @@ providers or fatal traces, and PID `7599` stayed stable through `dumpsys`. The
 test files were removed and stock PID `16974` then remained stable for 12
 seconds with no mapped router or runtime artifacts.
 
+Portable module `0.5.0-dev.9` adds an explicitly gated `physical-route` mode
+and a same-width Parcel copier for existing one-digit physical IDs. Host tests
+proved that a Camera2 connect Parcel containing a Binder callback can be copied
+and changed from `0` to `1` without altering the source bytes, object table,
+cursor, package or trailing payload; a variable-width `0` to `1000` request is
+rejected. On device, the `com.android.camera` target-0 to physical-1 experiment
+reported four rewrite attempts, four successes and zero rewrite failures while
+cameraserver PID `16131` remained stable. However, the Nubia camera activity
+then exited to the launcher instead of keeping a preview. Returning to stock
+immediately restored its live target-0 preview, so this is not qualified as an
+end-to-end physical route. It indicates an OEM application assumption about
+the selected public ID/camera role even though the Binder and CameraService
+layers accepted the rewritten transactions. After ADB PackageInstaller service
+was restored, the regular `io.github.androidvcam.test` Camera2 application was
+installed and routed from target `0` to physical `1`. The observer reported two
+rewrite attempts, two successes and zero failures, with a stable cameraserver
+PID. The application nevertheless crashed when starting its repeating preview
+request: CameraService returned `submitRequestList:337: Invalid camera request
+settings` (`ServiceSpecificException`, code 3). This proves that rewriting the
+connect ID alone is insufficient: the application selected stream dimensions
+and request state using target-0 characteristics, while the opened device was
+physical-1. Physical routing therefore remains experimental until
+characteristics, stream combinations and request metadata are kept consistent
+with the routed source. The device was returned to stock, all temporary runtime
+files were removed, and PID `27660` remained stable for 12 seconds.
+
 Do not mount the r23 `libcameraservice.so` over the stock library. The likely
 failure modes are a cameraserver dynamic-link failure, virtual-call ABI
 mismatch or an OEM camera feature crash. Any future runtime activation also

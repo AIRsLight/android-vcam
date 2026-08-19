@@ -88,9 +88,12 @@ candidate, not proof that Nubia used an unmodified r1 tree.
 - Read-only maps, target-byte and thread-inventory preflight: complete in
   host/ARM builds; not yet executed inside the device cameraserver.
 - Runtime route test: not started.
-- Portable bootstrap stock-mode test: package built; installation pending.
-- Runtime routing installation on this fingerprint: blocked until stock-mode
-  bootstrap and read-only preflight pass on device.
+- Portable bootstrap stock-mode test: passed on device, including the OEM camera
+  app opening Camera 0 with live preview.
+- Read-only in-process Binder preflight: passed on device.
+- Same-process Binder pass-through registration: passed on device with dumpsys
+  and the OEM camera app; no Parcel routing or frame replacement enabled.
+- Runtime visual route test: not started.
 
 ## Portable bootstrap delivery
 
@@ -136,6 +139,27 @@ also requires one PID and the exact `media.camera: found` result to remain
 stable for 10 seconds. On failure it disables the module, binds the captured
 stock executable over the launcher and requests a cameraserver restart for
 same-boot recovery.
+
+After correcting the policy syntax, stock mode kept one cameraserver PID stable
+for more than 10 seconds. The process executable was the captured
+`/system/bin/vcam/cameraserver`, its domain remained
+`u:r:cameraserver:s0`, CameraService enumerated all five IDs, and the OEM camera
+opened Camera 0 with 4080x3060 JPEG plus 1440x1080 preview streams.
+
+Bootstrap control was then moved away from inaccessible vendor camera data:
+the read-only mode file is `/system/etc/android_vcam/bootstrap.mode`, while the
+per-boot circuit breaker is `/dev/vcam/bootstrap.pending` under a
+`cameraserver_tmpfs` directory. In `preflight`, the router DSO appeared in the
+stock cameraserver maps, verified the local `android.hardware.ICameraService`
+Binder and cleared the pending marker without replacing the registration. The
+same OEM camera test passed.
+
+In explicit `passthrough`, the router replaced the `media.camera` registration
+with its same-process `BBinder`, verified that ServiceManager returned the new
+object, and cleared the marker. `dumpsys media.camera` traversed the proxy,
+reported all five devices, and the OEM camera again opened Camera 0 without a
+PID change or CameraService error trace. The device was returned to `stock`
+mode after qualification; the router DSO is no longer mapped.
 
 An inactive runtime ABI recipe now exists at
 `runtime/recipes/nx769j-ukq1-20240417.tsv`. It pins the OEM file identity plus the

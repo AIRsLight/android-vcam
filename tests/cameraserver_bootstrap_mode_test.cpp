@@ -15,6 +15,8 @@ int main() {
            CameraServerBootstrapMode::kPreflight);
     assert(parseCameraServerBootstrapMode("passthrough") ==
            CameraServerBootstrapMode::kPassThrough);
+    assert(parseCameraServerBootstrapMode("physical-route") ==
+           CameraServerBootstrapMode::kPhysicalRoute);
     assert(parseCameraServerBootstrapMode("disabled") ==
            CameraServerBootstrapMode::kInvalid);
 
@@ -26,6 +28,9 @@ int main() {
     assert(std::strcmp(cameraServerBootstrapModeName(
                                CameraServerBootstrapMode::kPassThrough),
                        "passthrough") == 0);
+    assert(std::strcmp(cameraServerBootstrapModeName(
+                               CameraServerBootstrapMode::kPhysicalRoute),
+                       "physical-route") == 0);
     assert(std::strcmp(cameraServerBootstrapModeName(CameraServerBootstrapMode::kInvalid),
                        "invalid") == 0);
     return 0;

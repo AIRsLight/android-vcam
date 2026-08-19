@@ -38,7 +38,7 @@ actual_stock="$(sha256sum "$STOCK" 2>/dev/null | awk '{print $1}')"
 [ -r "$ROUTER" ] || fail_bootstrap "router library missing"
 configured_mode="$(sed -n '1p' "$MODE" 2>/dev/null)"
 case "$configured_mode" in
-    stock|preflight|passthrough) ;;
+    stock|preflight|passthrough|physical-route) ;;
     *) fail_bootstrap "invalid bootstrap mode: $configured_mode" ;;
 esac
 

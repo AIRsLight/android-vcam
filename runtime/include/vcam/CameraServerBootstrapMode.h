@@ -6,6 +6,7 @@ enum class CameraServerBootstrapMode {
     kStock = 0,
     kPreflight,
     kPassThrough,
+    kPhysicalRoute,
     kInvalid,
 };
 

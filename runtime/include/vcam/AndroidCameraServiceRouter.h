@@ -9,6 +9,7 @@ enum class AndroidCameraServiceRouterState {
     kWaitingForService,
     kPreflightReady,
     kPassThroughReady,
+    kPhysicalRouteReady,
     kDisabled,
     kInvalidMode,
     kThreadStartFailed,

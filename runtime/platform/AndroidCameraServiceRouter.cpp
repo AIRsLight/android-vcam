@@ -1,6 +1,7 @@
 #define LOG_TAG "VcamCameraRouter"
 
 #include "vcam/Android14BinderShadowObserver.h"
+#include "vcam/Android14CameraIdRewriter.h"
 #include "vcam/Android14CameraServiceProfile.h"
 #include "vcam/AndroidCameraServiceRouter.h"
 #include "vcam/CameraServerBootstrapPaths.h"
@@ -57,6 +58,9 @@ std::atomic<std::uint64_t> gPackageRouteCandidates {0};
 std::atomic<std::uint64_t> gGlobalRouteCandidates {0};
 std::atomic<std::uint64_t> gPhysicalRouteDecisions {0};
 std::atomic<std::uint64_t> gUnavailableRouteProviders {0};
+std::atomic<std::uint64_t> gPhysicalRewriteAttempts {0};
+std::atomic<std::uint64_t> gPhysicalRewriteSuccesses {0};
+std::atomic<std::uint64_t> gPhysicalRewriteFailures {0};
 
 std::string buildFingerprint() {
     char value[PROP_VALUE_MAX] {};
@@ -72,7 +76,7 @@ void* statsPublisher(void*) {
         const Android14ShadowObservationStats stats = observer == nullptr
                 ? Android14ShadowObservationStats {}
                 : observer->stats();
-        char payload[768] {};
+        char payload[1024] {};
         const int length = std::snprintf(
                 payload,
                 sizeof(payload),
@@ -96,7 +100,10 @@ void* statsPublisher(void*) {
                 "route_candidates_package=%llu\n"
                 "route_candidates_global=%llu\n"
                 "route_decisions_physical=%llu\n"
-                "route_providers_unavailable=%llu\n",
+                "route_providers_unavailable=%llu\n"
+                "physical_rewrite_attempts=%llu\n"
+                "physical_rewrite_successes=%llu\n"
+                "physical_rewrite_failures=%llu\n",
                 androidCameraServiceRouterStateName(
                         gState.load(std::memory_order_acquire)),
                 gObserverProfile.load(std::memory_order_acquire),
@@ -132,7 +139,13 @@ void* statsPublisher(void*) {
                         gPhysicalRouteDecisions.load(std::memory_order_relaxed)),
                 static_cast<unsigned long long>(
                         gUnavailableRouteProviders.load(
-                                std::memory_order_relaxed)));
+                                std::memory_order_relaxed)),
+                static_cast<unsigned long long>(
+                        gPhysicalRewriteAttempts.load(std::memory_order_relaxed)),
+                static_cast<unsigned long long>(
+                        gPhysicalRewriteSuccesses.load(std::memory_order_relaxed)),
+                static_cast<unsigned long long>(
+                        gPhysicalRewriteFailures.load(std::memory_order_relaxed)));
         if (length > 0 && static_cast<std::size_t>(length) < sizeof(payload)) {
             const int fd = open(
                     bootstrap::kRouterStatsPath,
@@ -166,8 +179,11 @@ class CameraServicePassThrough final : public android::BBinder {
 public:
     CameraServicePassThrough(
             android::sp<android::IBinder> target,
-            AbiRecipe observationRecipe)
-        : target_(std::move(target)), observer_(std::move(observationRecipe)) {
+            AbiRecipe observationRecipe,
+            bool physicalRoutingEnabled)
+        : target_(std::move(target)),
+          observer_(std::move(observationRecipe)),
+          physicalRoutingEnabled_(physicalRoutingEnabled) {
         gShadowObserver.store(&observer_, std::memory_order_release);
     }
 
@@ -191,6 +207,7 @@ protected:
                         observation.callingPid,
                         observation.packageName);
         std::string verifiedPackage;
+        std::string physicalReplacementCameraId;
         const bool routesConfigured = access(kRuntimeRoutesPath, R_OK) == 0;
         if (observation.status == ParcelObservationStatus::kObserved &&
             identity.kind == CameraCallerIdentityKind::kClaimedPackage) {
@@ -256,7 +273,29 @@ protected:
             } else {
                 gPhysicalRouteDecisions.fetch_add(
                         1, std::memory_order_relaxed);
+                const int physicalId =
+                        ::vcam::RouteResolver::physicalIdFromProvider(
+                                route.providerId);
+                if (route.configured && physicalId >= 0 &&
+                    std::to_string(physicalId) != observation.cameraId) {
+                    physicalReplacementCameraId = std::to_string(physicalId);
+                }
             }
+        }
+        if (physicalRoutingEnabled_ && !physicalReplacementCameraId.empty()) {
+            gPhysicalRewriteAttempts.fetch_add(1, std::memory_order_relaxed);
+            android::Parcel rewritten;
+            const CameraIdRewriteStatus rewriteStatus =
+                    rewriteAndroid14CameraIdSameWidth(
+                            observation,
+                            physicalReplacementCameraId,
+                            data,
+                            &rewritten);
+            if (rewriteStatus == CameraIdRewriteStatus::kRewritten) {
+                gPhysicalRewriteSuccesses.fetch_add(1, std::memory_order_relaxed);
+                return target_->transact(code, rewritten, reply, flags);
+            }
+            gPhysicalRewriteFailures.fetch_add(1, std::memory_order_relaxed);
         }
         // target_ is a local BBinder in this process. Calling transact() here
         // reaches its onTransact() directly without a nested Binder driver call,
@@ -268,6 +307,7 @@ private:
     const android::sp<android::IBinder> target_;
     Android14BinderShadowObserver observer_;
     android::PermissionController permissionController_;
+    const bool physicalRoutingEnabled_;
 };
 
 void setTerminalState(AndroidCameraServiceRouterState state, const char* detail) {
@@ -275,7 +315,8 @@ void setTerminalState(AndroidCameraServiceRouterState state, const char* detail)
     ALOGI("router state=%s detail=%s",
           androidCameraServiceRouterStateName(state), detail);
     if (state == AndroidCameraServiceRouterState::kPreflightReady ||
-        state == AndroidCameraServiceRouterState::kPassThroughReady) {
+        state == AndroidCameraServiceRouterState::kPassThroughReady ||
+        state == AndroidCameraServiceRouterState::kPhysicalRouteReady) {
         if (unlink(bootstrap::kPendingPath) != 0 && errno != ENOENT) {
             ALOGE("could not clear successful bootstrap marker: errno=%d", errno);
         }
@@ -353,7 +394,9 @@ void* routerMonitor(void*) {
     }
     android::sp<android::IBinder> router =
             android::sp<CameraServicePassThrough>::make(
-                    original, std::move(observationRecipe));
+                    original,
+                    std::move(observationRecipe),
+                    mode == CameraServiceRouterMode::kPhysicalRoute);
     const android::status_t registration = manager->addService(
             serviceName,
             router,
@@ -372,8 +415,14 @@ void* routerMonitor(void*) {
         return nullptr;
     }
     gRouterService = std::move(router);
-    setTerminalState(AndroidCameraServiceRouterState::kPassThroughReady,
-                     "media.camera now forwards to the original local Binder");
+    if (mode == CameraServiceRouterMode::kPhysicalRoute) {
+        setTerminalState(
+                AndroidCameraServiceRouterState::kPhysicalRouteReady,
+                "media.camera allows qualified same-width physical ID routing");
+    } else {
+        setTerminalState(AndroidCameraServiceRouterState::kPassThroughReady,
+                         "media.camera now forwards to the original local Binder");
+    }
     startStatsPublisher();
     return nullptr;
 }
@@ -401,6 +450,8 @@ const char* androidCameraServiceRouterStateName(
             return "preflight_ready";
         case AndroidCameraServiceRouterState::kPassThroughReady:
             return "passthrough_ready";
+        case AndroidCameraServiceRouterState::kPhysicalRouteReady:
+            return "physical_route_ready";
         case AndroidCameraServiceRouterState::kDisabled: return "disabled";
         case AndroidCameraServiceRouterState::kInvalidMode: return "invalid_mode";
         case AndroidCameraServiceRouterState::kThreadStartFailed:

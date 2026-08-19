@@ -14,6 +14,9 @@ CameraServerBootstrapMode parseCameraServerBootstrapMode(const char* value) noex
     if (std::strcmp(value, "passthrough") == 0) {
         return CameraServerBootstrapMode::kPassThrough;
     }
+    if (std::strcmp(value, "physical-route") == 0) {
+        return CameraServerBootstrapMode::kPhysicalRoute;
+    }
     return CameraServerBootstrapMode::kInvalid;
 }
 
@@ -22,6 +25,7 @@ const char* cameraServerBootstrapModeName(CameraServerBootstrapMode mode) noexce
         case CameraServerBootstrapMode::kStock: return "stock";
         case CameraServerBootstrapMode::kPreflight: return "preflight";
         case CameraServerBootstrapMode::kPassThrough: return "passthrough";
+        case CameraServerBootstrapMode::kPhysicalRoute: return "physical-route";
         case CameraServerBootstrapMode::kInvalid: return "invalid";
     }
     return "invalid";

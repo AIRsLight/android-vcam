@@ -171,6 +171,8 @@ int main(int, char* argv[]) {
     const char* routerMode =
             mode == vcam::runtime::CameraServerBootstrapMode::kPreflight
             ? "preflight"
+            : mode == vcam::runtime::CameraServerBootstrapMode::kPhysicalRoute
+            ? "physical-route"
             : "passthrough";
     if (setenv("VCAM_BINDER_ROUTER_MODE", routerMode, 1) != 0 ||
         setenv("LD_PRELOAD", vcam::runtime::bootstrap::kRouterLibraryPath, 1) != 0) {

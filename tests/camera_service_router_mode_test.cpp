@@ -16,6 +16,8 @@ int main() {
            CameraServiceRouterMode::kPreflight);
     assert(parseCameraServiceRouterMode("passthrough") ==
            CameraServiceRouterMode::kPassThrough);
+    assert(parseCameraServiceRouterMode("physical-route") ==
+           CameraServiceRouterMode::kPhysicalRoute);
     assert(parseCameraServiceRouterMode("disabled") ==
            CameraServiceRouterMode::kDisabled);
     assert(parseCameraServiceRouterMode("route") ==
@@ -27,6 +29,9 @@ int main() {
     assert(std::strcmp(cameraServiceRouterModeName(
                                CameraServiceRouterMode::kPassThrough),
                        "passthrough") == 0);
+    assert(std::strcmp(cameraServiceRouterModeName(
+                               CameraServiceRouterMode::kPhysicalRoute),
+                       "physical-route") == 0);
     assert(std::strcmp(cameraServiceRouterModeName(
                                CameraServiceRouterMode::kDisabled),
                        "disabled") == 0);

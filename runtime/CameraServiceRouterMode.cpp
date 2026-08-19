@@ -11,6 +11,9 @@ CameraServiceRouterMode parseCameraServiceRouterMode(const char* value) noexcept
     if (std::strcmp(value, "passthrough") == 0) {
         return CameraServiceRouterMode::kPassThrough;
     }
+    if (std::strcmp(value, "physical-route") == 0) {
+        return CameraServiceRouterMode::kPhysicalRoute;
+    }
     if (std::strcmp(value, "disabled") == 0) {
         return CameraServiceRouterMode::kDisabled;
     }
@@ -21,6 +24,7 @@ const char* cameraServiceRouterModeName(CameraServiceRouterMode mode) noexcept {
     switch (mode) {
         case CameraServiceRouterMode::kPreflight: return "preflight";
         case CameraServiceRouterMode::kPassThrough: return "passthrough";
+        case CameraServiceRouterMode::kPhysicalRoute: return "physical-route";
         case CameraServiceRouterMode::kDisabled: return "disabled";
         case CameraServiceRouterMode::kInvalid: return "invalid";
     }

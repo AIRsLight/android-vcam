@@ -3,6 +3,7 @@ VCAM_AGENT_1.0 {
         vcam_cameraserver_agent_validate;
         vcam_cameraserver_agent_plan;
         vcam_cameraserver_agent_preflight;
+        vcam_cameraserver_agent_signal_preflight;
     local:
         *;
 };

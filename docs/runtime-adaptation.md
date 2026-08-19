@@ -22,13 +22,16 @@ SDK level, device model or symbol name alone is not sufficient. Recipes are
 immutable build identities, not broad device-family rules.
 
 The current `libvcam_cameraserver_agent.so` exposes validation, planning and
-read-only preflight entry points. `vcam_cameraserver_agent_plan()` produces an
+read-only activation/signal preflight entry points. `vcam_cameraserver_agent_plan()` produces an
 internal byte plan against the pass-through bridge and requires an exact
 precompiled trampoline, while
 `vcam_cameraserver_agent_preflight()` repeats those gates and inspects current
 process state. None changes page permissions, allocates executable memory,
 stops a thread or writes code. The library has no constructor side effects or
 activation entry point, so loading it alone cannot alter camera traffic.
+`vcam_cameraserver_agent_signal_preflight()` additionally searches for a
+currently default, unblocked and non-pending real-time signal, but does not
+install its handler or send that signal.
 
 ## Recipe format
 
@@ -153,10 +156,40 @@ fails closed and triggers an idempotent resume. This closes the ordinary
 enumerate/park race: once every observed peer is parked and a final inventory
 is identical, no parked peer can create another process thread.
 
-The backend remains injected. There is no installed signal handler, chosen
-real-time signal, `tgkill`, futex wait/wake or live `/proc` enumerator in this
-milestone. Consequently these tests prove state ordering and recovery behavior,
-not that an OEM cameraserver can yet be stopped safely.
+The backend remains injected, so the coordinator tests prove state ordering and
+recovery behavior independently of any OS mechanism.
+
+## Android ARM64 signal/futex backend
+
+An explicit Android ARM64 backend now implements that injected contract without
+enabling agent activation. Its read-only eligibility pass requires a real-time
+signal whose `sigaction` disposition is still `SIG_DFL`, whose bit is absent
+from every thread's `SigBlk` and `SigPnd`, and whose process `ShdPnd` bit is
+clear. The thread inventory must be identical before and after those status
+reads. Selection scans from `SIGRTMAX` downward and fails if no signal meets all
+conditions.
+
+`prepare()` claims one process-global backend owner, repeats eligibility,
+installs and verifies a `SA_SIGINFO` handler, and initializes 1024 fixed atomic
+slots. The exclusive path enumerates `/proc/self/task` through raw
+`openat/getdents64` syscalls, assigns one slot before each `tgkill`, and waits on
+futex sequence words. The handler records the interrupted ARM64
+`ucontext.pc`, publishes its epoch and sleeps on a release futex. Resume is
+idempotent, wakes all handlers and waits for their count to reach zero before
+the signal disposition can be restored.
+
+The ARM64 source is compiled with outline atomics disabled. Binary inspection
+confirms the handler contains inline `LDAXR/STLXR`, loads/stores and `SVC #0`
+only; it has no allocator, pthread, libc `syscall()` or atomic-helper call. The
+standalone device test creates live worker threads, proves their counters stop
+inside the exclusive window and resume afterward, then deliberately parks a
+thread whose PC is inside the protected range and requires fail-closed recovery.
+That executable has been built but still requires an Android ARM64 device run.
+
+The cameraserver agent links the backend for read-only signal qualification but
+has no exported operation that calls `prepare()`. No handler is installed and
+no signal is sent merely by loading or preflighting the agent. Page-permission
+changes, target writes and complete live activation remain absent.
 
 ## Read-only activation preflight
 

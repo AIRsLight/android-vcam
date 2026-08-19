@@ -1,3 +1,4 @@
+#include "vcam/AndroidSignalQuiescenceBackend.h"
 #include "vcam/RuntimeAbiGuard.h"
 #include "vcam/BinderPassThroughBridge.h"
 #include "vcam/CameraServerAgent.h"
@@ -118,4 +119,18 @@ extern "C" __attribute__((visibility("default"))) int vcam_cameraserver_agent_pr
                     : preflight.message,
             message, messageCapacity);
     return preflight ? 0 : 5000 + static_cast<int>(preflight.status);
+}
+
+extern "C" __attribute__((visibility("default"))) int
+vcam_cameraserver_agent_signal_preflight(
+        const char* recipePath, char* message, std::size_t messageCapacity) {
+    const int activationStatus = vcam_cameraserver_agent_preflight(
+            recipePath, message, messageCapacity);
+    if (activationStatus != 0) {
+        return activationStatus;
+    }
+    const vcam::runtime::SignalEligibilityResult signal =
+            vcam::runtime::selectEligibleRealtimeSignal();
+    copyMessage(signal.message, message, messageCapacity);
+    return signal ? 0 : 7000 + static_cast<int>(signal.status);
 }

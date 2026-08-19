@@ -10,6 +10,7 @@ add_library(vcam_runtime_abi_guard STATIC
     Arm64PatchPlanner.cpp
     BinderPassThroughBridge.cpp
     BinderTransactionClassifier.cpp
+    platform/AndroidSignalQuiescenceBackend.cpp
     RuntimeAbiGuard.cpp
     RuntimeActivationPreflight.cpp
     RuntimeHookStrategy.cpp
@@ -36,6 +37,9 @@ if(ANDROID AND ANDROID_ABI STREQUAL "arm64-v8a")
     target_sources(vcam_runtime_abi_guard PRIVATE
         arch/arm64/Nx769jOnTransactTrampoline.S
     )
-    target_compile_options(vcam_runtime_abi_guard PRIVATE -mbranch-protection=standard)
+    target_compile_options(vcam_runtime_abi_guard PRIVATE
+        -mbranch-protection=standard
+        -mno-outline-atomics
+    )
     target_compile_options(vcam_cameraserver_agent PRIVATE -mbranch-protection=standard)
 endif()

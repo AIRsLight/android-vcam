@@ -57,6 +57,8 @@ def main() -> None:
         ROOT / "tools" / "verify-aosp14-build.sh",
         ROOT / "tools" / "sync-aosp14-build-deps.sh",
         ROOT / "tools" / "probe-device.ps1",
+        ROOT / "tools" / "run-signal-quiescence-device-test.ps1",
+        ROOT / "tools" / "verify-arm64-signal-handler.ps1",
         ROOT / "docs" / "device-support.md",
         ROOT / "docs" / "device-profiles" / "nx769j-android14.md",
         ROOT / "docs" / "milestones.md",
@@ -81,6 +83,16 @@ def main() -> None:
     if "-UNDEBUG" not in host_cmake or "route_resolver_test" not in host_cmake or \
             "scoped_camera_router_test" not in host_cmake:
         fail("native assertions or route resolver test are not enabled")
+
+    runtime_exports = (ROOT / "runtime" / "exports.map").read_text(encoding="utf-8")
+    for required_symbol in (
+        "vcam_cameraserver_agent_validate",
+        "vcam_cameraserver_agent_plan",
+        "vcam_cameraserver_agent_preflight",
+        "vcam_cameraserver_agent_signal_preflight",
+    ):
+        if required_symbol not in runtime_exports:
+            fail(f"runtime agent export is missing: {required_symbol}")
 
     module = (ROOT / "apmodule" / "module.prop").read_text(encoding="utf-8")
     if not re.search(r"^id=android_vcam$", module, re.MULTILINE):

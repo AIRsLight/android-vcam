@@ -110,6 +110,44 @@ cc_test {
 }
 
 cc_library_static {
+    name: "libvcam_android_signal_quiescence",
+    host_supported: true,
+    compile_multilib: "64",
+    srcs: ["runtime/platform/AndroidSignalQuiescenceBackend.cpp"],
+    local_include_dirs: ["runtime/include"],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    arch: {
+        arm64: {
+            cflags: ["-mno-outline-atomics"],
+        },
+    },
+    cpp_std: "c++17",
+}
+
+cc_test {
+    name: "vcam_android_signal_quiescence_backend_test",
+    host_supported: true,
+    compile_multilib: "64",
+    srcs: ["tests/android_signal_quiescence_backend_test.cpp"],
+    local_include_dirs: ["runtime/include"],
+    static_libs: [
+        "libvcam_android_signal_quiescence",
+        "libvcam_thread_quiescence",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-UNDEBUG",
+    ],
+    cpp_std: "c++17",
+}
+
+cc_library_static {
     name: "libvcam_arm64_patch_transaction",
     host_supported: true,
     srcs: [

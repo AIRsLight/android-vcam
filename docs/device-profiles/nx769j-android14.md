@@ -79,8 +79,11 @@ candidate, not proof that Nubia used an unmodified r1 tree.
 - Exact-recipe precompiled ARM64 trampoline: complete offline; embedded in the
   agent text and disassembly-verified, but not bound or installed at runtime.
 - Thread-quiescence state machine: complete with an injected backend, including
-  target-PC rejection, new-thread stabilization, timeouts and resume failures;
-  no Android signal/futex backend is installed.
+  target-PC rejection, new-thread stabilization, timeouts and resume failures.
+- Android ARM64 signal/futex backend and device test: compiled and
+  disassembly-audited; standalone on-device execution is pending. The
+  cameraserver agent exposes only read-only signal qualification and never
+  installs the handler.
 - Read-only maps, target-byte and thread-inventory preflight: complete in
   host/ARM builds; not yet executed inside the device cameraserver.
 - Runtime route test: not started.

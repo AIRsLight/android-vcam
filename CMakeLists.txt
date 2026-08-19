@@ -99,6 +99,14 @@ if(UNIX)
     add_test(NAME thread_quiescence_coordinator_test
         COMMAND thread_quiescence_coordinator_test)
 
+    add_executable(android_signal_quiescence_backend_test
+        tests/android_signal_quiescence_backend_test.cpp)
+    target_link_libraries(android_signal_quiescence_backend_test
+        PRIVATE vcam_runtime_abi_guard)
+    target_compile_options(android_signal_quiescence_backend_test PRIVATE -UNDEBUG)
+    add_test(NAME android_signal_quiescence_backend_test
+        COMMAND android_signal_quiescence_backend_test)
+
     add_executable(binder_pass_through_bridge_test
         tests/binder_pass_through_bridge_test.cpp)
     target_link_libraries(binder_pass_through_bridge_test PRIVATE vcam_runtime_abi_guard)

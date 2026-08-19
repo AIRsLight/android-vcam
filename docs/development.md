@@ -123,6 +123,21 @@ tools/verify-aosp14-build.sh \
 If the builder needs a proxy, append `--proxy-url http://host:port` to the
 dependency synchronization command. The proxy is exported only for that run.
 
+Before any cameraserver experiment, run the isolated ARM64 signal-quiescence
+test as an ordinary shell process. It installs a handler only inside the test
+process, parks four owned worker threads, checks counter stability and target-PC
+rejection, restores the original signal disposition and removes the temporary
+binary:
+
+```powershell
+pwsh -File tools/verify-arm64-signal-handler.ps1
+pwsh -File tools/run-signal-quiescence-device-test.ps1
+```
+
+Passing this test qualifies the kernel/libc signal and futex mechanics only. It
+does not authorize agent injection, cameraserver suspension or executable-page
+modification.
+
 ## Recovery
 
 If Android boots, disable `android_vcam` in APatch and reboot. If it does not,

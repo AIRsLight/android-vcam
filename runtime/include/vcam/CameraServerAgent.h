@@ -20,6 +20,12 @@ int vcam_cameraserver_agent_plan(
 int vcam_cameraserver_agent_preflight(
         const char* recipePath, char* message, size_t messageCapacity);
 
+// Repeats the complete read-only activation preflight, then finds a currently
+// default, unblocked and non-pending real-time signal across the stable thread
+// inventory. It does not install a handler or send a signal.
+int vcam_cameraserver_agent_signal_preflight(
+        const char* recipePath, char* message, size_t messageCapacity);
+
 #ifdef __cplusplus
 }
 #endif

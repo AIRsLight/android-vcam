@@ -11,6 +11,7 @@ firmware build and does not qualify other NX769J releases.
 | SDK / release | 34 / Android 14 |
 | Platform | Qualcomm `pineapple` / arm64-v8a |
 | Root delivery | KernelSU |
+| KernelSU userspace | `ksud 3.2.4` with `meta-overlayfs 1.3.1` |
 | SELinux | Enforcing |
 | Reported physical camera count | 4 |
 | Under-screen camera feature | true |
@@ -87,7 +88,40 @@ candidate, not proof that Nubia used an unmodified r1 tree.
 - Read-only maps, target-byte and thread-inventory preflight: complete in
   host/ARM builds; not yet executed inside the device cameraserver.
 - Runtime route test: not started.
-- Installation on this fingerprint: blocked.
+- Portable bootstrap stock-mode test: package built; installation pending.
+- Runtime routing installation on this fingerprint: blocked until stock-mode
+  bootstrap and read-only preflight pass on device.
+
+## Portable bootstrap delivery
+
+KernelSU 3.x delegates system overlays to a metamodule. Before installing one,
+the existing regular module trees were present under `/data/adb/modules` but no
+module system files appeared in `/system`. The official `meta-overlayfs 1.3.1`
+package (release SHA-256
+`279d85a6a35724dfcf8aa1137a9630c7e989e154b94543517c539ee70f9b8811`)
+is now installed and its ext4 module image mounts successfully. Regular modules
+created before the KernelSU 3.x migration were not copied into that image and
+must be reinstalled separately.
+
+The first VCAM package uses a dedicated `android_vcam_portable` module ID and
+ships no `bootstrap.mode`, so the launcher always removes loader variables and
+executes the captured physical cameraserver. Installation captures and hashes
+the exact `/system/bin/cameraserver` before the overlay is activated. At
+post-mount, the module verifies launcher and stock hashes plus both
+`cameraserver_exec` labels; a failure disables the module and bind-mounts the
+captured stock executable over the launcher for the current boot.
+
+Device preflight on 2026-08-19 confirmed:
+
+- stock executable SHA-256
+  `4f5d5ff72cf91a4401d9bb5f8a69c06093d82865e59e4d86d2bd950c92bd0082`;
+- stock file label `u:object_r:cameraserver_exec:s0` and process domain
+  `u:r:cameraserver:s0`;
+- the system linker namespace searches `/system/${LIB}`, and its `--list` mode
+  resolves every dependency of both ARM64 bootstrap artifacts on the OEM ROM;
+- `/system/bin/vcam/cameraserver` and
+  `/system/lib64/libvcam_cameraserver_router.so` have no existing path
+  collisions.
 
 An inactive runtime ABI recipe now exists at
 `runtime/recipes/nx769j-ukq1-20240417.tsv`. It pins the OEM file identity plus the

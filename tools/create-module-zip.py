@@ -10,6 +10,7 @@ import zipfile
 EXECUTABLE_NAMES = {
     "action.sh",
     "boot-completed.sh",
+    "cameraserver",
     "customize.sh",
     "post-mount.sh",
     "provider-runner.sh",
@@ -18,6 +19,7 @@ EXECUTABLE_NAMES = {
     "vcam-publisher",
     "vcam-streamer",
     "vcamd",
+    "vcam_cameraserver_launcher",
 }
 
 

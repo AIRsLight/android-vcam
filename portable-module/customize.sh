@@ -45,6 +45,8 @@ printf '%s  %s\n' "$launcher_hash" "/system/bin/cameraserver" > "$MODPATH/launch
 set_perm "$launcher" 0 2000 0755
 set_perm "$stock" 0 2000 0755
 set_perm "$router" 0 0 0644
+set_perm "$MODPATH/post-mount.sh" 0 0 0755
+set_perm "$MODPATH/service.sh" 0 0 0755
 chcon u:object_r:cameraserver_exec:s0 "$launcher" "$stock" || \
     abort "! Unable to label cameraserver executables"
 chcon u:object_r:system_file:s0 "$router" || abort "! Unable to label router library"

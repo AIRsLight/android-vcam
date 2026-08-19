@@ -57,7 +57,7 @@ Copy-Item -LiteralPath $launcherInput -Destination $launcherDestination -Force
 Copy-Item -LiteralPath $routerInput -Destination $routerDestination -Force
 Get-ChildItem -LiteralPath $staging -Recurse -Filter .gitkeep | Remove-Item -Force
 
-$zip = Join-Path $dist "android-vcam-portable-bootstrap-v0.5.0-dev.zip"
+$zip = Join-Path $dist "android-vcam-portable-bootstrap-v0.5.0-dev.1.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 & $Python (Join-Path $PSScriptRoot "create-module-zip.py") $staging $zip
 if ($LASTEXITCODE -ne 0) { throw "Portable module ZIP creation failed" }

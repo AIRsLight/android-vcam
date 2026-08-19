@@ -66,6 +66,7 @@ def main() -> None:
         ROOT / "portable-module" / "customize.sh",
         ROOT / "portable-module" / "post-mount.sh",
         ROOT / "portable-module" / "service.sh",
+        ROOT / "portable-module" / "sepolicy.rule",
         ROOT / "tools" / "run-signal-quiescence-device-test.ps1",
         ROOT / "tools" / "verify-arm64-signal-handler.ps1",
         ROOT / "docs" / "portable-integration-strategy.md",

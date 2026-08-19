@@ -51,6 +51,17 @@ public:
         return entered_;
     }
 
+    bool leave() {
+        if (!entered_) {
+            return true;
+        }
+        if (!backend_.leaveExclusiveWindow(backend_.context)) {
+            return false;
+        }
+        entered_ = false;
+        return true;
+    }
+
 private:
     const PatchInstallBackend& backend_;
     bool entered_ = false;
@@ -197,62 +208,77 @@ PatchInstallResult Arm64PatchInstallTransaction::commit() noexcept {
         return result(PatchInstallStatus::kCoordinationFailed,
                       "exclusive patch window was not acquired");
     }
+    const auto finishExclusive = [&](PatchInstallResult outcome) noexcept {
+        if (exclusive.leave()) {
+            return outcome;
+        }
+        state_ = PatchInstallState::kFailed;
+        return result(PatchInstallStatus::kCoordinationReleaseFailed,
+                      "exclusive patch window could not release every peer thread");
+    };
 
     if (!backend_.readMemory(
                 backend_.context, targetAddress_, revalidationBuffer_.data(),
                 revalidationBuffer_.size())) {
         state_ = PatchInstallState::kFailed;
-        return result(PatchInstallStatus::kReadFailed,
-                      "could not revalidate target bytes inside exclusive window");
+        return finishExclusive(result(
+                PatchInstallStatus::kReadFailed,
+                "could not revalidate target bytes inside exclusive window"));
     }
     if (revalidationBuffer_ != plan_.originalBytes) {
         state_ = PatchInstallState::kFailed;
-        return result(PatchInstallStatus::kTargetMismatch,
-                      "target changed between prepare and commit");
+        return finishExclusive(result(
+                PatchInstallStatus::kTargetMismatch,
+                "target changed between prepare and commit"));
     }
     if (usesPrecompiledTrampoline_) {
         if (!precompiledTrampoline_.bindResumeAddress(
                     precompiledTrampoline_.context, plan_.resumeAddress)) {
             state_ = PatchInstallState::kFailed;
-            return result(PatchInstallStatus::kTrampolineBindFailed,
-                          "precompiled trampoline rejected the resume address");
+            return finishExclusive(result(
+                    PatchInstallStatus::kTrampolineBindFailed,
+                    "precompiled trampoline rejected the resume address"));
         }
     } else {
         if (!backend_.writeMemory(
                     backend_.context, trampolineAddress_, plan_.trampoline.data(),
                     plan_.trampoline.size())) {
             state_ = PatchInstallState::kFailed;
-            return result(PatchInstallStatus::kTrampolineWriteFailed,
-                          "trampoline write failed before target modification");
+            return finishExclusive(result(
+                    PatchInstallStatus::kTrampolineWriteFailed,
+                    "trampoline write failed before target modification"));
         }
         if (!backend_.synchronizeInstructionCache(
                     backend_.context, trampolineAddress_, plan_.trampoline.size())) {
             state_ = PatchInstallState::kFailed;
-            return result(PatchInstallStatus::kCacheSyncFailed,
-                          "trampoline cache synchronization failed before target modification");
+            return finishExclusive(result(
+                    PatchInstallStatus::kCacheSyncFailed,
+                    "trampoline cache synchronization failed before target modification"));
         }
     }
     if (!backend_.publishOriginalTrampoline(backend_.context, trampolineAddress_)) {
         state_ = PatchInstallState::kFailed;
-        return result(PatchInstallStatus::kPublishFailed,
-                      "original trampoline publication failed before target modification");
+        return finishExclusive(result(
+                PatchInstallStatus::kPublishFailed,
+                "original trampoline publication failed before target modification"));
     }
     if (!backend_.writeMemory(
                 backend_.context, targetAddress_, plan_.entryPatch.data(),
                 plan_.entryPatch.size())) {
-        return automaticRollback(
+        return finishExclusive(automaticRollback(
                 "entry patch write failed; original bytes restored",
-                "entry patch write failed and automatic rollback failed");
+                "entry patch write failed and automatic rollback failed"));
     }
     if (!backend_.synchronizeInstructionCache(
                 backend_.context, targetAddress_, plan_.entryPatch.size())) {
-        return automaticRollback(
+        return finishExclusive(automaticRollback(
                 "entry cache synchronization failed; original bytes restored",
-                "entry cache synchronization and automatic rollback failed");
+                "entry cache synchronization and automatic rollback failed"));
     }
     state_ = PatchInstallState::kCommitted;
-    return result(PatchInstallStatus::kOk,
-                  "entry patch committed inside the exclusive window");
+    return finishExclusive(result(
+            PatchInstallStatus::kOk,
+            "entry patch committed inside the exclusive window"));
 }
 
 PatchInstallResult Arm64PatchInstallTransaction::rollback() noexcept {
@@ -265,33 +291,46 @@ PatchInstallResult Arm64PatchInstallTransaction::rollback() noexcept {
         return result(PatchInstallStatus::kCoordinationFailed,
                       "exclusive rollback window was not acquired");
     }
+    const auto finishExclusive = [&](PatchInstallResult outcome) noexcept {
+        if (exclusive.leave()) {
+            return outcome;
+        }
+        state_ = PatchInstallState::kFailed;
+        return result(PatchInstallStatus::kCoordinationReleaseFailed,
+                      "exclusive rollback window could not release every peer thread");
+    };
     if (!backend_.readMemory(
                 backend_.context, targetAddress_, revalidationBuffer_.data(),
                 revalidationBuffer_.size())) {
-        return result(PatchInstallStatus::kReadFailed,
-                      "could not verify entry patch before rollback");
+        return finishExclusive(result(
+                PatchInstallStatus::kReadFailed,
+                "could not verify entry patch before rollback"));
     }
     if (revalidationBuffer_ != plan_.entryPatch) {
         state_ = PatchInstallState::kFailed;
-        return result(PatchInstallStatus::kRollbackTargetMismatch,
-                      "target no longer contains this transaction's entry patch");
+        return finishExclusive(result(
+                PatchInstallStatus::kRollbackTargetMismatch,
+                "target no longer contains this transaction's entry patch"));
     }
     if (!backend_.writeMemory(
                 backend_.context, targetAddress_, plan_.originalBytes.data(),
                 plan_.originalBytes.size())) {
         state_ = PatchInstallState::kFailed;
-        return result(PatchInstallStatus::kRollbackWriteFailed,
-                      "rollback write failed or may be partial");
+        return finishExclusive(result(
+                PatchInstallStatus::kRollbackWriteFailed,
+                "rollback write failed or may be partial"));
     }
     if (!backend_.synchronizeInstructionCache(
                 backend_.context, targetAddress_, plan_.originalBytes.size())) {
         state_ = PatchInstallState::kFailed;
-        return result(PatchInstallStatus::kRollbackFailed,
-                      "rollback cache synchronization failed");
+        return finishExclusive(result(
+                PatchInstallStatus::kRollbackFailed,
+                "rollback cache synchronization failed"));
     }
     state_ = PatchInstallState::kRolledBack;
-    return result(PatchInstallStatus::kOk,
-                  "original target bytes restored inside the exclusive window");
+    return finishExclusive(result(
+            PatchInstallStatus::kOk,
+            "original target bytes restored inside the exclusive window"));
 }
 
 const char* patchInstallStateName(PatchInstallState state) {
@@ -314,6 +353,8 @@ const char* patchInstallStatusName(PatchInstallStatus status) {
         case PatchInstallStatus::kReadFailed: return "read_failed";
         case PatchInstallStatus::kTargetMismatch: return "target_mismatch";
         case PatchInstallStatus::kCoordinationFailed: return "coordination_failed";
+        case PatchInstallStatus::kCoordinationReleaseFailed:
+            return "coordination_release_failed";
         case PatchInstallStatus::kTrampolineWriteFailed: return "trampoline_write_failed";
         case PatchInstallStatus::kTrampolineBindFailed: return "trampoline_bind_failed";
         case PatchInstallStatus::kCacheSyncFailed: return "cache_sync_failed";

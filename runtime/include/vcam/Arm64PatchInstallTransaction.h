@@ -25,6 +25,7 @@ enum class PatchInstallStatus {
     kReadFailed,
     kTargetMismatch,
     kCoordinationFailed,
+    kCoordinationReleaseFailed,
     kTrampolineWriteFailed,
     kTrampolineBindFailed,
     kCacheSyncFailed,
@@ -51,7 +52,7 @@ using WritePatchMemory = bool (*)(
 using SyncPatchInstructionCache = bool (*)(
         void* context, std::uintptr_t address, std::size_t size) noexcept;
 using EnterPatchExclusiveWindow = bool (*)(void* context) noexcept;
-using LeavePatchExclusiveWindow = void (*)(void* context) noexcept;
+using LeavePatchExclusiveWindow = bool (*)(void* context) noexcept;
 using PublishOriginalTrampoline = bool (*)(
         void* context, std::uintptr_t trampolineAddress) noexcept;
 using BindPrecompiledTrampolineResume = bool (*)(

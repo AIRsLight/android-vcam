@@ -92,6 +92,13 @@ if(UNIX)
     target_compile_options(static_arm64_trampoline_test PRIVATE -UNDEBUG)
     add_test(NAME static_arm64_trampoline_test COMMAND static_arm64_trampoline_test)
 
+    add_executable(thread_quiescence_coordinator_test
+        tests/thread_quiescence_coordinator_test.cpp)
+    target_link_libraries(thread_quiescence_coordinator_test PRIVATE vcam_runtime_abi_guard)
+    target_compile_options(thread_quiescence_coordinator_test PRIVATE -UNDEBUG)
+    add_test(NAME thread_quiescence_coordinator_test
+        COMMAND thread_quiescence_coordinator_test)
+
     add_executable(binder_pass_through_bridge_test
         tests/binder_pass_through_bridge_test.cpp)
     target_link_libraries(binder_pass_through_bridge_test PRIVATE vcam_runtime_abi_guard)

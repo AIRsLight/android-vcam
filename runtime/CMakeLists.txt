@@ -14,6 +14,7 @@ add_library(vcam_runtime_abi_guard STATIC
     RuntimeActivationPreflight.cpp
     RuntimeHookStrategy.cpp
     StaticArm64Trampoline.cpp
+    ThreadQuiescenceCoordinator.cpp
 )
 target_include_directories(vcam_runtime_abi_guard PUBLIC include)
 target_link_libraries(vcam_runtime_abi_guard PUBLIC dl)

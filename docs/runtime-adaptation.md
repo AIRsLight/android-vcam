@@ -130,6 +130,34 @@ writer or device activation entry point. Tests inject isolated byte buffers and
 representative partial-write, cache, coordination and rollback faults; passing
 them validates ordering and state handling, not safe live-process installation.
 
+The exclusive-window release callback is fallible. Commit and rollback report
+a coordination-release failure instead of claiming success when peer threads
+could not be resumed. The guard object makes one additional best-effort release
+attempt while unwinding, but the transaction remains failed even if that retry
+succeeds.
+
+## Offline thread-quiescence protocol
+
+`ThreadQuiescenceCoordinator` defines the platform-neutral stop-the-world state
+machine needed by a future live backend. `prepare()` validates the target,
+caller, epoch and thread limits and allocates every working buffer. `enter()` is
+`noexcept` and performs no vector growth: it enumerates peers, requests a park,
+waits for epoch-tagged snapshots, verifies every ARM64 program counter is valid
+and outside the 16-byte patch range, then enumerates again while peers remain
+parked.
+
+If the second inventory contains a new thread, that thread is parked and the
+check repeats. A missing requested thread, duplicate or missing caller, capacity
+overflow, unstable inventory, timeout, mismatched epoch or target-range PC
+fails closed and triggers an idempotent resume. This closes the ordinary
+enumerate/park race: once every observed peer is parked and a final inventory
+is identical, no parked peer can create another process thread.
+
+The backend remains injected. There is no installed signal handler, chosen
+real-time signal, `tgkill`, futex wait/wake or live `/proc` enumerator in this
+milestone. Consequently these tests prove state ordering and recovery behavior,
+not that an OEM cameraserver can yet be stopped safely.
+
 ## Read-only activation preflight
 
 Immediately before any future backend is considered, the agent can collect a

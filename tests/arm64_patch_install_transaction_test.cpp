@@ -29,12 +29,14 @@ struct FakeMemory {
     std::uintptr_t publishedTrampoline = 0;
     bool exclusive = false;
     bool allowExclusive = true;
+    bool allowLeave = true;
     bool allowPublish = true;
     bool allowBind = true;
     bool failEntryWrite = false;
     bool failEntrySyncOnce = false;
     bool failRollbackWrite = false;
     std::uintptr_t boundResume = 0;
+    std::size_t leaveCalls = 0;
 };
 
 bool readMemory(
@@ -95,11 +97,16 @@ bool enterExclusiveWindow(void* context) noexcept {
     return true;
 }
 
-void leaveExclusiveWindow(void* context) noexcept {
+bool leaveExclusiveWindow(void* context) noexcept {
     auto& memory = *static_cast<FakeMemory*>(context);
     assert(memory.exclusive);
     memory.events.push_back("leave");
+    ++memory.leaveCalls;
+    if (!memory.allowLeave) {
+        return false;
+    }
     memory.exclusive = false;
+    return true;
 }
 
 bool publishOriginalTrampoline(
@@ -282,6 +289,19 @@ int main() {
         assert(commit.status == vcam::runtime::PatchInstallStatus::kCoordinationFailed);
         assert(commit.state == vcam::runtime::PatchInstallState::kPrepared);
         assert(memory.target == kOriginal);
+    }
+
+    {
+        FakeMemory memory;
+        memory.allowLeave = false;
+        auto install = transaction(&memory, plan());
+        assert(install.prepare());
+        const auto commit = install.commit();
+        assert(commit.status ==
+               vcam::runtime::PatchInstallStatus::kCoordinationReleaseFailed);
+        assert(commit.state == vcam::runtime::PatchInstallState::kFailed);
+        assert(memory.target == memory.expectedEntry);
+        assert(memory.leaveCalls >= 2);
     }
 
     {

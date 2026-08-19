@@ -8,7 +8,7 @@ namespace vcam::runtime {
 Android14BinderShadowObserver::Android14BinderShadowObserver(AbiRecipe recipe)
     : recipe_(std::move(recipe)) {}
 
-void Android14BinderShadowObserver::observe(
+ParcelObservation Android14BinderShadowObserver::observe(
         std::uint32_t code, const void* dataParcel) noexcept {
     total_.fetch_add(1, std::memory_order_relaxed);
     const ParcelObservation observation =
@@ -48,6 +48,7 @@ void Android14BinderShadowObserver::observe(
             rejected_.fetch_add(1, std::memory_order_relaxed);
             break;
     }
+    return observation;
 }
 
 Android14ShadowObservationStats Android14BinderShadowObserver::stats() const noexcept {
@@ -67,7 +68,8 @@ Android14ShadowObservationStats Android14BinderShadowObserver::stats() const noe
 void Android14BinderShadowObserver::bridgeCallback(
         std::uint32_t code, const void* dataParcel, void* context) noexcept {
     if (context != nullptr) {
-        static_cast<Android14BinderShadowObserver*>(context)->observe(code, dataParcel);
+        (void)static_cast<Android14BinderShadowObserver*>(context)->observe(
+                code, dataParcel);
     }
 }
 

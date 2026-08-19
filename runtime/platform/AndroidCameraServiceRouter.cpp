@@ -4,6 +4,7 @@
 #include "vcam/Android14CameraServiceProfile.h"
 #include "vcam/AndroidCameraServiceRouter.h"
 #include "vcam/CameraServerBootstrapPaths.h"
+#include "vcam/CameraCallerIdentityClassifier.h"
 #include "vcam/CameraServiceRouterMode.h"
 
 #include <atomic>
@@ -20,8 +21,10 @@
 #include <binder/IBinder.h>
 #include <binder/IServiceManager.h>
 #include <binder/Parcel.h>
+#include <binder/PermissionController.h>
 #include <log/log.h>
 #include <utils/String16.h>
+#include <utils/Vector.h>
 
 namespace vcam::runtime {
 namespace {
@@ -37,6 +40,9 @@ android::sp<android::IBinder> gOriginalService;
 android::sp<android::IBinder> gRouterService;
 std::atomic<Android14BinderShadowObserver*> gShadowObserver {nullptr};
 std::atomic<const char*> gObserverProfile {"none"};
+std::atomic<std::uint64_t> gVerifiedPackageClaims {0};
+std::atomic<std::uint64_t> gRejectedPackageClaims {0};
+std::atomic<std::uint64_t> gUnavailablePackageLookups {0};
 
 std::string buildFingerprint() {
     char value[PROP_VALUE_MAX] {};
@@ -65,7 +71,36 @@ protected:
             const android::Parcel& data,
             android::Parcel* reply,
             std::uint32_t flags) override {
-        observer_.observe(code, &data);
+        const ParcelObservation observation = observer_.observe(code, &data);
+        const CameraCallerIdentityClassification identity =
+                classifyCameraCallerIdentity(
+                        observation.transaction.cameraScoped,
+                        observation.transaction.carriesPackageName,
+                        observation.callingUid,
+                        observation.callingPid,
+                        observation.packageName);
+        if (observation.status == ParcelObservationStatus::kObserved &&
+            identity.kind == CameraCallerIdentityKind::kClaimedPackage) {
+            android::Vector<android::String16> packages;
+            permissionController_.getPackagesForUid(
+                    static_cast<uid_t>(observation.callingUid), packages);
+            if (packages.isEmpty()) {
+                gUnavailablePackageLookups.fetch_add(
+                        1, std::memory_order_relaxed);
+            } else {
+                const android::String16 claimedPackage(
+                        observation.packageName.c_str());
+                bool verified = false;
+                for (const android::String16& package : packages) {
+                    if (package == claimedPackage) {
+                        verified = true;
+                        break;
+                    }
+                }
+                (verified ? gVerifiedPackageClaims : gRejectedPackageClaims)
+                        .fetch_add(1, std::memory_order_relaxed);
+            }
+        }
         // target_ is a local BBinder in this process. Calling transact() here
         // reaches its onTransact() directly without a nested Binder driver call,
         // so IPCThreadState retains the original app PID/UID/SID.
@@ -75,6 +110,7 @@ protected:
 private:
     const android::sp<android::IBinder> target_;
     Android14BinderShadowObserver observer_;
+    android::PermissionController permissionController_;
 };
 
 void setTerminalState(AndroidCameraServiceRouterState state, const char* detail) {
@@ -273,4 +309,20 @@ vcam_camera_service_router_rejected_transactions() {
 extern "C" __attribute__((visibility("default"))) std::uint64_t
 vcam_camera_service_router_unsupported_transactions() {
     return observerStats().unsupported;
+}
+
+extern "C" __attribute__((visibility("default"))) std::uint64_t
+vcam_camera_service_router_verified_package_claims() {
+    return vcam::runtime::gVerifiedPackageClaims.load(std::memory_order_relaxed);
+}
+
+extern "C" __attribute__((visibility("default"))) std::uint64_t
+vcam_camera_service_router_rejected_package_claims() {
+    return vcam::runtime::gRejectedPackageClaims.load(std::memory_order_relaxed);
+}
+
+extern "C" __attribute__((visibility("default"))) std::uint64_t
+vcam_camera_service_router_unavailable_package_lookups() {
+    return vcam::runtime::gUnavailablePackageLookups.load(
+            std::memory_order_relaxed);
 }

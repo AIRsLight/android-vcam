@@ -36,5 +36,8 @@ std::uint64_t vcam_camera_service_router_observed_transactions();
 std::uint64_t vcam_camera_service_router_ignored_transactions();
 std::uint64_t vcam_camera_service_router_rejected_transactions();
 std::uint64_t vcam_camera_service_router_unsupported_transactions();
+std::uint64_t vcam_camera_service_router_verified_package_claims();
+std::uint64_t vcam_camera_service_router_rejected_package_claims();
+std::uint64_t vcam_camera_service_router_unavailable_package_lookups();
 
 }

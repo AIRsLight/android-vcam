@@ -25,7 +25,8 @@ class Android14BinderShadowObserver final {
 public:
     explicit Android14BinderShadowObserver(AbiRecipe recipe);
 
-    void observe(std::uint32_t code, const void* dataParcel) noexcept;
+    ParcelObservation observe(
+            std::uint32_t code, const void* dataParcel) noexcept;
     Android14ShadowObservationStats stats() const noexcept;
 
     static void bridgeCallback(

@@ -119,6 +119,9 @@ def main() -> None:
         "vcam_camera_service_router_ignored_transactions",
         "vcam_camera_service_router_rejected_transactions",
         "vcam_camera_service_router_unsupported_transactions",
+        "vcam_camera_service_router_verified_package_claims",
+        "vcam_camera_service_router_rejected_package_claims",
+        "vcam_camera_service_router_unavailable_package_lookups",
     ):
         if required_symbol not in router_exports:
             fail(f"camera service router export is missing: {required_symbol}")

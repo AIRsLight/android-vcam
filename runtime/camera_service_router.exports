@@ -7,6 +7,9 @@ VCAM_CAMERA_SERVICE_ROUTER_1.0 {
         vcam_camera_service_router_ignored_transactions;
         vcam_camera_service_router_rejected_transactions;
         vcam_camera_service_router_unsupported_transactions;
+        vcam_camera_service_router_verified_package_claims;
+        vcam_camera_service_router_rejected_package_claims;
+        vcam_camera_service_router_unavailable_package_lookups;
     local:
         *;
 };

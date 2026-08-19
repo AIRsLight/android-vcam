@@ -21,8 +21,15 @@ mkdir -p "${stock%/*}"
 launcher_hash="$(sha256sum "$launcher" | awk '{print $1}')"
 live_hash="$(sha256sum "$live_cameraserver" | awk '{print $1}')"
 stock_source="$live_cameraserver"
+installed_launcher_hash=""
+if [ -r "/data/adb/modules/$MODID/launcher.sha256" ]; then
+    installed_launcher_hash="$(awk 'NR == 1 {print $1}' \
+        "/data/adb/modules/$MODID/launcher.sha256")"
+fi
 
-if [ "$live_hash" = "$launcher_hash" ]; then
+if [ "$live_hash" = "$launcher_hash" ] || \
+   { [ -n "$installed_launcher_hash" ] && \
+     [ "$live_hash" = "$installed_launcher_hash" ]; }; then
     stock_source=""
     for candidate in \
         "/data/adb/metamodule/mnt/$MODID/system/bin/vcam/cameraserver" \

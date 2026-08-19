@@ -132,6 +132,7 @@ def main() -> None:
         "kRouterStatsPath", "transactions_total", "identity_claimed_package",
         "package_claims_verified", "route_candidates_package",
         "kRuntimeRoutesPath", "ScopedCameraRouter::resolve",
+        "uid_packages_unique", "uid_packages_ambiguous",
     ):
         if required_symbol not in router_source:
             fail(f"camera service router telemetry is missing: {required_symbol}")

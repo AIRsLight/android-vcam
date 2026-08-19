@@ -27,6 +27,7 @@
 #include <binder/PermissionController.h>
 #include <log/log.h>
 #include <utils/String16.h>
+#include <utils/String8.h>
 #include <utils/Vector.h>
 
 namespace vcam::runtime {
@@ -49,6 +50,9 @@ std::atomic<const char*> gObserverProfile {"none"};
 std::atomic<std::uint64_t> gVerifiedPackageClaims {0};
 std::atomic<std::uint64_t> gRejectedPackageClaims {0};
 std::atomic<std::uint64_t> gUnavailablePackageLookups {0};
+std::atomic<std::uint64_t> gUniqueUidPackageResolutions {0};
+std::atomic<std::uint64_t> gAmbiguousUidPackageResolutions {0};
+std::atomic<std::uint64_t> gUnavailableUidPackageResolutions {0};
 std::atomic<std::uint64_t> gPackageRouteCandidates {0};
 std::atomic<std::uint64_t> gGlobalRouteCandidates {0};
 std::atomic<std::uint64_t> gPhysicalRouteDecisions {0};
@@ -86,6 +90,9 @@ void* statsPublisher(void*) {
                 "package_claims_verified=%llu\n"
                 "package_claims_rejected=%llu\n"
                 "package_lookups_unavailable=%llu\n"
+                "uid_packages_unique=%llu\n"
+                "uid_packages_ambiguous=%llu\n"
+                "uid_packages_unavailable=%llu\n"
                 "route_candidates_package=%llu\n"
                 "route_candidates_global=%llu\n"
                 "route_decisions_physical=%llu\n"
@@ -107,6 +114,15 @@ void* statsPublisher(void*) {
                         gRejectedPackageClaims.load(std::memory_order_relaxed)),
                 static_cast<unsigned long long>(
                         gUnavailablePackageLookups.load(
+                                std::memory_order_relaxed)),
+                static_cast<unsigned long long>(
+                        gUniqueUidPackageResolutions.load(
+                                std::memory_order_relaxed)),
+                static_cast<unsigned long long>(
+                        gAmbiguousUidPackageResolutions.load(
+                                std::memory_order_relaxed)),
+                static_cast<unsigned long long>(
+                        gUnavailableUidPackageResolutions.load(
                                 std::memory_order_relaxed)),
                 static_cast<unsigned long long>(
                         gPackageRouteCandidates.load(std::memory_order_relaxed)),
@@ -175,6 +191,7 @@ protected:
                         observation.callingPid,
                         observation.packageName);
         std::string verifiedPackage;
+        const bool routesConfigured = access(kRuntimeRoutesPath, R_OK) == 0;
         if (observation.status == ParcelObservationStatus::kObserved &&
             identity.kind == CameraCallerIdentityKind::kClaimedPackage) {
             android::Vector<android::String16> packages;
@@ -199,8 +216,26 @@ protected:
                     verifiedPackage = observation.packageName;
                 }
             }
+        } else if (routesConfigured &&
+                   observation.status == ParcelObservationStatus::kObserved &&
+                   identity.kind == CameraCallerIdentityKind::kUidOnly) {
+            android::Vector<android::String16> packages;
+            permissionController_.getPackagesForUid(
+                    static_cast<uid_t>(observation.callingUid), packages);
+            if (packages.isEmpty()) {
+                gUnavailableUidPackageResolutions.fetch_add(
+                        1, std::memory_order_relaxed);
+            } else if (packages.size() == 1) {
+                verifiedPackage = android::String8(packages[0]).c_str();
+                gUniqueUidPackageResolutions.fetch_add(
+                        1, std::memory_order_relaxed);
+            } else {
+                gAmbiguousUidPackageResolutions.fetch_add(
+                        1, std::memory_order_relaxed);
+            }
         }
-        if (observation.status == ParcelObservationStatus::kObserved &&
+        if (routesConfigured &&
+            observation.status == ParcelObservationStatus::kObserved &&
             observation.transaction.cameraScoped &&
             !observation.cameraId.empty()) {
             const ::vcam::ScopedCameraRoute route =

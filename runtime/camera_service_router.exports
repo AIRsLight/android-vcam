@@ -2,6 +2,11 @@ VCAM_CAMERA_SERVICE_ROUTER_1.0 {
     global:
         vcam_camera_service_router_state;
         vcam_camera_service_router_state_name;
+        vcam_camera_service_router_observer_profile;
+        vcam_camera_service_router_observed_transactions;
+        vcam_camera_service_router_ignored_transactions;
+        vcam_camera_service_router_rejected_transactions;
+        vcam_camera_service_router_unsupported_transactions;
     local:
         *;
 };

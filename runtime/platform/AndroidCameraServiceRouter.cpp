@@ -1,5 +1,7 @@
 #define LOG_TAG "VcamCameraRouter"
 
+#include "vcam/Android14BinderShadowObserver.h"
+#include "vcam/Android14CameraServiceProfile.h"
 #include "vcam/AndroidCameraServiceRouter.h"
 #include "vcam/CameraServerBootstrapPaths.h"
 #include "vcam/CameraServiceRouterMode.h"
@@ -9,6 +11,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <pthread.h>
+#include <string>
+#include <sys/system_properties.h>
 #include <utility>
 #include <unistd.h>
 
@@ -31,11 +35,24 @@ std::atomic<AndroidCameraServiceRouterState> gState {
         AndroidCameraServiceRouterState::kNotStarted};
 android::sp<android::IBinder> gOriginalService;
 android::sp<android::IBinder> gRouterService;
+std::atomic<Android14BinderShadowObserver*> gShadowObserver {nullptr};
+std::atomic<const char*> gObserverProfile {"none"};
+
+std::string buildFingerprint() {
+    char value[PROP_VALUE_MAX] {};
+    const int length = __system_property_get("ro.build.fingerprint", value);
+    return length > 0 ? std::string(value, static_cast<std::size_t>(length))
+                      : std::string();
+}
 
 class CameraServicePassThrough final : public android::BBinder {
 public:
-    explicit CameraServicePassThrough(android::sp<android::IBinder> target)
-        : target_(std::move(target)) {}
+    CameraServicePassThrough(
+            android::sp<android::IBinder> target,
+            AbiRecipe observationRecipe)
+        : target_(std::move(target)), observer_(std::move(observationRecipe)) {
+        gShadowObserver.store(&observer_, std::memory_order_release);
+    }
 
     const android::String16& getInterfaceDescriptor() const override {
         static const android::String16 descriptor(kCameraServiceDescriptor);
@@ -48,6 +65,7 @@ protected:
             const android::Parcel& data,
             android::Parcel* reply,
             std::uint32_t flags) override {
+        observer_.observe(code, &data);
         // target_ is a local BBinder in this process. Calling transact() here
         // reaches its onTransact() directly without a nested Binder driver call,
         // so IPCThreadState retains the original app PID/UID/SID.
@@ -56,6 +74,7 @@ protected:
 
 private:
     const android::sp<android::IBinder> target_;
+    Android14BinderShadowObserver observer_;
 };
 
 void setTerminalState(AndroidCameraServiceRouterState state, const char* detail) {
@@ -127,8 +146,21 @@ void* routerMonitor(void*) {
         return nullptr;
     }
 
+    AbiRecipe observationRecipe;
+    const std::string fingerprint = buildFingerprint();
+    if (matchesNx769jAndroid14CameraServiceProfile(fingerprint)) {
+        observationRecipe = makeNx769jAndroid14CameraServiceRecipe();
+        gObserverProfile.store(kNx769jAndroid14ProfileName,
+                               std::memory_order_release);
+        ALOGI("enabled read-only Binder observer profile=%s",
+              kNx769jAndroid14ProfileName);
+    } else {
+        ALOGW("no qualified read-only Binder observer for this build; "
+              "transactions remain unparsed");
+    }
     android::sp<android::IBinder> router =
-            android::sp<CameraServicePassThrough>::make(original);
+            android::sp<CameraServicePassThrough>::make(
+                    original, std::move(observationRecipe));
     const android::status_t registration = manager->addService(
             serviceName,
             router,
@@ -204,4 +236,41 @@ extern "C" __attribute__((visibility("default"))) const char*
 vcam_camera_service_router_state_name() {
     return vcam::runtime::androidCameraServiceRouterStateName(
             vcam::runtime::gState.load(std::memory_order_acquire));
+}
+
+extern "C" __attribute__((visibility("default"))) const char*
+vcam_camera_service_router_observer_profile() {
+    return vcam::runtime::gObserverProfile.load(std::memory_order_acquire);
+}
+
+namespace {
+
+vcam::runtime::Android14ShadowObservationStats observerStats() {
+    const auto* observer =
+            vcam::runtime::gShadowObserver.load(std::memory_order_acquire);
+    return observer == nullptr
+            ? vcam::runtime::Android14ShadowObservationStats {}
+            : observer->stats();
+}
+
+}  // namespace
+
+extern "C" __attribute__((visibility("default"))) std::uint64_t
+vcam_camera_service_router_observed_transactions() {
+    return observerStats().observed;
+}
+
+extern "C" __attribute__((visibility("default"))) std::uint64_t
+vcam_camera_service_router_ignored_transactions() {
+    return observerStats().ignored;
+}
+
+extern "C" __attribute__((visibility("default"))) std::uint64_t
+vcam_camera_service_router_rejected_transactions() {
+    return observerStats().rejected;
+}
+
+extern "C" __attribute__((visibility("default"))) std::uint64_t
+vcam_camera_service_router_unsupported_transactions() {
+    return observerStats().unsupported;
 }

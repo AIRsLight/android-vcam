@@ -1,5 +1,6 @@
 #include "vcam/Android14ParcelObserver.h"
 #include "vcam/Android14BinderShadowObserver.h"
+#include "vcam/Android14CameraServiceProfile.h"
 #include "vcam/BinderPassThroughBridge.h"
 
 #include <binder/Binder.h>
@@ -41,6 +42,15 @@ void writeToken(android::Parcel* parcel, const char16_t* descriptor) {
 }  // namespace
 
 int main() {
+    assert(vcam::runtime::matchesNx769jAndroid14CameraServiceProfile(
+            vcam::runtime::kNx769jAndroid14Fingerprint));
+    assert(!vcam::runtime::matchesNx769jAndroid14CameraServiceProfile(
+            "unknown/device:14/test"));
+    const auto qualifiedRecipe =
+            vcam::runtime::makeNx769jAndroid14CameraServiceRecipe();
+    assert(qualifiedRecipe.schema == 2);
+    assert(qualifiedRecipe.transactions.size() == 11);
+
     const auto transactions = recipe();
 
     android::Parcel metadata;

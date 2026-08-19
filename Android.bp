@@ -91,7 +91,10 @@ cc_library_shared {
     compile_multilib: "64",
     srcs: ["runtime/platform/AndroidCameraServiceRouter.cpp"],
     local_include_dirs: ["runtime/include"],
-    static_libs: ["libvcam_camera_service_router_mode"],
+    static_libs: [
+        "libvcam_android14_parcel_observer",
+        "libvcam_camera_service_router_mode",
+    ],
     shared_libs: [
         "libbinder",
         "liblog",
@@ -311,6 +314,7 @@ cc_library_static {
     srcs: [
         "runtime/BinderTransactionClassifier.cpp",
         "runtime/platform/Android14BinderShadowObserver.cpp",
+        "runtime/platform/Android14CameraServiceProfile.cpp",
         "runtime/platform/Android14ParcelObserver.cpp",
     ],
     local_include_dirs: ["runtime/include"],

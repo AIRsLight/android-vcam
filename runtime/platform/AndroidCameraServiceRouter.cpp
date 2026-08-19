@@ -9,8 +9,10 @@
 
 #include <atomic>
 #include <cerrno>
+#include <cstdio>
 #include <cstdint>
 #include <cstdlib>
+#include <fcntl.h>
 #include <pthread.h>
 #include <string>
 #include <sys/system_properties.h>
@@ -33,6 +35,7 @@ constexpr char kCameraServiceName[] = "media.camera";
 constexpr char16_t kCameraServiceDescriptor[] = u"android.hardware.ICameraService";
 constexpr std::uint32_t kServiceWaitAttempts = 3000;
 constexpr useconds_t kServiceWaitDelayMicroseconds = 10000;
+constexpr unsigned int kStatsPublishIntervalSeconds = 1;
 
 std::atomic<AndroidCameraServiceRouterState> gState {
         AndroidCameraServiceRouterState::kNotStarted};
@@ -49,6 +52,78 @@ std::string buildFingerprint() {
     const int length = __system_property_get("ro.build.fingerprint", value);
     return length > 0 ? std::string(value, static_cast<std::size_t>(length))
                       : std::string();
+}
+
+void* statsPublisher(void*) {
+    for (;;) {
+        const Android14BinderShadowObserver* observer =
+                gShadowObserver.load(std::memory_order_acquire);
+        const Android14ShadowObservationStats stats = observer == nullptr
+                ? Android14ShadowObservationStats {}
+                : observer->stats();
+        char payload[768] {};
+        const int length = std::snprintf(
+                payload,
+                sizeof(payload),
+                "schema=1\n"
+                "state=%s\n"
+                "profile=%s\n"
+                "transactions_total=%llu\n"
+                "transactions_observed=%llu\n"
+                "transactions_ignored=%llu\n"
+                "transactions_rejected=%llu\n"
+                "transactions_unsupported=%llu\n"
+                "identity_claimed_package=%llu\n"
+                "identity_uid_only=%llu\n"
+                "identity_unavailable=%llu\n"
+                "package_claims_verified=%llu\n"
+                "package_claims_rejected=%llu\n"
+                "package_lookups_unavailable=%llu\n",
+                androidCameraServiceRouterStateName(
+                        gState.load(std::memory_order_acquire)),
+                gObserverProfile.load(std::memory_order_acquire),
+                static_cast<unsigned long long>(stats.total),
+                static_cast<unsigned long long>(stats.observed),
+                static_cast<unsigned long long>(stats.ignored),
+                static_cast<unsigned long long>(stats.rejected),
+                static_cast<unsigned long long>(stats.unsupported),
+                static_cast<unsigned long long>(stats.claimedPackage),
+                static_cast<unsigned long long>(stats.uidOnly),
+                static_cast<unsigned long long>(stats.identityUnavailable),
+                static_cast<unsigned long long>(
+                        gVerifiedPackageClaims.load(std::memory_order_relaxed)),
+                static_cast<unsigned long long>(
+                        gRejectedPackageClaims.load(std::memory_order_relaxed)),
+                static_cast<unsigned long long>(
+                        gUnavailablePackageLookups.load(
+                                std::memory_order_relaxed)));
+        if (length > 0 && static_cast<std::size_t>(length) < sizeof(payload)) {
+            const int fd = open(
+                    bootstrap::kRouterStatsPath,
+                    O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+                    0600);
+            if (fd >= 0) {
+                const ssize_t written = write(
+                        fd, payload, static_cast<std::size_t>(length));
+                if (written != static_cast<ssize_t>(length)) {
+                    ALOGW("short router stats write: expected=%d actual=%zd",
+                          length, written);
+                }
+                close(fd);
+            }
+        }
+        sleep(kStatsPublishIntervalSeconds);
+    }
+}
+
+void startStatsPublisher() {
+    pthread_t thread {};
+    const int status = pthread_create(&thread, nullptr, &statsPublisher, nullptr);
+    if (status != 0) {
+        ALOGW("could not start router stats publisher: status=%d", status);
+        return;
+    }
+    pthread_detach(thread);
 }
 
 class CameraServicePassThrough final : public android::BBinder {
@@ -217,6 +292,7 @@ void* routerMonitor(void*) {
     gRouterService = std::move(router);
     setTerminalState(AndroidCameraServiceRouterState::kPassThroughReady,
                      "media.camera now forwards to the original local Binder");
+    startStatsPublisher();
     return nullptr;
 }
 

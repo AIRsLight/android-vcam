@@ -133,6 +133,14 @@ int main(int, char* argv[]) {
         return 126;
     }
 
+    // A stats file belongs to one cameraserver lifetime only. In stock mode no
+    // router will recreate it, so readers cannot mistake old telemetry for a
+    // currently active proxy.
+    if (unlink(vcam::runtime::bootstrap::kRouterStatsPath) != 0 &&
+        errno != ENOENT) {
+        ALOGW("could not remove stale router stats: errno=%d", errno);
+    }
+
     const vcam::runtime::CameraServerBootstrapMode mode = readBootstrapMode();
     if (mode == vcam::runtime::CameraServerBootstrapMode::kStock ||
         mode == vcam::runtime::CameraServerBootstrapMode::kInvalid) {

@@ -126,6 +126,15 @@ def main() -> None:
         if required_symbol not in router_exports:
             fail(f"camera service router export is missing: {required_symbol}")
 
+    router_source = (ROOT / "runtime" / "platform" /
+                     "AndroidCameraServiceRouter.cpp").read_text(encoding="utf-8")
+    for required_symbol in (
+        "kRouterStatsPath", "transactions_total", "identity_claimed_package",
+        "package_claims_verified",
+    ):
+        if required_symbol not in router_source:
+            fail(f"camera service router telemetry is missing: {required_symbol}")
+
     module = (ROOT / "apmodule" / "module.prop").read_text(encoding="utf-8")
     if not re.search(r"^id=android_vcam$", module, re.MULTILINE):
         fail("unexpected APModule id")

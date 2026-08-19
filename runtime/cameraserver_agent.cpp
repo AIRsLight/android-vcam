@@ -3,6 +3,7 @@
 #include "vcam/CameraServerAgent.h"
 #include "vcam/RuntimeActivationPreflight.h"
 #include "vcam/RuntimeHookStrategy.h"
+#include "vcam/StaticArm64Trampoline.h"
 
 #include <cstdio>
 #include <cstring>
@@ -64,8 +65,14 @@ extern "C" __attribute__((visibility("default"))) int vcam_cameraserver_agent_pl
     const vcam::runtime::OnTransactStrategyPlan plan =
             vcam::runtime::planOnTransactStrategy(
                     recipe, probe, vcam::runtime::binderPassThroughEntryAddress());
-    copyMessage(plan.message, message, messageCapacity);
-    return plan ? 0 : 2000 + static_cast<int>(plan.status);
+    if (!plan) {
+        copyMessage(plan.message, message, messageCapacity);
+        return 2000 + static_cast<int>(plan.status);
+    }
+    const vcam::runtime::StaticTrampolineSelection trampoline =
+            vcam::runtime::selectStaticArm64Trampoline(recipe);
+    copyMessage(trampoline.message, message, messageCapacity);
+    return trampoline ? 0 : 6000 + static_cast<int>(trampoline.status);
 }
 
 extern "C" __attribute__((visibility("default"))) int vcam_cameraserver_agent_preflight(
@@ -91,6 +98,12 @@ extern "C" __attribute__((visibility("default"))) int vcam_cameraserver_agent_pr
     if (!plan) {
         copyMessage(plan.message, message, messageCapacity);
         return 4000 + static_cast<int>(plan.status);
+    }
+    const vcam::runtime::StaticTrampolineSelection trampoline =
+            vcam::runtime::selectStaticArm64Trampoline(recipe);
+    if (!trampoline) {
+        copyMessage(trampoline.message, message, messageCapacity);
+        return 6000 + static_cast<int>(trampoline.status);
     }
     const vcam::runtime::ActivationSnapshot snapshot =
             vcam::runtime::collectCurrentProcessActivationSnapshot(

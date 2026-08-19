@@ -68,6 +68,18 @@ Arm64PatchInstallTransaction::Arm64PatchInstallTransaction(
       plan_(std::move(plan)),
       backend_(backend) {}
 
+Arm64PatchInstallTransaction::Arm64PatchInstallTransaction(
+        std::uintptr_t targetAddress,
+        PrecompiledArm64Trampoline trampoline,
+        Arm64PatchPlan plan,
+        PatchInstallBackend backend)
+    : targetAddress_(targetAddress),
+      trampolineAddress_(trampoline.entryAddress),
+      precompiledTrampoline_(trampoline),
+      usesPrecompiledTrampoline_(true),
+      plan_(std::move(plan)),
+      backend_(backend) {}
+
 PatchInstallResult Arm64PatchInstallTransaction::result(
         PatchInstallStatus status, const char* message) const noexcept {
     PatchInstallResult value;
@@ -89,9 +101,7 @@ bool Arm64PatchInstallTransaction::validPlan() const {
         return false;
     }
     std::uintptr_t targetEnd = 0;
-    std::uintptr_t trampolineEnd = 0;
     if (!rangeEnd(targetAddress_, plan_.overwriteSize, &targetEnd) ||
-        !rangeEnd(trampolineAddress_, plan_.trampoline.size(), &trampolineEnd) ||
         plan_.resumeAddress != targetEnd) {
         return false;
     }
@@ -108,7 +118,20 @@ bool Arm64PatchInstallTransaction::validPlan() const {
             read32(plan_.trampoline, trampolineBranch + sizeof(std::uint32_t)) ==
                     kBranchIp1 &&
             read64(plan_.trampoline, trampolineBranch + 8) == plan_.resumeAddress;
-    return exactPlannerShape &&
+    if (!exactPlannerShape) {
+        return false;
+    }
+    if (usesPrecompiledTrampoline_) {
+        std::uintptr_t precompiledEnd = 0;
+        return precompiledTrampoline_.bindResumeAddress != nullptr &&
+                rangeEnd(trampolineAddress_, precompiledTrampoline_.codeSize,
+                         &precompiledEnd) &&
+                std::equal(plan_.originalBytes.begin(), plan_.originalBytes.end(),
+                           precompiledTrampoline_.relocatedOriginalBytes.begin()) &&
+                (targetEnd <= trampolineAddress_ || precompiledEnd <= targetAddress_);
+    }
+    std::uintptr_t trampolineEnd = 0;
+    return rangeEnd(trampolineAddress_, plan_.trampoline.size(), &trampolineEnd) &&
             (targetEnd <= trampolineAddress_ || trampolineEnd <= targetAddress_);
 }
 
@@ -187,18 +210,27 @@ PatchInstallResult Arm64PatchInstallTransaction::commit() noexcept {
         return result(PatchInstallStatus::kTargetMismatch,
                       "target changed between prepare and commit");
     }
-    if (!backend_.writeMemory(
-                backend_.context, trampolineAddress_, plan_.trampoline.data(),
-                plan_.trampoline.size())) {
-        state_ = PatchInstallState::kFailed;
-        return result(PatchInstallStatus::kTrampolineWriteFailed,
-                      "trampoline write failed before target modification");
-    }
-    if (!backend_.synchronizeInstructionCache(
-                backend_.context, trampolineAddress_, plan_.trampoline.size())) {
-        state_ = PatchInstallState::kFailed;
-        return result(PatchInstallStatus::kCacheSyncFailed,
-                      "trampoline cache synchronization failed before target modification");
+    if (usesPrecompiledTrampoline_) {
+        if (!precompiledTrampoline_.bindResumeAddress(
+                    precompiledTrampoline_.context, plan_.resumeAddress)) {
+            state_ = PatchInstallState::kFailed;
+            return result(PatchInstallStatus::kTrampolineBindFailed,
+                          "precompiled trampoline rejected the resume address");
+        }
+    } else {
+        if (!backend_.writeMemory(
+                    backend_.context, trampolineAddress_, plan_.trampoline.data(),
+                    plan_.trampoline.size())) {
+            state_ = PatchInstallState::kFailed;
+            return result(PatchInstallStatus::kTrampolineWriteFailed,
+                          "trampoline write failed before target modification");
+        }
+        if (!backend_.synchronizeInstructionCache(
+                    backend_.context, trampolineAddress_, plan_.trampoline.size())) {
+            state_ = PatchInstallState::kFailed;
+            return result(PatchInstallStatus::kCacheSyncFailed,
+                          "trampoline cache synchronization failed before target modification");
+        }
     }
     if (!backend_.publishOriginalTrampoline(backend_.context, trampolineAddress_)) {
         state_ = PatchInstallState::kFailed;
@@ -283,6 +315,7 @@ const char* patchInstallStatusName(PatchInstallStatus status) {
         case PatchInstallStatus::kTargetMismatch: return "target_mismatch";
         case PatchInstallStatus::kCoordinationFailed: return "coordination_failed";
         case PatchInstallStatus::kTrampolineWriteFailed: return "trampoline_write_failed";
+        case PatchInstallStatus::kTrampolineBindFailed: return "trampoline_bind_failed";
         case PatchInstallStatus::kCacheSyncFailed: return "cache_sync_failed";
         case PatchInstallStatus::kPublishFailed: return "publish_failed";
         case PatchInstallStatus::kEntryWriteFailed: return "entry_write_failed";

@@ -1,6 +1,7 @@
 #include "vcam/Arm64PatchInstallTransaction.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
@@ -29,9 +30,11 @@ struct FakeMemory {
     bool exclusive = false;
     bool allowExclusive = true;
     bool allowPublish = true;
+    bool allowBind = true;
     bool failEntryWrite = false;
     bool failEntrySyncOnce = false;
     bool failRollbackWrite = false;
+    std::uintptr_t boundResume = 0;
 };
 
 bool readMemory(
@@ -110,6 +113,19 @@ bool publishOriginalTrampoline(
     return true;
 }
 
+bool bindPrecompiledResume(
+        void* context, std::uintptr_t resumeAddress) noexcept {
+    auto& memory = *static_cast<FakeMemory*>(context);
+    memory.events.push_back("bind_resume");
+    if (!memory.allowBind || resumeAddress != kTargetAddress + kOriginal.size()) {
+        return false;
+    }
+    if (memory.boundResume == 0) {
+        memory.boundResume = resumeAddress;
+    }
+    return memory.boundResume == resumeAddress;
+}
+
 vcam::runtime::PatchInstallBackend backend(FakeMemory* memory) {
     return {
         memory,
@@ -131,6 +147,19 @@ vcam::runtime::Arm64PatchInstallTransaction transaction(
         FakeMemory* memory, vcam::runtime::Arm64PatchPlan value) {
     memory->expectedEntry = value.entryPatch;
     return {kTargetAddress, kTrampolineAddress, std::move(value), backend(memory)};
+}
+
+vcam::runtime::Arm64PatchInstallTransaction precompiledTransaction(
+        FakeMemory* memory, vcam::runtime::Arm64PatchPlan value) {
+    memory->expectedEntry = value.entryPatch;
+    vcam::runtime::PrecompiledArm64Trampoline trampoline;
+    trampoline.context = memory;
+    trampoline.entryAddress = 0x4000;
+    trampoline.codeSize = 48;
+    std::copy(kOriginal.begin(), kOriginal.end(),
+              trampoline.relocatedOriginalBytes.begin());
+    trampoline.bindResumeAddress = &bindPrecompiledResume;
+    return {kTargetAddress, trampoline, std::move(value), backend(memory)};
 }
 
 bool contains(const std::vector<std::string>& events, const std::string& event) {
@@ -169,6 +198,36 @@ int main() {
                 "publish", "write_entry", "sync_target", "leave", "enter", "read",
                 "write_original", "sync_target", "leave"}));
         assert(!install.rollback());
+    }
+
+    {
+        FakeMemory memory;
+        const auto expectedPlan = plan();
+        auto install = precompiledTransaction(&memory, expectedPlan);
+        assert(install.prepare());
+        assert(install.commit());
+        assert(memory.target == expectedPlan.entryPatch);
+        assert(memory.boundResume == expectedPlan.resumeAddress);
+        assert(memory.publishedTrampoline == 0x4000);
+        assert(!contains(memory.events, "write_trampoline"));
+        assert(!contains(memory.events, "sync_trampoline"));
+        assert((memory.events == std::vector<std::string>{
+                "read", "enter", "read", "bind_resume", "publish",
+                "write_entry", "sync_target", "leave"}));
+    }
+
+    {
+        FakeMemory memory;
+        memory.allowBind = false;
+        auto install = precompiledTransaction(&memory, plan());
+        assert(install.prepare());
+        const auto commit = install.commit();
+        assert(commit.status ==
+               vcam::runtime::PatchInstallStatus::kTrampolineBindFailed);
+        assert(commit.state == vcam::runtime::PatchInstallState::kFailed);
+        assert(memory.target == kOriginal);
+        assert(!contains(memory.events, "publish"));
+        assert(!contains(memory.events, "write_entry"));
     }
 
     {
@@ -240,6 +299,25 @@ int main() {
         auto corrupted = plan();
         corrupted.trampoline[4] ^= 0xff;
         auto install = transaction(&memory, std::move(corrupted));
+        const auto prepare = install.prepare();
+        assert(prepare.status == vcam::runtime::PatchInstallStatus::kInvalidPlan);
+        assert(!contains(memory.events, "read"));
+    }
+
+    {
+        FakeMemory memory;
+        auto expectedPlan = plan();
+        memory.expectedEntry = expectedPlan.entryPatch;
+        vcam::runtime::PrecompiledArm64Trampoline trampoline;
+        trampoline.context = &memory;
+        trampoline.entryAddress = 0x4000;
+        trampoline.codeSize = 48;
+        std::copy(kOriginal.begin(), kOriginal.end(),
+                  trampoline.relocatedOriginalBytes.begin());
+        trampoline.relocatedOriginalBytes[0] ^= 0xff;
+        trampoline.bindResumeAddress = &bindPrecompiledResume;
+        vcam::runtime::Arm64PatchInstallTransaction install(
+                kTargetAddress, trampoline, std::move(expectedPlan), backend(&memory));
         const auto prepare = install.prepare();
         assert(prepare.status == vcam::runtime::PatchInstallStatus::kInvalidPlan);
         assert(!contains(memory.events, "read"));

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -25,6 +26,7 @@ enum class PatchInstallStatus {
     kTargetMismatch,
     kCoordinationFailed,
     kTrampolineWriteFailed,
+    kTrampolineBindFailed,
     kCacheSyncFailed,
     kPublishFailed,
     kEntryWriteFailed,
@@ -52,6 +54,16 @@ using EnterPatchExclusiveWindow = bool (*)(void* context) noexcept;
 using LeavePatchExclusiveWindow = void (*)(void* context) noexcept;
 using PublishOriginalTrampoline = bool (*)(
         void* context, std::uintptr_t trampolineAddress) noexcept;
+using BindPrecompiledTrampolineResume = bool (*)(
+        void* context, std::uintptr_t resumeAddress) noexcept;
+
+struct PrecompiledArm64Trampoline {
+    void* context = nullptr;
+    std::uintptr_t entryAddress = 0;
+    std::size_t codeSize = 0;
+    std::array<std::uint8_t, 16> relocatedOriginalBytes {};
+    BindPrecompiledTrampolineResume bindResumeAddress = nullptr;
+};
 
 struct PatchInstallBackend {
     // A false write result is treated as potentially partial. enterExclusiveWindow
@@ -77,6 +89,11 @@ public:
             std::uintptr_t trampolineAddress,
             Arm64PatchPlan plan,
             PatchInstallBackend backend);
+    Arm64PatchInstallTransaction(
+            std::uintptr_t targetAddress,
+            PrecompiledArm64Trampoline trampoline,
+            Arm64PatchPlan plan,
+            PatchInstallBackend backend);
 
     PatchInstallState state() const noexcept { return state_; }
     PatchInstallResult prepare();
@@ -91,6 +108,8 @@ private:
 
     std::uintptr_t targetAddress_ = 0;
     std::uintptr_t trampolineAddress_ = 0;
+    PrecompiledArm64Trampoline precompiledTrampoline_;
+    bool usesPrecompiledTrampoline_ = false;
     Arm64PatchPlan plan_;
     PatchInstallBackend backend_;
     std::vector<std::uint8_t> revalidationBuffer_;

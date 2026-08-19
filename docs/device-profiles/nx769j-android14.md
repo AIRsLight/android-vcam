@@ -76,6 +76,8 @@ candidate, not proof that Nubia used an unmodified r1 tree.
   complete offline; not bound by the cameraserver agent.
 - Transactional patch ordering, target revalidation and rollback fault tests:
   complete with an isolated memory backend only.
+- Exact-recipe precompiled ARM64 trampoline: complete offline; embedded in the
+  agent text and disassembly-verified, but not bound or installed at runtime.
 - Read-only maps, target-byte and thread-inventory preflight: complete in
   host/ARM builds; not yet executed inside the device cameraserver.
 - Runtime route test: not started.
@@ -91,7 +93,11 @@ or installed on the device yet.
 The OEM `onTransact` entry begins with `PACIASP`, stack allocation and three
 register-save instructions. The offline ARM64 planner can relocate the first 16
 bytes without encountering a PC-relative or control-flow instruction and emits a
-BTI-compatible trampoline. The Binder transaction table has now been confirmed
+BTI-compatible reference trampoline. A second, precompiled exact-build
+trampoline is now embedded in the agent so a future backend will not require
+`mmap(PROT_EXEC)`, `mprotect` or writable executable storage. It is selected only
+when the complete recipe matches and currently has no activation caller. The
+Binder transaction table has now been confirmed
 directly from all eleven relevant OEM `BpCameraService` stubs. The OEM library
 does not export the later `remapCameraIds` method, and the observed constants
 match the Android 14 initial-release layout. The exact `libcamera_client.so`

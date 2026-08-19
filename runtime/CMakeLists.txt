@@ -13,6 +13,7 @@ add_library(vcam_runtime_abi_guard STATIC
     RuntimeAbiGuard.cpp
     RuntimeActivationPreflight.cpp
     RuntimeHookStrategy.cpp
+    StaticArm64Trampoline.cpp
 )
 target_include_directories(vcam_runtime_abi_guard PUBLIC include)
 target_link_libraries(vcam_runtime_abi_guard PUBLIC dl)
@@ -30,6 +31,10 @@ target_compile_options(vcam_cameraserver_agent PRIVATE
 )
 
 if(ANDROID AND ANDROID_ABI STREQUAL "arm64-v8a")
+    enable_language(ASM)
+    target_sources(vcam_runtime_abi_guard PRIVATE
+        arch/arm64/Nx769jOnTransactTrampoline.S
+    )
     target_compile_options(vcam_runtime_abi_guard PRIVATE -mbranch-protection=standard)
     target_compile_options(vcam_cameraserver_agent PRIVATE -mbranch-protection=standard)
 endif()

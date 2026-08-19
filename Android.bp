@@ -86,12 +86,33 @@ cc_library_static {
     srcs: [
         "runtime/Arm64PatchInstallTransaction.cpp",
         "runtime/Arm64PatchPlanner.cpp",
+        "runtime/StaticArm64Trampoline.cpp",
     ],
+    arch: {
+        arm64: {
+            srcs: ["runtime/arch/arm64/Nx769jOnTransactTrampoline.S"],
+        },
+    },
     local_include_dirs: ["runtime/include"],
     cflags: [
         "-Wall",
         "-Wextra",
         "-Werror",
+    ],
+    cpp_std: "c++17",
+}
+
+cc_test {
+    name: "vcam_static_arm64_trampoline_test",
+    host_supported: true,
+    srcs: ["tests/static_arm64_trampoline_test.cpp"],
+    local_include_dirs: ["runtime/include"],
+    static_libs: ["libvcam_arm64_patch_transaction"],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-UNDEBUG",
     ],
     cpp_std: "c++17",
 }

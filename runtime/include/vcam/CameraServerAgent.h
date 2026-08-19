@@ -9,8 +9,9 @@ extern "C" {
 int vcam_cameraserver_agent_validate(
         const char* recipePath, char* message, size_t messageCapacity);
 
-// Performs ABI validation and produces an internal pass-through patch plan.
-// It never changes page permissions or writes the returned plan to memory.
+// Performs ABI validation, produces an internal pass-through patch plan and
+// requires an exact precompiled trampoline. It never binds the trampoline,
+// changes page permissions or writes the returned plan to memory.
 int vcam_cameraserver_agent_plan(
         const char* recipePath, char* message, size_t messageCapacity);
 

@@ -155,6 +155,22 @@ KernelSU and APatch delivery may use different mount helpers, but both should
 produce this same runtime contract. Root-manager-specific scripts must not leak
 into Binder routing or provider code.
 
+The first Android 14 prototype keeps bootstrap activation separate from module
+installation. Its fixed runtime contract is:
+
+- `/system/bin/vcam/cameraserver` is the captured stock executable;
+- `/system/lib64/libvcam_cameraserver_router.so` is the in-process router;
+- `/data/vendor/camera/vcam/bootstrap.mode` selects `stock`, `preflight`, or
+  `passthrough`; a missing, empty, oversized, non-regular, or unrecognized value
+  fails to `stock`;
+- preload is allowed only after the launcher observes the `cameraserver` SELinux
+  domain, a distinct executable stock inode, and a readable router library.
+
+The launcher can retry the stock `exec` when `execve` itself fails. A dynamic
+linker failure after a successful `execve` cannot return to the launcher, so the
+boot-attempt marker in step 6 remains a required delivery gate before enabling
+`preflight` automatically on a device.
+
 ## Version and vendor adaptation boundary
 
 The expected maintained surface is:

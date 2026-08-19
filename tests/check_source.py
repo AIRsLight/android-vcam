@@ -88,7 +88,7 @@ def main() -> None:
     for required_symbol in (
         "ukq1.230917.001", "vendor_qti/0", "camera2 ids `0,1,2,3,4`",
         "402dbe885fd58af75e4c1d7e790fbf4bb22f29f9",
-        "installation on this fingerprint: blocked",
+        "same-process binder pass-through registration: passed",
     ):
         if required_symbol not in nx769j_profile:
             fail(f"NX769J compatibility profile is missing: {required_symbol}")

@@ -54,3 +54,24 @@ cc_binary {
     init_rc: ["android-14/android.hardware.camera.provider-service-vcam-v2.rc"],
     vintf_fragments: ["android-14/android.hardware.camera.provider-service-vcam-v2.xml"],
 }
+
+// Direct, system-side AIDL diagnostic used before the manual provider is made
+// discoverable by CameraService through a VINTF declaration.
+cc_binary {
+    name: "vcam_provider_probe_client",
+    srcs: ["provider_probe_client.cpp"],
+    shared_libs: [
+        "android.hardware.common-V2-ndk",
+        "android.hardware.camera.device-V2-ndk",
+        "android.hardware.camera.provider-V2-ndk",
+        "libbinder_ndk",
+        "libcutils",
+        "libsync",
+        "libui",
+    ],
+    static_libs: [
+        "libaidlcommonsupport",
+        "libgrallocusage",
+    ],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+}

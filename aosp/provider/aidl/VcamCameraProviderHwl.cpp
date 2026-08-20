@@ -14,6 +14,7 @@
 #include <array>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <iterator>
 #include <memory>
@@ -136,6 +137,21 @@ status_t ConfigureRoutedFrame(uint32_t camera_id,
   if (camera_id >= g_routed_frames.size()) return BAD_VALUE;
   const std::string package_name = ClientPackageFrom(session_params);
   if (package_name.empty()) {
+    const char* probe_pattern = getenv("ANDROID_VCAM_PROBE_TEST_PATTERN");
+    if (probe_pattern != nullptr && strcmp(probe_pattern, "1") == 0) {
+      RoutedFrameState& state = g_routed_frames[camera_id];
+      std::lock_guard<std::mutex> lock(state.mutex);
+      state.package_name = "<direct-probe>";
+      state.provider_id = "test-pattern";
+      state.renderer.setSourcePath({});
+      state.transform = {};
+      state.frame_duration_ns = kDefaultFrameDurationNs;
+      if (frame_duration_ns != nullptr) {
+        *frame_duration_ns = state.frame_duration_ns;
+      }
+      ALOGI("Configured diagnostic test pattern camera=%u", camera_id);
+      return OK;
+    }
     ALOGE("Client package is absent from VCAM session parameters");
     return BAD_VALUE;
   }
@@ -629,7 +645,16 @@ class VcamCameraProviderHwl final : public gch::CameraProviderHwl {
 
   status_t GetVisibleCameraIds(std::vector<uint32_t>* camera_ids) override {
     if (camera_ids == nullptr) return BAD_VALUE;
-    *camera_ids = {kBackCameraId, kFrontCameraId};
+    std::vector<uint32_t> delegate_ids;
+    status_t result = delegate_->GetVisibleCameraIds(&delegate_ids);
+    if (result != OK) return result;
+    camera_ids->clear();
+    for (uint32_t delegate_id : delegate_ids) {
+      uint32_t public_id = 0;
+      if (ToPublicId(delegate_id, &public_id)) {
+        camera_ids->push_back(public_id);
+      }
+    }
     return OK;
   }
 
@@ -697,6 +722,13 @@ extern "C" bool VcamAdjustCameraMetadata(
     uint32_t camera_id, gch::HalCameraMetadata* metadata) {
   if (metadata == nullptr) return false;
   if (camera_id > kDelegateFrontCameraId) return true;
+  // Some emulator front-camera configurations advertise HIDL 3.5 HAL buffer
+  // management even though this standalone AIDL provider has no vendor buffer
+  // allocator. Leaving the imported flag in place makes CameraService switch
+  // allocation models for only one of the two virtual cameras.
+  if (metadata->Erase(ANDROID_INFO_SUPPORTED_BUFFER_MANAGEMENT_VERSION) != OK) {
+    return false;
+  }
   return AddHighResolutionMetadata(metadata) == OK;
 }
 

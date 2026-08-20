@@ -221,11 +221,13 @@ fi
 m --soong-only -j"$jobs" WITH_DEXPREOPT=false \
     libcameraservice \
     libvcam_googlecamerahwl_impl \
-    android.hardware.camera.provider-service-vcam-v2
+    android.hardware.camera.provider-service-vcam-v2 \
+    vcam_provider_probe_client
 set -u
 
 for artifact in \
     "$OUT_DIR/soong/target/product/generic_arm64/system/lib64/libcameraservice.so" \
+    "$OUT_DIR/soong/target/product/generic_arm64/system/bin/vcam_provider_probe_client" \
     "$OUT_DIR/soong/target/product/generic_arm64/vendor/lib64/libvcam_googlecamerahwl_impl.so" \
     "$OUT_DIR/soong/target/product/generic_arm64/vendor/bin/hw/android.hardware.camera.provider-service-vcam-v2"; do
     [[ -s "$artifact" ]] || fail "expected build artifact is missing: $artifact"

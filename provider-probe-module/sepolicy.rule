@@ -1,4 +1,8 @@
 allow ksu hal_camera_service service_manager { add find }
+# vcam/0 is intentionally absent from service_contexts in this non-mounted
+# probe, so servicemanager assigns default_android_service. Keep this exception
+# confined to the already-privileged KernelSU diagnostic domain.
+allow ksu default_android_service service_manager { add find }
 allow ksu servicemanager binder { call transfer }
 allow servicemanager ksu binder { call transfer }
 allow cameraserver ksu binder { call transfer }

@@ -13,23 +13,29 @@ expected_fingerprint='nubia/NX769J/NX769J:14/UKQ1.230917.001/20240417.145608:use
     abort "! This development probe is restricted to the qualified NX769J build"
 
 binary="$MODPATH/payload/bin/android.hardware.camera.provider-service-vcam-v2"
+client="$MODPATH/payload/bin/vcam_provider_probe_client"
 libdir="$MODPATH/payload/lib64"
 empty_config="$MODPATH/payload/empty-config"
+camera_config="$MODPATH/payload/camera-config"
 
 for required in \
     "$binary" \
+    "$client" \
     "$libdir/libvcam_googlecamerahwl_impl.so" \
     "$libdir/libgooglecamerahal.so" \
     "$libdir/libgooglecamerahalutils.so" \
     "$libdir/lib_profiler.so" \
     "$libdir/libgrallocusage.so" \
     "$libdir/libprotobuf-cpp-full-21.7.so" \
-    "$libdir/libprovider_probe_trace.so"; do
+    "$libdir/libprovider_probe_trace.so" \
+    "$camera_config/emu_camera_back.json" \
+    "$camera_config/emu_camera_front.json"; do
     [ -f "$required" ] || abort "! Required probe file is missing: $required"
 done
 
 mkdir -p "$empty_config"
 set_perm "$binary" 0 0 0755
+set_perm "$client" 0 0 0755
 set_perm_recursive "$libdir" 0 0 0755 0644
 set_perm "$MODPATH/action.sh" 0 0 0755
 set_perm "$MODPATH/uninstall.sh" 0 0 0755
@@ -37,4 +43,5 @@ set_perm "$MODPATH/uninstall.sh" 0 0 0755
 ui_print "- No system or vendor paths will be mounted"
 ui_print "- No VINTF fragment or boot-time service is included"
 ui_print "- Reboot once to load the narrowly scoped SELinux rule"
-ui_print "- Use the module action button to start or stop the zero-camera probe"
+ui_print "- The action button starts the safe zero-camera probe"
+ui_print "- ADB may opt into IDs 1000/1001 with ANDROID_VCAM_PROBE_ADVERTISE_CAMERAS=1"

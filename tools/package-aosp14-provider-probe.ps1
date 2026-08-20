@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$ArtifactRoot = "out/android14-provider-probe",
-    [string]$Output = "dist/android-vcam-provider-probe-v0.5.0-dev.13.zip"
+    [string]$Output = "dist/android-vcam-provider-probe-v0.5.0-dev.14.zip"
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,6 +19,7 @@ if (-not $resolvedStagingRoot.StartsWith(
 }
 
 $binaryName = "android.hardware.camera.provider-service-vcam-v2"
+$clientName = "vcam_provider_probe_client"
 $libraries = @(
     "libvcam_googlecamerahwl_impl.so",
     "libgooglecamerahal.so",
@@ -30,10 +31,15 @@ $libraries = @(
 )
 
 $required = @(
-    (Join-Path $artifactRootPath $binaryName)
+    (Join-Path $artifactRootPath $binaryName),
+    (Join-Path (Join-Path $artifactRootPath "bin") $clientName)
 )
 $required += $libraries | ForEach-Object {
     Join-Path (Join-Path $artifactRootPath "lib64") $_
+}
+$configFiles = @("emu_camera_back.json", "emu_camera_front.json")
+$required += $configFiles | ForEach-Object {
+    Join-Path (Join-Path $artifactRootPath "config") $_
 }
 foreach ($path in $required) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
@@ -62,11 +68,18 @@ foreach ($templateFile in $templateFiles) {
 $payloadBin = Join-Path $stagingRoot "payload/bin"
 $payloadLib = Join-Path $stagingRoot "payload/lib64"
 $emptyConfig = Join-Path $stagingRoot "payload/empty-config"
-New-Item -ItemType Directory -Force -Path $payloadBin, $payloadLib, $emptyConfig | Out-Null
+$cameraConfig = Join-Path $stagingRoot "payload/camera-config"
+New-Item -ItemType Directory -Force -Path $payloadBin, $payloadLib, $emptyConfig, $cameraConfig | Out-Null
 Copy-Item -LiteralPath (Join-Path $artifactRootPath $binaryName) -Destination $payloadBin
+Copy-Item -LiteralPath (Join-Path (Join-Path $artifactRootPath "bin") $clientName) `
+    -Destination $payloadBin
 foreach ($library in $libraries) {
     Copy-Item -LiteralPath (Join-Path (Join-Path $artifactRootPath "lib64") $library) `
         -Destination $payloadLib
+}
+foreach ($configFile in $configFiles) {
+    Copy-Item -LiteralPath (Join-Path (Join-Path $artifactRootPath "config") $configFile) `
+        -Destination $cameraConfig
 }
 
 $outputDirectory = Split-Path -Parent $outputPath

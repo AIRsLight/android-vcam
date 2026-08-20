@@ -7,8 +7,19 @@ LOG_FILE=$STATE_DIR/action.log
 TRACE_FILE=$STATE_DIR/provider.trace
 BINARY=$MODDIR/payload/bin/android.hardware.camera.provider-service-vcam-v2
 LIBDIR=$MODDIR/payload/lib64
-CONFIGDIR=$MODDIR/payload/empty-config
+EMPTY_CONFIGDIR=$MODDIR/payload/empty-config
+CAMERA_CONFIGDIR=$MODDIR/payload/camera-config
 INSTANCE=android.hardware.camera.provider.ICameraProvider/vcam/0
+
+if [ "$ANDROID_VCAM_PROBE_ADVERTISE_CAMERAS" = "1" ]; then
+    CONFIGDIR=$CAMERA_CONFIGDIR
+    PROBE_MODE=manual-two-camera
+    export ANDROID_VCAM_PROBE_TEST_PATTERN=1
+else
+    CONFIGDIR=$EMPTY_CONFIGDIR
+    PROBE_MODE=manual-zero-camera
+    unset ANDROID_VCAM_PROBE_TEST_PATTERN
+fi
 
 mkdir -p "$STATE_DIR"
 chmod 0700 "$STATE_DIR"
@@ -47,7 +58,7 @@ rm -f "$PID_FILE" "$TRACE_FILE"
 {
     echo "start $(date '+%Y-%m-%dT%H:%M:%S%z')"
     echo "context=$(cat /proc/self/attr/current 2>/dev/null)"
-    echo "mode=manual-zero-camera"
+    echo "mode=$PROBE_MODE"
 } >> "$LOG_FILE"
 
 export LD_LIBRARY_PATH="$LIBDIR:/vendor/lib64:/system/lib64:/system_ext/lib64:/product/lib64"
@@ -77,7 +88,12 @@ while [ "$attempt" -lt 50 ]; do
     fi
     if service check "$INSTANCE" 2>/dev/null | grep -q ': found$'; then
         echo "Provider probe registered as $INSTANCE (pid=$pid)"
-        echo "It advertises zero cameras and will not restart after reboot"
+        if [ "$PROBE_MODE" = "manual-two-camera" ]; then
+            echo "It advertises virtual camera IDs 1000/1001"
+        else
+            echo "It advertises zero cameras"
+        fi
+        echo "The provider will not restart after reboot"
         exit 0
     fi
     sleep 0.1

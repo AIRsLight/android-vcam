@@ -108,6 +108,14 @@ up to 4096x3072 and applies source-aware, pixel-budgeted frame pacing. This is
 a tier-1 AOSP/ROM integration check; it is not a systemless stock-ROM package
 and must not be installed on an arbitrary OEM Android 14 device.
 
+The Android 14 Google Camera HAL keeps `PrepareConfigureStreams()` in its HWL
+interface but its production process blocks do not call it. Session-dependent
+VCAM initialization must therefore run from `ConfigurePipeline()`, before the
+delegate builds the EmulatedSensor pipeline. The wrapper retains the prepare
+hook only for source branches that still invoke it. `tests/check_source.py`
+guards this placement because initializing only from the unused hook silently
+falls back to EmulatedCamera's built-in test pattern.
+
 The discovery patch watches only the full service name
 `android.hardware.camera.provider.ICameraProvider/vcam/0`. When that instance
 is not declared by VINTF, CameraService does not wait for it during startup; an

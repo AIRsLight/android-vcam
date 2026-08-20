@@ -390,6 +390,14 @@ def main() -> None:
     ):
         if required_symbol not in aidl_provider:
             fail(f"AOSP AIDL provider is missing symbol: {required_symbol}")
+    aidl_hwl = (
+        ROOT / "aosp" / "provider" / "aidl" / "VcamCameraProviderHwl.cpp"
+    ).read_text(encoding="utf-8")
+    configure_pipeline = aidl_hwl.find("status_t ConfigurePipeline(")
+    build_pipelines = aidl_hwl.find("status_t BuildPipelines()", configure_pipeline)
+    if configure_pipeline < 0 or build_pipelines < 0 or \
+            "ConfigureRoutedFrame(" not in aidl_hwl[configure_pipeline:build_pipelines]:
+        fail("AOSP AIDL provider must initialize routing from ConfigurePipeline")
     aidl_v2_manifest = (
         ROOT / "aosp" / "provider" / "aidl" / "android-14" /
         "android.hardware.camera.provider-service-vcam-v2.xml"

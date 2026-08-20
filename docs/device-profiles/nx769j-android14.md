@@ -443,3 +443,26 @@ left both OEM provider and cameraserver healthy, and preserved the original
 auxiliary-camera whitelist. This completes the Android 14 AIDL provider,
 two-device application path and automatic rollback qualification; the next
 work item is CameraService routing from public 0/1 into these internal devices.
+
+dev.21 then connected the standalone provider to the production route table
+and a valid `local-fixture/frame.rgb`. Both internal devices still displayed
+the upstream EmulatedCamera pattern. Source inspection found that Android 14's
+production Google Camera process blocks call `ConfigurePipeline()` directly;
+`PrepareConfigureStreams()` is declared and implemented but has no production
+caller. Consequently `ConfigureRoutedFrame()` never initialized the renderer,
+and the weak rendering hook correctly declined every frame.
+
+dev.22 initializes the routed renderer and source-aware frame pacing from
+`ConfigurePipeline()` before delegating pipeline construction. The complete
+Android 14 r23 Soong build passed in 2 minutes 30 seconds and restored both
+temporarily patched AOSP repositories pristine. On the armed cold boot,
+CameraService again reported seven devices/five normal devices and both 1000
+and 1001 opened in the root-free Camera2 test app. Camera 1000 first rendered
+the fixture's solid orange RGB frame. Publishing the striped RGB fixture while
+the capture session remained open changed the preview without reopening the
+camera, proving atomic hot reload through `FrameRenderer`. Camera 1001 rendered
+the same source with its independent `view-1.cfg` transform. The OEM auxiliary
+camera whitelist was restored to its exact stock value after each test. This
+qualifies local provider routing and live frame replacement for both Android 14
+AIDL targets; public-ID routing and decoded file/network publishers remain the
+next integration layers.

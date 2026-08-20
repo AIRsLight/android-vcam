@@ -383,6 +383,31 @@ class VcamCameraDeviceSessionHwl final : public gch::CameraDeviceSessionHwl {
       const gch::StreamConfiguration& overall_config,
       uint32_t* pipeline_id) override {
     if (camera_id != public_id_) return BAD_VALUE;
+    // Android 14's production process-block path calls ConfigurePipeline()
+    // directly; PrepareConfigureStreams() remains in the HWL interface but has
+    // no production caller. Initialize the route here before EmulatedSensor
+    // starts producing frames. Keep PrepareConfigureStreams() above for older
+    // branches that still invoke it.
+    int64_t source_frame_duration = kDefaultFrameDurationNs;
+    status_t route_result = ConfigureRoutedFrame(
+        delegate_id_, overall_config.session_params.get(),
+        &source_frame_duration);
+    if (route_result != OK) return route_result;
+    uint64_t max_output_pixels = 1;
+    for (const auto& stream : overall_config.streams) {
+      if (stream.stream_type == gch::StreamType::kOutput) {
+        max_output_pixels = std::max(
+            max_output_pixels,
+            static_cast<uint64_t>(stream.width) * stream.height);
+      }
+    }
+    const int64_t output_fps = static_cast<int64_t>(std::max<uint64_t>(
+        1, std::min<uint64_t>(60, kMaxOutputPixelRate / max_output_pixels)));
+    frame_duration_ns_ =
+        std::max<int64_t>(source_frame_duration, 1000000000LL / output_fps);
+    next_frame_time_ = {};
+    ALOGI("Configured AIDL pipeline route camera=%u outputFps=%lld",
+          public_id_, static_cast<long long>(1000000000LL / frame_duration_ns_));
     if (callback.process_pipeline_result) {
       auto process_result = std::move(callback.process_pipeline_result);
       callback.process_pipeline_result =

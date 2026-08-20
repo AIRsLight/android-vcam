@@ -255,7 +255,7 @@ build and runtime validation.
 | 11 | HIDL Provider 2.4 plus concurrent-camera APIs | Android 11 patch, ID filtering and concurrency tests | Planned |
 | 12 | HIDL Provider and current OEM legacy adapter | AOSP frontend plus pinned OnePlus compatibility adapter | Partial |
 | 13 | stable AIDL v1 with HIDL-vendor coexistence | AIDL v1 frontend, mixed-transport discovery and runtime tests | Partial |
-| 14 | stable AIDL v2 with OEM variants | AIDL v2 frontend, CameraService integration and product policy | AIDL provider frame delivery and undeclared exact-instance notification qualified on NX769J; offline FCM 8 validation rejects HIDL and accepts the dedicated AIDL v2 fragment; one-shot early-registration module built but cold-boot qualification, OEM CameraService integration and live target-write backend remain pending |
+| 14 | stable AIDL v2 with OEM variants | AIDL v2 frontend, CameraService integration and product policy | AIDL frame delivery and undeclared notification qualified; FCM 8 accepts the AIDL v2 fragment; dev.17 recovery reboot qualified after an OverlayFS directory-label rejection, dev.18 directory-label fix awaits cold boot; OEM CameraService integration and live target-write backend remain pending |
 
 For every version, the build gate covers CameraService, the selected Provider,
 VINTF fragments, init service definitions and SELinux policy. The runtime gate

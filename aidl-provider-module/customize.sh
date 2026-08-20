@@ -34,6 +34,9 @@ fi
 binary="$MODPATH/payload/bin/android.hardware.camera.provider-service-vcam-v2"
 libdir="$MODPATH/payload/lib64"
 fragment="$MODPATH/system/vendor/etc/vintf/manifest/android.hardware.camera.provider-service-vcam-v2.xml"
+vendor_etc="$MODPATH/system/vendor/etc"
+vintf_dir="$vendor_etc/vintf"
+manifest_dir="$vintf_dir/manifest"
 empty_config="$MODPATH/payload/empty-config"
 camera_config="$MODPATH/payload/camera-config"
 
@@ -60,6 +63,10 @@ mkdir -p "$empty_config"
 set_perm "$binary" 0 0 0755
 set_perm_recursive "$libdir" 0 0 0755 0644
 set_perm "$fragment" 0 0 0644
+for config_dir in "$vendor_etc" "$vintf_dir" "$manifest_dir"; do
+    chcon u:object_r:vendor_configs_file:s0 "$config_dir" || \
+        abort "! Unable to label VINTF directory as vendor configuration: $config_dir"
+done
 chcon u:object_r:vendor_configs_file:s0 "$fragment" || \
     abort "! Unable to label the VINTF fragment as vendor configuration"
 set_perm "$MODPATH/provider-control.sh" 0 0 0755
@@ -69,6 +76,7 @@ set_perm "$MODPATH/action.sh" 0 0 0755
 set_perm "$MODPATH/uninstall.sh" 0 0 0755
 
 ui_print "- Adds the checkvintf-qualified AIDL v2 vcam/0 declaration"
+ui_print "- Preserves vendor_configs_file on the complete VINTF directory chain"
 ui_print "- Registration runs in the background before CameraService starts"
 ui_print "- This boot advertises zero cameras; the next boot is disabled after mount"
 ui_print "- Failure recovery uses a full reboot and never restarts cameraserver"

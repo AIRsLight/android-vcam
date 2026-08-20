@@ -10,6 +10,11 @@ the Android 14 `checkvintf` host binary: the stock snapshot and the AIDL v2
 candidate both report `COMPATIBLE`. The equivalent HIDL 2.4 candidate is
 rejected because the device manifest targets FCM 8.
 
+OverlayFS replaces directory inodes as well as the fragment. Every directory
+from `vendor/etc` through `vintf/manifest` is therefore explicitly labeled
+`vendor_configs_file`; labeling only the XML is insufficient because
+servicemanager must be able to traverse the overlay directories.
+
 CameraService calls the blocking AIDL service lookup while initializing every
 declared provider. `post-fs-data.sh` therefore launches a background bootstrap
 before CameraService starts. The foreground script exits immediately so it

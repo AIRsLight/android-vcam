@@ -8,6 +8,7 @@ MOUNTED_FRAGMENT=/vendor/etc/vintf/manifest/android.hardware.camera.provider-ser
 
 mkdir -p "$STATE_DIR"
 chmod 0700 "$STATE_DIR"
+echo "bootstrap 0.5.0-dev.18 started" >> "$BOOT_LOG"
 
 disable_next_boot() {
     touch "$MODDIR/disable"

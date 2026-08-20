@@ -31,6 +31,9 @@ binary="$MODPATH/payload/bin/vcam_hidl_provider"
 module="$MODPATH/payload/lib64/hw/camera.vcam.so"
 libdir="$MODPATH/payload/lib64"
 fragment="$MODPATH/system/vendor/etc/vintf/manifest/android.hardware.camera.provider@2.4-vcam-service.xml"
+vendor_etc="$MODPATH/system/vendor/etc"
+vintf_dir="$vendor_etc/vintf"
+manifest_dir="$vintf_dir/manifest"
 
 for required in \
     "$binary" \
@@ -47,6 +50,10 @@ done
 set_perm "$binary" 0 0 0755
 set_perm_recursive "$libdir" 0 0 0755 0644
 set_perm "$fragment" 0 0 0644
+for config_dir in "$vendor_etc" "$vintf_dir" "$manifest_dir"; do
+    chcon u:object_r:vendor_configs_file:s0 "$config_dir" || \
+        abort "! Unable to label VINTF directory as vendor configuration: $config_dir"
+done
 chcon u:object_r:vendor_configs_file:s0 "$fragment" || \
     abort "! Unable to label the VINTF fragment as vendor configuration"
 set_perm "$MODPATH/provider-control.sh" 0 0 0755

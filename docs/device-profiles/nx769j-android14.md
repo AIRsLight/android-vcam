@@ -364,3 +364,15 @@ the device VINTF manifest at `05:12:39.716`, and cameraserver starts at about
 `05:12:40.873`. The AIDL one-shot bootstrap runs in the background, waits for
 the mounted fragment, and retries stable registration within this interval;
 it does not block MetaModule's post-fs-data work.
+
+The first one-shot package (`0.5.0-dev.17`) exercised recovery rather than
+provider discovery. MetaModule preserved `vendor_configs_file` on the XML but
+created the overlaid `/vendor/etc/vintf/manifest` directory as `vendor_file`.
+System servicemanager was denied directory traversal, reported a VINTF parse
+error (`Cannot open /vendor/etc/vintf/manifest/: Permission denied`) and refused
+the otherwise valid `vcam/0` declaration. The bootstrap wrote `disable` and
+requested `reboot,vcam-aidl-recovery` at roughly 5.24 seconds. The following
+stock boot completed with `media.camera`, cameraserver and the OEM provider all
+healthy and `vcam/0` absent. dev.18 fixes delivery by labeling the entire
+`vendor/etc/vintf/manifest` directory chain as `vendor_configs_file`; it does
+not add a broad servicemanager permission for `vendor_file`.

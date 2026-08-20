@@ -570,3 +570,18 @@ immutability all passed. The router now forwards an available virtual route's
 was installed or activated by this host qualification. Listener/enumeration
 filtering and a guarded public-ID device test remain required before the route
 can be considered transparent.
+
+The following host-only increment closes that enumeration gap for the qualified
+Android 14 transaction layout. The router replaces the listener Binder in
+`addListener`, removes 1000/1001 from its initial `CameraStatus[]`, and drops
+all later listener callbacks that identify either internal camera. It also
+returns `EX_ILLEGAL_ARGUMENT` for direct camera-scoped 1000/1001 access while
+route mode is active, so guessing the IDs cannot bypass the public boundary.
+The dedicated r23 host test preserved the original request and Binder object,
+forwarded public and ID-free callbacks, filtered internal logical and physical
+IDs, retained complete status payloads for 0/1, and left an already-visible
+reply byte-for-byte unchanged. The listener test, Parcel observer test and
+device-user request test all passed, and the arm64 router linked with `-Werror`.
+No device process or installed module changed during this qualification. A
+guarded cold-boot public-ID test, provider-loss fallback and OEM/third-party app
+coverage are still required.

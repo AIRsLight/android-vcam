@@ -3,6 +3,7 @@
 #include "vcam/Android14BinderShadowObserver.h"
 #include "vcam/Android14CameraDeviceUserRouter.h"
 #include "vcam/Android14CameraIdRewriter.h"
+#include "vcam/Android14CameraListenerFilter.h"
 #include "vcam/Android14CameraServiceProfile.h"
 #include "vcam/AndroidCameraServiceRouter.h"
 #include "vcam/CameraServerBootstrapPaths.h"
@@ -27,6 +28,7 @@
 #include <binder/IServiceManager.h>
 #include <binder/Parcel.h>
 #include <binder/PermissionController.h>
+#include <binder/Status.h>
 #include <log/log.h>
 #include <utils/String16.h>
 #include <utils/String8.h>
@@ -62,6 +64,7 @@ std::atomic<std::uint64_t> gUnavailableRouteProviders {0};
 std::atomic<std::uint64_t> gPhysicalRewriteAttempts {0};
 std::atomic<std::uint64_t> gPhysicalRewriteSuccesses {0};
 std::atomic<std::uint64_t> gPhysicalRewriteFailures {0};
+std::atomic<std::uint64_t> gInternalCameraRequestsRejected {0};
 
 std::string buildFingerprint() {
     char value[PROP_VALUE_MAX] {};
@@ -108,7 +111,11 @@ void* statsPublisher(void*) {
                 "device_user_wrappers=%llu\n"
                 "request_batches_rewritten=%llu\n"
                 "requests_rewritten=%llu\n"
-                "request_batches_skipped=%llu\n",
+                "request_batches_skipped=%llu\n"
+                "listener_wrappers=%llu\n"
+                "listener_callbacks_filtered=%llu\n"
+                "listener_status_records_filtered=%llu\n"
+                "internal_camera_requests_rejected=%llu\n",
                 androidCameraServiceRouterStateName(
                         gState.load(std::memory_order_acquire)),
                 gObserverProfile.load(std::memory_order_acquire),
@@ -158,7 +165,16 @@ void* statsPublisher(void*) {
                 static_cast<unsigned long long>(
                         android14CameraRequestsRewritten()),
                 static_cast<unsigned long long>(
-                        android14CameraRequestBatchesSkipped()));
+                        android14CameraRequestBatchesSkipped()),
+                static_cast<unsigned long long>(
+                        android14CameraListenerWrappers()),
+                static_cast<unsigned long long>(
+                        android14CameraListenerCallbacksFiltered()),
+                static_cast<unsigned long long>(
+                        android14CameraStatusRecordsFiltered()),
+                static_cast<unsigned long long>(
+                        gInternalCameraRequestsRejected.load(
+                                std::memory_order_relaxed)));
         if (length > 0 && static_cast<std::size_t>(length) < sizeof(payload)) {
             const int fd = open(
                     bootstrap::kRouterStatsPath,
@@ -212,6 +228,52 @@ protected:
             android::Parcel* reply,
             std::uint32_t flags) override {
         const ParcelObservation observation = observer_.observe(code, &data);
+        if (physicalRoutingEnabled_ &&
+            observation.status == ParcelObservationStatus::kObserved &&
+            observation.transaction.payloadShape == BinderPayloadShape::kListener) {
+            android::Parcel rewrittenListenerRequest;
+            const CameraListenerRequestRouteStatus requestStatus =
+                    wrapAndroid14CameraListenerRequest(
+                            data, &rewrittenListenerRequest);
+            if (requestStatus == CameraListenerRequestRouteStatus::kWrapped) {
+                const android::status_t forwardStatus = target_->transact(
+                        code, rewrittenListenerRequest, reply, flags);
+                if (forwardStatus == android::OK) {
+                    const CameraStatusReplyFilterStatus filterStatus =
+                            filterAndroid14CameraStatusReply(reply);
+                    if (filterStatus !=
+                                CameraStatusReplyFilterStatus::kFiltered &&
+                        filterStatus !=
+                                CameraStatusReplyFilterStatus::kUnchanged &&
+                        filterStatus !=
+                                CameraStatusReplyFilterStatus::kServiceError) {
+                        ALOGW("camera-status reply filter failed: status=%s",
+                              cameraStatusReplyFilterStatusName(filterStatus));
+                    }
+                }
+                return forwardStatus;
+            }
+            ALOGW("camera listener route failed: status=%s",
+                  cameraListenerRequestRouteStatusName(requestStatus));
+        }
+        if (physicalRoutingEnabled_ &&
+            observation.status == ParcelObservationStatus::kObserved &&
+            observation.transaction.cameraScoped &&
+            ::vcam::ScopedCameraRouter::isInternalCameraId(
+                    observation.cameraId)) {
+            if (reply == nullptr) return android::BAD_VALUE;
+            reply->freeData();
+            const android::binder::Status rejection =
+                    android::binder::Status::fromExceptionCode(
+                            android::binder::Status::EX_ILLEGAL_ARGUMENT,
+                            "Unknown camera ID");
+            const android::status_t writeStatus = rejection.writeToParcel(reply);
+            if (writeStatus == android::OK) {
+                gInternalCameraRequestsRejected.fetch_add(
+                        1, std::memory_order_relaxed);
+            }
+            return writeStatus;
+        }
         const CameraCallerIdentityClassification identity =
                 classifyCameraCallerIdentity(
                         observation.transaction.cameraScoped,

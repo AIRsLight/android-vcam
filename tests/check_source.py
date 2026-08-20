@@ -96,6 +96,10 @@ def main() -> None:
         ROOT / "runtime" / "platform" / "CameraServerLauncher.cpp",
         ROOT / "runtime" / "platform" / "Android14CameraIdRewriter.cpp",
         ROOT / "runtime" / "include" / "vcam" / "Android14CameraIdRewriter.h",
+        ROOT / "runtime" / "platform" / "Android14CameraListenerFilter.cpp",
+        ROOT / "runtime" / "include" / "vcam" /
+        "Android14CameraListenerFilter.h",
+        ROOT / "tests" / "android14_camera_listener_filter_test.cpp",
         ROOT / "runtime" / "include" / "vcam" / "CameraServerBootstrapPaths.h",
         ROOT / "docs" / "device-support.md",
         ROOT / "docs" / "device-profiles" / "nx769j-android14.md",
@@ -159,6 +163,9 @@ def main() -> None:
         "uid_packages_unique", "uid_packages_ambiguous",
         "physical_rewrite_successes", "rewriteAndroid14CameraId",
         "replacementCameraId = route.effectiveCameraId",
+        "internal_camera_requests_rejected", "EX_ILLEGAL_ARGUMENT",
+        "wrapAndroid14CameraListenerRequest",
+        "filterAndroid14CameraStatusReply",
     ):
         if required_symbol not in router_source:
             fail(f"camera service router telemetry is missing: {required_symbol}")

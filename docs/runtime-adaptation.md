@@ -264,6 +264,20 @@ contraction, Binder objects on both sides, source immutability and cursor
 mapping are covered by the Android 14 host test. This is protocol/build
 qualification, not yet authorization to activate the route on a device.
 
+Enumeration uses a second raw-Binder boundary. In `physical-route` mode the
+router replaces the `ICameraServiceListener` carried by `addListener`, removes
+1000/1001 records from the successful initial `CameraStatus[]` reply, and drops
+later status, physical-status, torch, open and close callbacks that reference an
+internal ID. Unknown callback codes and malformed callback Parcels pass through
+unchanged. Direct camera-scoped requests for 1000/1001 are rejected with the
+standard `EX_ILLEGAL_ARGUMENT`, preventing a client from bypassing filtering by
+guessing the IDs. `passthrough` performs none of these changes. The registered
+provider advertises no concurrent-camera combination containing its internal
+IDs; if that contract changes, the concurrent-ID reply requires its own filter.
+Public 0/1 availability still reflects the OEM devices rather than synthesizing
+virtual-provider status, so runtime qualification must cover provider loss and
+fallback behavior before this becomes a production route.
+
 A successful connect-ID rewrite is not an end-to-end physical route. Camera2
 clients commonly query characteristics and choose output sizes before opening a
 device; capture requests must then be valid for the device that CameraService

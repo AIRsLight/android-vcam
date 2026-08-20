@@ -91,6 +91,7 @@ cc_library_shared {
     compile_multilib: "64",
     srcs: [
         "runtime/platform/Android14CameraDeviceUserRouter.cpp",
+        "runtime/platform/Android14CameraListenerFilter.cpp",
         "runtime/platform/AndroidCameraServiceRouter.cpp",
     ],
     local_include_dirs: ["runtime/include"],
@@ -111,6 +112,29 @@ cc_library_shared {
         "-fvisibility=hidden",
     ],
     version_script: "runtime/camera_service_router.exports",
+    cpp_std: "c++17",
+}
+
+cc_test {
+    name: "vcam_android14_camera_listener_filter_test",
+    host_supported: true,
+    device_supported: false,
+    compile_multilib: "64",
+    srcs: [
+        "runtime/platform/Android14CameraListenerFilter.cpp",
+        "tests/android14_camera_listener_filter_test.cpp",
+    ],
+    local_include_dirs: ["runtime/include"],
+    shared_libs: [
+        "libbinder",
+        "libutils",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-UNDEBUG",
+    ],
     cpp_std: "c++17",
 }
 

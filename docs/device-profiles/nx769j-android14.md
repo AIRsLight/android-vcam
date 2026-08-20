@@ -516,6 +516,6 @@ temporary package tree were removed. The late-start script also launched the
 packaged daemon as the exact expected executable in `u:r:ksu:s0`, preserved
 `ANDROID_VCAM_CURRENT_BOOT_ACTIVE=1`, and shut it down cleanly. The final
 dev.24 ZIP SHA-256 is
-`BBE619E11E0C9B6264FA4C3B7B17284937F92713B9654C7012F311E425D15758`.
+`05A8E9512C33F33A4F12047ED24D5F09CA8D6EA0BFA16FFCF93B944376E409F1`.
 The remaining Android 14 integration item is transparent selection of internal
 1000/1001 when ordinary applications open public IDs 0/1.

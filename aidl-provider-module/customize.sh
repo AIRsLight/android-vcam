@@ -41,7 +41,7 @@ empty_config="$MODPATH/payload/empty-config"
 camera_config="$MODPATH/payload/camera-config"
 backend_manifest="$MODPATH/payload/backend.sha256"
 streamer="$MODPATH/system/bin/vcam-streamer"
-publisher="$MODPATH/vendor/bin/vcam-publisher"
+publisher="$MODPATH/system/bin/vcam-publisher"
 daemon="$MODPATH/system/bin/vcamd"
 
 for required in \

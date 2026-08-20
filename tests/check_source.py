@@ -233,6 +233,8 @@ def main() -> None:
     ):
         if required_symbol not in aidl_packager:
             fail(f"AIDL provider package lacks backend payload: {required_symbol}")
+    if 'Join-Path $stagingRoot "vendor/bin"' in aidl_packager:
+        fail("AIDL package must not collide with MetaModule's system/vendor normalization")
     for shell_script in (ROOT / "aidl-provider-module").glob("*.sh"):
         raw = shell_script.read_bytes()
         if b"\r\n" in raw:

@@ -10,6 +10,8 @@ PROFILE_FILE="$STATE_DIR/device-profile.conf"
 
 find_publisher() {
     for candidate in \
+        "$MODDIR/system/bin/vcam-publisher" \
+        "$MODDIR/system/system/bin/vcam-publisher" \
         "$MODDIR/vendor/bin/vcam-publisher" \
         "$MODDIR/system/vendor/bin/vcam-publisher"; do
         if [ -x "$candidate" ]; then

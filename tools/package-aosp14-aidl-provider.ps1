@@ -62,10 +62,9 @@ Copy-Item -Path (Join-Path $templateRoot "*") -Destination $stagingRoot `
 $payloadBin = Join-Path $stagingRoot "payload/bin"
 $payloadLib = Join-Path $stagingRoot "payload/lib64"
 $systemBin = Join-Path $stagingRoot "system/bin"
-$vendorBin = Join-Path $stagingRoot "vendor/bin"
 $emptyConfig = Join-Path $stagingRoot "payload/empty-config"
 $cameraConfig = Join-Path $stagingRoot "payload/camera-config"
-New-Item -ItemType Directory -Force -Path $payloadBin, $payloadLib, $systemBin, $vendorBin, $emptyConfig, $cameraConfig | Out-Null
+New-Item -ItemType Directory -Force -Path $payloadBin, $payloadLib, $systemBin, $emptyConfig, $cameraConfig | Out-Null
 Copy-Item -LiteralPath (Join-Path $artifactRootPath $binaryName) -Destination $payloadBin
 foreach ($library in $libraries) {
     Copy-Item -LiteralPath (Join-Path (Join-Path $artifactRootPath "lib64") $library) `
@@ -77,7 +76,7 @@ foreach ($configFile in $configFiles) {
 }
 Copy-Item -LiteralPath (Join-Path $nativeArtifactRootPath "vcam-streamer") -Destination $systemBin
 Copy-Item -LiteralPath (Join-Path $nativeArtifactRootPath "vcamd") -Destination $systemBin
-Copy-Item -LiteralPath (Join-Path $nativeArtifactRootPath "vcam-publisher") -Destination $vendorBin
+Copy-Item -LiteralPath (Join-Path $nativeArtifactRootPath "vcam-publisher") -Destination $systemBin
 foreach ($script in $backendScripts) {
     Copy-Item -LiteralPath (Join-Path (Join-Path $sourceRoot "apmodule") $script) `
         -Destination $stagingRoot
@@ -87,7 +86,7 @@ $backendManifest = Join-Path $stagingRoot "payload/backend.sha256"
 $backendPayloads = @(
     "system/bin/vcam-streamer",
     "system/bin/vcamd",
-    "vendor/bin/vcam-publisher",
+    "system/bin/vcam-publisher",
     "vcamctl",
     "provider-runner.sh",
     "device-probe.sh"

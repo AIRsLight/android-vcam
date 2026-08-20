@@ -344,4 +344,23 @@ lookup still requires a VINTF declaration. The provider was stopped and
 `ro.debuggable` was restored to `0`. A follow-up cameraserver restart used to
 test pre-existing discovery triggered the OEM provider abort documented above;
 that restart method is now prohibited on this profile. The persistent HIDL
-VINTF experiment remains disabled and unqualified.
+VINTF experiment remains disabled and must not be installed.
+
+An offline VINTF gate now makes the transport decision explicit. A complete
+116-file system/vendor/product/system_ext/odm snapshot plus
+`/apex/apex-info-list.xml` was checked with the host `checkvintf` built from
+`android-14.0.0_r23`. The unmodified device reports `COMPATIBLE`. Adding the
+HIDL 2.4 `vcam/0` fragment reports `INCOMPATIBLE` because the active
+`manifest_pineapple.xml` targets FCM 8 and HIDL camera provider is deprecated at
+that level. Adding the stable-AIDL v2 `vcam/0` fragment instead reports
+`COMPATIBLE`, matching the OEM `vendor_qti/0` AIDL v2 provider. The HIDL module
+installer now rejects target FCM 8, and Android 14 work continues with the
+one-shot AIDL provider module. No persistent provider module was installed
+during this validation.
+
+The stock boot log also confirms the required ordering window: KernelSU enters
+post-fs-data at approximately `05:12:39.252`, system `servicemanager` reloads
+the device VINTF manifest at `05:12:39.716`, and cameraserver starts at about
+`05:12:40.873`. The AIDL one-shot bootstrap runs in the background, waits for
+the mounted fragment, and retries stable registration within this interval;
+it does not block MetaModule's post-fs-data work.

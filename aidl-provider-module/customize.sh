@@ -1,6 +1,6 @@
 #!/system/bin/sh
 
-ui_print "- Validating Android 14 HIDL provider probe"
+ui_print "- Validating Android 14 AIDL provider probe"
 
 sdk="$(getprop ro.build.version.sdk)"
 abi="$(getprop ro.product.cpu.abi)"
@@ -20,21 +20,33 @@ target_fcm="$(sed -n 's/.*target-level="\([0-9][0-9]*\)".*/\1/p' \
 [ "$abi" = "arm64-v8a" ] || abort "! This probe requires arm64-v8a"
 [ "$fingerprint" = "$expected_fingerprint" ] || \
     abort "! This development probe is restricted to the qualified NX769J build"
-[ -n "$target_fcm" ] || \
-    abort "! Unable to determine the device target FCM from $vendor_manifest"
-[ "$target_fcm" -lt 8 ] || \
-    abort "! HIDL camera providers are incompatible with target FCM $target_fcm; use the AIDL v2 probe"
+[ "$target_fcm" = "8" ] || \
+    abort "! This probe requires target FCM 8; found '${target_fcm:-unknown}'"
 [ -d /data/adb/modules/meta-overlayfs ] || \
     abort "! The OverlayFS MetaModule must be installed first"
+[ ! -e /data/adb/modules/meta-overlayfs/disable ] || \
+    abort "! The OverlayFS MetaModule is disabled"
+if [ -d /data/adb/modules/android_vcam_hidl_provider ] && \
+   [ ! -e /data/adb/modules/android_vcam_hidl_provider/disable ]; then
+    abort "! Disable the HIDL provider probe before installing the AIDL probe"
+fi
 
-binary="$MODPATH/payload/bin/vcam_hidl_provider"
-module="$MODPATH/payload/lib64/hw/camera.vcam.so"
+binary="$MODPATH/payload/bin/android.hardware.camera.provider-service-vcam-v2"
 libdir="$MODPATH/payload/lib64"
-fragment="$MODPATH/system/vendor/etc/vintf/manifest/android.hardware.camera.provider@2.4-vcam-service.xml"
+fragment="$MODPATH/system/vendor/etc/vintf/manifest/android.hardware.camera.provider-service-vcam-v2.xml"
+empty_config="$MODPATH/payload/empty-config"
+camera_config="$MODPATH/payload/camera-config"
 
 for required in \
     "$binary" \
-    "$module" \
+    "$libdir/libvcam_googlecamerahwl_impl.so" \
+    "$libdir/libgooglecamerahal.so" \
+    "$libdir/libgooglecamerahalutils.so" \
+    "$libdir/lib_profiler.so" \
+    "$libdir/libgrallocusage.so" \
+    "$libdir/libprotobuf-cpp-full-21.7.so" \
+    "$camera_config/emu_camera_back.json" \
+    "$camera_config/emu_camera_front.json" \
     "$fragment" \
     "$MODPATH/provider-control.sh" \
     "$MODPATH/post-fs-data.sh" \
@@ -44,6 +56,7 @@ for required in \
     [ -f "$required" ] || abort "! Required probe file is missing: $required"
 done
 
+mkdir -p "$empty_config"
 set_perm "$binary" 0 0 0755
 set_perm_recursive "$libdir" 0 0 0755 0644
 set_perm "$fragment" 0 0 0644
@@ -55,8 +68,8 @@ set_perm "$MODPATH/service.sh" 0 0 0755
 set_perm "$MODPATH/action.sh" 0 0 0755
 set_perm "$MODPATH/uninstall.sh" 0 0 0755
 
-ui_print "- Adds only one VINTF manifest fragment through meta-overlayfs"
-ui_print "- The provider registers in post-fs-data before CameraService starts"
-ui_print "- The qualification advertises zero cameras and disables its next boot"
-ui_print "- A 180-second boot watchdog requests a disabled recovery reboot"
-ui_print "- Reboot is required; KernelSU bootloop protection remains the recovery path"
+ui_print "- Adds the checkvintf-qualified AIDL v2 vcam/0 declaration"
+ui_print "- Registration runs in the background before CameraService starts"
+ui_print "- This boot advertises zero cameras; the next boot is disabled after mount"
+ui_print "- Failure recovery uses a full reboot and never restarts cameraserver"
+ui_print "- Reboot is required; KernelSU bootloop protection remains available"

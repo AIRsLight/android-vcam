@@ -56,6 +56,7 @@ def main() -> None:
         ROOT / "tools" / "verify-aosp-build.ps1",
         ROOT / "tools" / "verify-aosp14-build.sh",
         ROOT / "tools" / "sync-aosp14-build-deps.sh",
+        ROOT / "tools" / "verify-vintf-snapshot.sh",
         ROOT / "tools" / "probe-device.ps1",
         ROOT / "tools" / "probe-cameraserver-bootstrap.ps1",
         ROOT / "tools" / "device-cameraserver-bootstrap-probe.sh",
@@ -63,6 +64,7 @@ def main() -> None:
         ROOT / "tools" / "stage-cameraserver-bootstrap.ps1",
         ROOT / "tools" / "package-portable-bootstrap.ps1",
         ROOT / "tools" / "package-aosp14-hidl-provider.ps1",
+        ROOT / "tools" / "package-aosp14-aidl-provider.ps1",
         ROOT / "portable-module" / "module.prop",
         ROOT / "portable-module" / "customize.sh",
         ROOT / "portable-module" / "post-mount.sh",
@@ -77,6 +79,17 @@ def main() -> None:
         ROOT / "hidl-provider-module" / "sepolicy.rule",
         ROOT / "hidl-provider-module" / "system" / "vendor" / "etc" / "vintf" /
         "manifest" / "android.hardware.camera.provider@2.4-vcam-service.xml",
+        ROOT / "aidl-provider-module" / "module.prop",
+        ROOT / "aidl-provider-module" / "customize.sh",
+        ROOT / "aidl-provider-module" / "provider-control.sh",
+        ROOT / "aidl-provider-module" / "post-fs-data.sh",
+        ROOT / "aidl-provider-module" / "service.sh",
+        ROOT / "aidl-provider-module" / "action.sh",
+        ROOT / "aidl-provider-module" / "uninstall.sh",
+        ROOT / "aidl-provider-module" / "sepolicy.rule",
+        ROOT / "aidl-provider-module" / "README.md",
+        ROOT / "aidl-provider-module" / "system" / "vendor" / "etc" / "vintf" /
+        "manifest" / "android.hardware.camera.provider-service-vcam-v2.xml",
         ROOT / "tools" / "run-signal-quiescence-device-test.ps1",
         ROOT / "tools" / "verify-arm64-signal-handler.ps1",
         ROOT / "docs" / "portable-integration-strategy.md",
@@ -177,7 +190,8 @@ def main() -> None:
     for required_symbol in (
         "start-zero", "start-two", "ANDROID_VCAM_HIDL_MODULE_PATH",
         "unset ANDROID_VCAM_HIDL_ALLOW_UNDECLARED", "sys.boot_completed",
-        "vendor_configs_file", "vcam-hidl-recovery",
+        "vendor_configs_file", "vcam-hidl-recovery", "disable_next_boot",
+        "post-fs-data owns provider lifecycle", "target_fcm", "-lt 8",
     ):
         if required_symbol not in hidl_probe_scripts:
             fail(f"HIDL provider probe safety contract is missing: {required_symbol}")
@@ -190,6 +204,38 @@ def main() -> None:
     ):
         if required_symbol not in hidl_fragment:
             fail(f"HIDL provider VINTF declaration is missing: {required_symbol}")
+
+    aidl_probe_scripts = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (ROOT / "aidl-provider-module").glob("*.sh")
+    )
+    for required_symbol in (
+        "start-zero", "start-two", "unset ANDROID_VCAM_PROBE_SYSTEM_STABILITY",
+        "target_fcm", "disable_next_boot", "bootstrap_provider &",
+        "vcam-aidl-recovery", "post-fs-data owns AIDL provider lifecycle",
+        "MOUNTED_FRAGMENT", "ANDROID_VCAM_REGISTRATION_ATTEMPTS",
+        "intentionally read-only",
+    ):
+        if required_symbol not in aidl_probe_scripts:
+            fail(f"AIDL provider probe safety contract is missing: {required_symbol}")
+    if "ctl.restart cameraserver" in aidl_probe_scripts:
+        fail("AIDL provider probe must not restart cameraserver in isolation")
+    for shell_script in (ROOT / "aidl-provider-module").glob("*.sh"):
+        raw = shell_script.read_bytes()
+        if b"\r\n" in raw:
+            fail(f"AIDL provider probe script uses CRLF: {shell_script.name}")
+        if not raw.startswith(b"#!/system/bin/sh\n"):
+            fail(f"invalid AIDL provider probe shebang: {shell_script.name}")
+    aidl_fragment = (
+        ROOT / "aidl-provider-module" / "system" / "vendor" / "etc" / "vintf" /
+        "manifest" / "android.hardware.camera.provider-service-vcam-v2.xml"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        'format="aidl"', "android.hardware.camera.provider", "<version>2</version>",
+        "vcam/0",
+    ):
+        if required_symbol not in aidl_fragment:
+            fail(f"AIDL provider VINTF declaration is missing: {required_symbol}")
 
     portable_service = (ROOT / "portable-module" / "service.sh").read_text(
         encoding="utf-8"

@@ -41,11 +41,12 @@ This is the critical difference from a separate root proxy process: a separate
 process would become the caller and would change permission, AppOps, foreground
 UID and permission-filtered metadata behavior.
 
-The initial portable provider target remains HIDL Provider 2.4 / Camera Device
-3.4. Android 13 and newer continue to support HIDL camera providers even when
-the OEM physical provider uses stable AIDL. Newer HIDL or AIDL frontends are
-optional capability extensions rather than prerequisites for baseline preview,
-YUV, JPEG and encoder streams.
+The initial portable provider target for Android 10-12 remains HIDL Provider
+2.4 / Camera Device 3.4. Transport selection is constrained by the device's
+target FCM, not just the Android SDK: the NX769J Android 14 device targets FCM 8,
+whose framework matrix rejects HIDL camera providers and accepts stable AIDL
+v1-v2. Android 13 mixed-transport devices require their own VINTF check. AIDL is
+therefore a prerequisite, not an optional extension, for Android 14 / FCM 8.
 
 ## Capability modes
 

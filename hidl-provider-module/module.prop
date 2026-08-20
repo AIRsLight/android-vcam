@@ -1,6 +1,6 @@
 id=android_vcam_hidl_provider
-name=Android Virtual Camera HIDL Provider Probe
-version=0.5.0-dev.15
-versionCode=27
+name=Android Virtual Camera Legacy HIDL Provider Probe
+version=0.5.0-dev.16
+versionCode=28
 author=android-vcam contributors
-description=NX769J Android 14 HIDL provider discovery probe with a VINTF declaration and safe zero-camera boot mode.
+description=Legacy-FCM HIDL provider probe. Installation is blocked on Android 14 target FCM 8 devices.

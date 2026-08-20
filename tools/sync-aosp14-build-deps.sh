@@ -71,7 +71,8 @@ if [[ -n "$proxy_url" ]]; then
 fi
 
 # Supplemental dependency closure encountered by the Soong-only aosp_arm64
-# build of CameraService and the stable-AIDL v2 provider at android-14.0.0_r23.
+# build of CameraService, checkvintf and the stable-AIDL v2 provider at
+# android-14.0.0_r23. checkvintf requires packages/modules/Gki/libkver.
 # Keep this explicit: the helper must not silently expand into a full platform
 # checkout when the camera target graph changes.
 projects=(
@@ -134,6 +135,7 @@ projects=(
     platform/libcore
     platform/libnativehelper
     platform/packages/modules/common
+    platform/packages/modules/Gki
     platform/packages/modules/AdServices
     platform/packages/modules/AppSearch
     platform/packages/modules/Bluetooth

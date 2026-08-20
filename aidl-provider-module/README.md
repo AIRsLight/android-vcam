@@ -2,7 +2,8 @@
 
 This fingerprint-locked KernelSU module qualifies stock CameraService discovery
 of a declared stable-AIDL v2 `vcam/0` provider on the NX769J Android 14 build.
-It is not a production release and advertises zero cameras during boot.
+It is not a production release. It advertises zero cameras by default and can
+advertise the two test cameras for one explicitly armed boot.
 
 The module mounts one VINTF fragment through OverlayFS MetaModule. The fragment
 was checked together with a complete VINTF/APEX snapshot from the target using
@@ -20,6 +21,13 @@ declared provider. `post-fs-data.sh` therefore launches a background bootstrap
 before CameraService starts. The foreground script exits immediately so it
 cannot delay MetaModule ordering. The bootstrap retries registration while
 servicemanager reloads the mounted VINTF fragment.
+
+The stock NX769J service contexts reserve only the OEM camera-provider
+instances. Because MetaModule becomes active after servicemanager has loaded
+those contexts, `vcam/0` is registered as `default_android_service`. This probe
+adds only the registration and CameraService lookup permissions needed for that
+systemless fallback. A built-in ROM integration must instead install the exact
+`vcam/0 -> hal_camera_service` mapping from `aosp/provider/sepolicy`.
 
 The bootstrap first verifies that MetaModule has exposed the fragment, then
 writes the module `disable` marker before provider registration. This avoids

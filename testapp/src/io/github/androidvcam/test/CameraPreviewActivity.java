@@ -49,8 +49,8 @@ public final class CameraPreviewActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         String requestedCamera = getIntent().getStringExtra("camera_id");
-        if ("0".equals(requestedCamera) || "1".equals(requestedCamera)) {
-            targetCameraId = requestedCamera;
+        if (requestedCamera != null && !requestedCamera.trim().isEmpty()) {
+            targetCameraId = requestedCamera.trim();
         }
         singleStream = getIntent().getBooleanExtra("single_stream", false);
         previewWidth = boundedDimension(getIntent().getIntExtra("preview_width", 1280), 1280);
@@ -73,7 +73,7 @@ public final class CameraPreviewActivity extends Activity {
                 Gravity.TOP));
 
         switchCamera = new Button(this);
-        switchCamera.setText("切换到相机 " + ("0".equals(targetCameraId) ? "1" : "0"));
+        updateSwitchCameraLabel();
         switchCamera.setOnClickListener(view -> switchTargetCamera());
         FrameLayout.LayoutParams switchParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -124,17 +124,39 @@ public final class CameraPreviewActivity extends Activity {
             CameraManager manager = getSystemService(CameraManager.class);
             String[] ids = manager.getCameraIdList();
             if (ids.length == 0) { showStatus("没有发现摄像头设备"); return; }
-            if (!Arrays.asList(ids).contains(targetCameraId)) targetCameraId = ids[0];
+            if (!Arrays.asList(ids).contains(targetCameraId)) {
+                showStatus("请求的 Camera2 设备 " + targetCameraId + " 不可见\n当前列表：" +
+                        Arrays.toString(ids));
+                return;
+            }
             showStatus("正在打开标准 Camera2 设备 " + targetCameraId + "…");
             manager.openCamera(targetCameraId, cameraStateCallback, cameraHandler);
         } catch (Exception error) { showStatus("打开失败：" + error); }
     }
 
     private void switchTargetCamera() {
-        targetCameraId = "0".equals(targetCameraId) ? "1" : "0";
-        switchCamera.setText("切换到相机 " + ("0".equals(targetCameraId) ? "1" : "0"));
+        if ("1000".equals(targetCameraId)) {
+            targetCameraId = "1001";
+        } else if ("1001".equals(targetCameraId)) {
+            targetCameraId = "1000";
+        } else {
+            targetCameraId = "0".equals(targetCameraId) ? "1" : "0";
+        }
+        updateSwitchCameraLabel();
         closeCamera();
         openCameraIfPermitted();
+    }
+
+    private void updateSwitchCameraLabel() {
+        String nextCameraId;
+        if ("1000".equals(targetCameraId)) {
+            nextCameraId = "1001";
+        } else if ("1001".equals(targetCameraId)) {
+            nextCameraId = "1000";
+        } else {
+            nextCameraId = "0".equals(targetCameraId) ? "1" : "0";
+        }
+        switchCamera.setText("切换到相机 " + nextCameraId);
     }
 
     private final CameraDevice.StateCallback cameraStateCallback =

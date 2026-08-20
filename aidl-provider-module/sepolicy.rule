@@ -1,4 +1,10 @@
 allow ksu hal_camera_service service_manager { add find }
+# A systemless secondary instance has no matching service_contexts entry when
+# servicemanager starts, so it is registered as default_android_service.  The
+# exact vcam/0 mapping belongs in product policy for a built-in integration;
+# this one-shot module must grant the minimum lookup path dynamically.
+allow ksu default_android_service service_manager { add find }
+allow cameraserver default_android_service service_manager find
 allow ksu servicemanager binder { call transfer }
 allow servicemanager ksu binder { call transfer }
 allow cameraserver ksu binder { call transfer }

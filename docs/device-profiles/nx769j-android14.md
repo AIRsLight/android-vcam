@@ -404,3 +404,42 @@ the OEM five/three device counts. The next diagnostic must therefore advertise
 1000/1001 before CameraService initializes. dev.19 adds an explicit, consumed
 once `arm-two` state; its default remains zero cameras and its next boot remains
 automatically disabled.
+
+The dev.19 cold boot registered the two-camera provider before cameraserver,
+and the direct NDK client opened both devices, but stock CameraService still
+remained at five/three devices. The device service-context files explain the
+difference: they reserve `ICameraProvider/internal/0`, `vendor.qti/0` and
+`vendor_qti/0`, but not `vcam/0`. The systemless instance therefore falls back
+to `default_android_service`. The old manual probe happened to permit the KSU
+process to register that type, while cameraserver could not find it. This is a
+service lookup policy issue, not an AIDL, VINTF, provider timing or device-name
+failure.
+
+dev.20 makes the one-shot module self-contained and adds the minimum dynamic
+registration/find path needed by a service-context overlay that arrives after
+servicemanager startup. The manual provider-probe module was disabled for the
+test. On the armed cold boot, `vcam/0` registered as PID `1368` before
+cameraserver PID `2140`; CameraService reported seven devices, five normal
+devices, and provider `ICameraProvider/vcam/0-0` with two devices. It added
+`device@1.1/vcam/1000` and `device@1.1/vcam/1001` without camera-service error
+events. Product/ROM integration must use an exact `vcam/0` service-context
+mapping instead of this systemless `default_android_service` exception.
+
+The OEM framework applies `vendor.camera.aux.packagelist` to non-primary camera
+IDs. An ordinary third-party Camera2 client therefore saw only `[0, 1]`, even
+though CameraService internally listed the auxiliary physical camera and both
+VCAM devices. Temporarily replacing that non-persistent runtime whitelist with
+`io.github.androidvcam.test` allowed the root-free test APK to open each
+internal ID. Both 1000 and 1001 sustained a 1280x720 preview plus 640x480 YUV
+analysis at approximately 30 fps, rendered the test pattern, and reported luma
+range `[0,255]`. The exact stock whitelist was restored immediately. This OEM
+visibility filter does not alter the routing design: third-party applications
+should continue opening public IDs 0/1 while the CameraService adapter selects
+1000/1001 internally.
+
+The module had already written its next-boot `disable` marker. The final reboot
+removed `vcam/0`, returned CameraService to five devices/three normal devices,
+left both OEM provider and cameraserver healthy, and preserved the original
+auxiliary-camera whitelist. This completes the Android 14 AIDL provider,
+two-device application path and automatic rollback qualification; the next
+work item is CameraService routing from public 0/1 into these internal devices.

@@ -62,6 +62,7 @@ the device that will actually be opened.
 
 ## Qualified profiles
 
-- [Nubia NX769J Android 14](device-profiles/nx769j-android14.md) — read-only
-  discovery complete; r23 system-library installation is explicitly blocked
-  by an OEM ABI mismatch.
+- [Nubia NX769J Android 14](device-profiles/nx769j-android14.md) — stable-AIDL
+  v2 provider discovery, both test devices and automatic stock rollback are
+  qualified; r23 CameraService-library installation remains blocked by the OEM
+  ABI mismatch.

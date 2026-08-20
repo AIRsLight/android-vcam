@@ -479,7 +479,7 @@ continuous run changed the atomically published frame hash from
 `88bda93541d151e9db1021376b425ff65e7e4e5e630adade255f4cee93dee916`
 while the Camera2 session remained open. Provider PID `1364` and cameraserver
 remained healthy. This qualifies decoded local files and RTSP delivery into
-the Android 14 provider; normal backend packaging and public-ID routing remain.
+the Android 14 provider; public-ID routing remains.
 
 Visual verification then corrected two limitations hidden by the frame-size
 and hash checks above. A direct host capture of the RTSP stream was sharp, but
@@ -498,3 +498,24 @@ Chinese and Latin text while both the VCAM provider and cameraserver remained
 healthy. For this portrait test target, `view-0.cfg` used scale 316 (0.316x) to
 fit the complete 16:9 source inside the portrait viewport; the default 1.0x
 transform intentionally center-crops it in the same way as a physical camera.
+
+dev.24 closes the temporary-decoder delivery gap without changing the provider
+or CameraService processes. The module package now contains the shared
+`vcamd`/`vcamctl` control plane, `provider-runner.sh`, `vcam-publisher`, and the
+statically linked arm64 `vcam-streamer`. Installation verifies a LF-terminated
+SHA-256 manifest before accepting the payload. KernelSU runs media children
+directly in the `ksu` domain; the APatch build retains its isolated `vcamd`
+transition and `magisk` execution path.
+
+Before installation, the exact staged payload was pushed under
+`/data/local/tmp` and tested without restarting any camera process. All six
+manifest entries passed device-side `sha256sum -c`. A temporary RTSP provider
+published a correctly labeled 1,382,424-byte 1280x720 `VCAMYUV1` frame in
+approximately eight seconds, then its process, persistent metadata, frame and
+temporary package tree were removed. The late-start script also launched the
+packaged daemon as the exact expected executable in `u:r:ksu:s0`, preserved
+`ANDROID_VCAM_CURRENT_BOOT_ACTIVE=1`, and shut it down cleanly. The final
+dev.24 ZIP SHA-256 is
+`8A1082C17B2F85083F91BDC85047D08292B5A8D9E2D8AF459433462EEABDA5A3`.
+The remaining Android 14 integration item is transparent selection of internal
+1000/1001 when ordinary applications open public IDs 0/1.

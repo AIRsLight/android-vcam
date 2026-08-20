@@ -1,13 +1,15 @@
 [CmdletBinding()]
 param(
     [string]$ArtifactRoot = "out/android14-provider-probe",
-    [string]$Output = "dist/android-vcam-aidl-provider-v0.5.0-dev.23.zip"
+    [string]$NativeArtifactRoot = "out/native/arm64-v8a",
+    [string]$Output = "dist/android-vcam-aidl-provider-v0.5.0-dev.24.zip"
 )
 
 $ErrorActionPreference = "Stop"
 $sourceRoot = Split-Path -Parent $PSScriptRoot
 $templateRoot = Join-Path $sourceRoot "aidl-provider-module"
 $artifactRootPath = Join-Path $sourceRoot $ArtifactRoot
+$nativeArtifactRootPath = Join-Path $sourceRoot $NativeArtifactRoot
 $outputPath = Join-Path $sourceRoot $Output
 $stagingRoot = Join-Path $sourceRoot "out/aidl-provider-package"
 $expectedStagingParent = [System.IO.Path]::GetFullPath((Join-Path $sourceRoot "out"))
@@ -28,6 +30,8 @@ $libraries = @(
     "libprotobuf-cpp-full-21.7.so"
 )
 $configFiles = @("emu_camera_back.json", "emu_camera_front.json")
+$backendBinaries = @("vcam-streamer", "vcam-publisher", "vcamd")
+$backendScripts = @("vcamctl", "provider-runner.sh", "device-probe.sh")
 
 $required = @((Join-Path $artifactRootPath $binaryName))
 $required += $libraries | ForEach-Object {
@@ -35,6 +39,12 @@ $required += $libraries | ForEach-Object {
 }
 $required += $configFiles | ForEach-Object {
     Join-Path (Join-Path $artifactRootPath "config") $_
+}
+$required += $backendBinaries | ForEach-Object {
+    Join-Path $nativeArtifactRootPath $_
+}
+$required += $backendScripts | ForEach-Object {
+    Join-Path (Join-Path $sourceRoot "apmodule") $_
 }
 foreach ($path in $required) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
@@ -51,9 +61,11 @@ Copy-Item -Path (Join-Path $templateRoot "*") -Destination $stagingRoot `
 
 $payloadBin = Join-Path $stagingRoot "payload/bin"
 $payloadLib = Join-Path $stagingRoot "payload/lib64"
+$systemBin = Join-Path $stagingRoot "system/bin"
+$vendorBin = Join-Path $stagingRoot "vendor/bin"
 $emptyConfig = Join-Path $stagingRoot "payload/empty-config"
 $cameraConfig = Join-Path $stagingRoot "payload/camera-config"
-New-Item -ItemType Directory -Force -Path $payloadBin, $payloadLib, $emptyConfig, $cameraConfig | Out-Null
+New-Item -ItemType Directory -Force -Path $payloadBin, $payloadLib, $systemBin, $vendorBin, $emptyConfig, $cameraConfig | Out-Null
 Copy-Item -LiteralPath (Join-Path $artifactRootPath $binaryName) -Destination $payloadBin
 foreach ($library in $libraries) {
     Copy-Item -LiteralPath (Join-Path (Join-Path $artifactRootPath "lib64") $library) `
@@ -63,6 +75,31 @@ foreach ($configFile in $configFiles) {
     Copy-Item -LiteralPath (Join-Path (Join-Path $artifactRootPath "config") $configFile) `
         -Destination $cameraConfig
 }
+Copy-Item -LiteralPath (Join-Path $nativeArtifactRootPath "vcam-streamer") -Destination $systemBin
+Copy-Item -LiteralPath (Join-Path $nativeArtifactRootPath "vcamd") -Destination $systemBin
+Copy-Item -LiteralPath (Join-Path $nativeArtifactRootPath "vcam-publisher") -Destination $vendorBin
+foreach ($script in $backendScripts) {
+    Copy-Item -LiteralPath (Join-Path (Join-Path $sourceRoot "apmodule") $script) `
+        -Destination $stagingRoot
+}
+
+$backendManifest = Join-Path $stagingRoot "payload/backend.sha256"
+$backendPayloads = @(
+    "system/bin/vcam-streamer",
+    "system/bin/vcamd",
+    "vendor/bin/vcam-publisher",
+    "vcamctl",
+    "provider-runner.sh",
+    "device-probe.sh"
+)
+$manifestLines = foreach ($relativePath in $backendPayloads) {
+    $payloadPath = Join-Path $stagingRoot $relativePath
+    $payloadHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $payloadPath).Hash.ToLowerInvariant()
+    "$payloadHash  $relativePath"
+}
+$manifestText = ($manifestLines -join "`n") + "`n"
+[System.IO.File]::WriteAllText(
+    $backendManifest, $manifestText, [System.Text.UTF8Encoding]::new($false))
 
 $outputDirectory = Split-Path -Parent $outputPath
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null

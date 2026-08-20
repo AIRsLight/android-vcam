@@ -216,12 +216,22 @@ def main() -> None:
         "MOUNTED_FRAGMENT", "ANDROID_VCAM_REGISTRATION_ATTEMPTS",
         "vendor_etc", "vendor_configs_file", "NEXT_BOOT_MODE_FILE",
         "arm-two", "arm-route", "ANDROID_VCAM_PROBE_CLIENT_PACKAGE",
-        "intentionally read-only",
+        "intentionally read-only", "ANDROID_VCAM_CURRENT_BOOT_ACTIVE",
+        "provider-start", "vcamd",
     ):
         if required_symbol not in aidl_probe_scripts:
             fail(f"AIDL provider probe safety contract is missing: {required_symbol}")
     if "ctl.restart cameraserver" in aidl_probe_scripts:
         fail("AIDL provider probe must not restart cameraserver in isolation")
+    aidl_packager = (
+        ROOT / "tools" / "package-aosp14-aidl-provider.ps1"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "NativeArtifactRoot", "vcam-streamer", "vcam-publisher", "vcamd",
+        "provider-runner.sh", "device-probe.sh", "backend.sha256",
+    ):
+        if required_symbol not in aidl_packager:
+            fail(f"AIDL provider package lacks backend payload: {required_symbol}")
     for shell_script in (ROOT / "aidl-provider-module").glob("*.sh"):
         raw = shell_script.read_bytes()
         if b"\r\n" in raw:
@@ -323,6 +333,7 @@ def main() -> None:
         "provider-publish-stdin", "provider-import-media", "source-preview",
         "provider-frame", "provider-update",
         "route-save",
+        "provider-suspend", "ANDROID_VCAM_CURRENT_BOOT_ACTIVE",
     ):
         if command not in controller:
             fail(f"provider controller is missing command: {command}")
@@ -345,6 +356,15 @@ def main() -> None:
     ):
         if required_symbol not in streamer:
             fail(f"stream provider lacks high-resolution YUV support: {required_symbol}")
+    provider_runner = (
+        ROOT / "apmodule" / "provider-runner.sh"
+    ).read_text(encoding="utf-8")
+    for script_name, script_text in (
+        ("vcamctl", controller), ("provider-runner.sh", provider_runner),
+    ):
+        if "run_privileged_tool" not in script_text or \
+                "u:r:vcamd:s0" not in script_text:
+            fail(f"{script_name} lacks root-manager-neutral tool execution")
 
     probe = (ROOT / "apmodule" / "device-probe.sh").read_text(encoding="utf-8")
     for required_symbol in (

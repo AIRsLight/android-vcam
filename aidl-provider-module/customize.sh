@@ -39,6 +39,10 @@ vintf_dir="$vendor_etc/vintf"
 manifest_dir="$vintf_dir/manifest"
 empty_config="$MODPATH/payload/empty-config"
 camera_config="$MODPATH/payload/camera-config"
+backend_manifest="$MODPATH/payload/backend.sha256"
+streamer="$MODPATH/system/bin/vcam-streamer"
+publisher="$MODPATH/vendor/bin/vcam-publisher"
+daemon="$MODPATH/system/bin/vcamd"
 
 for required in \
     "$binary" \
@@ -50,7 +54,14 @@ for required in \
     "$libdir/libprotobuf-cpp-full-21.7.so" \
     "$camera_config/emu_camera_back.json" \
     "$camera_config/emu_camera_front.json" \
+    "$backend_manifest" \
+    "$streamer" \
+    "$publisher" \
+    "$daemon" \
     "$fragment" \
+    "$MODPATH/vcamctl" \
+    "$MODPATH/provider-runner.sh" \
+    "$MODPATH/device-probe.sh" \
     "$MODPATH/provider-control.sh" \
     "$MODPATH/post-fs-data.sh" \
     "$MODPATH/service.sh" \
@@ -59,9 +70,15 @@ for required in \
     [ -f "$required" ] || abort "! Required probe file is missing: $required"
 done
 
+(cd "$MODPATH" && sha256sum -c payload/backend.sha256 >/dev/null) || \
+    abort "! Backend payload checksum verification failed"
+
 mkdir -p "$empty_config"
 set_perm "$binary" 0 0 0755
 set_perm_recursive "$libdir" 0 0 0755 0644
+set_perm "$streamer" 0 2000 0755
+set_perm "$publisher" 0 2000 0755
+set_perm "$daemon" 0 0 0755
 set_perm "$fragment" 0 0 0644
 for config_dir in "$vendor_etc" "$vintf_dir" "$manifest_dir"; do
     chcon u:object_r:vendor_configs_file:s0 "$config_dir" || \
@@ -70,6 +87,9 @@ done
 chcon u:object_r:vendor_configs_file:s0 "$fragment" || \
     abort "! Unable to label the VINTF fragment as vendor configuration"
 set_perm "$MODPATH/provider-control.sh" 0 0 0755
+set_perm "$MODPATH/vcamctl" 0 0 0755
+set_perm "$MODPATH/provider-runner.sh" 0 0 0755
+set_perm "$MODPATH/device-probe.sh" 0 0 0755
 set_perm "$MODPATH/post-fs-data.sh" 0 0 0755
 set_perm "$MODPATH/service.sh" 0 0 0755
 set_perm "$MODPATH/action.sh" 0 0 0755
@@ -80,6 +100,7 @@ ui_print "- Preserves vendor_configs_file on the complete VINTF directory chain"
 ui_print "- Registration runs in the background before CameraService starts"
 ui_print "- Boot defaults to zero cameras; arm-two is an explicit one-boot diagnostic"
 ui_print "- arm-route validates configured frame providers through the test package route"
+ui_print "- Includes the manager-independent image/video/RTSP backend"
 ui_print "- The following boot is disabled after the VINTF overlay is mounted"
 ui_print "- Failure recovery uses a full reboot and never restarts cameraserver"
 ui_print "- Reboot is required; KernelSU bootloop protection remains available"

@@ -5,6 +5,15 @@ of a declared stable-AIDL v2 `vcam/0` provider on the NX769J Android 14 build.
 It is not a production release. It advertises zero cameras by default and can
 advertise the two test cameras for one explicitly armed boot.
 
+dev.24 also packages the shared manager-independent backend: `vcamd`,
+`vcamctl`, `provider-runner.sh`, `vcam-publisher` and the statically linked
+arm64 `vcam-streamer`. Provider metadata remains under
+`/data/adb/android_vcam/providers`, while frames remain under
+`/data/vendor/camera/vcam/providers`; uninstalling the manager APK therefore
+does not stop configured providers or remove their state. The installer checks
+the complete backend payload against `payload/backend.sha256` before enabling
+the module.
+
 The module mounts one VINTF fragment through OverlayFS MetaModule. The fragment
 was checked together with a complete VINTF/APEX snapshot from the target using
 the Android 14 `checkvintf` host binary: the stock snapshot and the AIDL v2
@@ -66,3 +75,11 @@ provider still resolves `routes.tsv`, verifies the enabled marker, reads
 `frame.rgb`, and applies the normal per-camera transform and source pacing. A
 patched production CameraService supplies the real client package in session
 parameters and never enables this fallback.
+
+At the late-start service stage, the module starts the authenticated abstract
+socket backend and resumes only providers carrying an explicit `autostart`
+marker. This does not restart cameraserver or the OEM camera provider. KernelSU
+children keep the `ksu` domain; the legacy APatch build continues to use its
+dedicated `vcamd` transition and returns privileged media work to the `magisk`
+domain. Removing this probe suspends its running media providers while
+preserving their configuration for a later compatible backend installation.

@@ -9,3 +9,6 @@ allow ksu servicemanager binder { call transfer }
 allow servicemanager ksu binder { call transfer }
 allow cameraserver ksu binder { call transfer }
 allow ksu cameraserver binder { call transfer }
+# The root-free manager can connect only to vcamd's fixed, UID-authenticated
+# abstract socket. The daemon and provider runners remain owned by KernelSU.
+allow untrusted_app ksu unix_stream_socket connectto

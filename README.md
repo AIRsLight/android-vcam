@@ -1,10 +1,11 @@
 # android-vcam
 
-System-level, app-scoped virtual camera project. The currently installable
-adapter is pinned to a OnePlus 7 Pro Android 12 ROM; the repository also
-contains the transport-neutral frame core and the first AOSP HIDL Provider
-service skeleton. Target applications are not hooked: Camera1, Camera2 and
-CameraX keep using the normal framework and CameraService path.
+System-level, app-scoped virtual camera project. The compatibility adapter is
+pinned to a OnePlus 7 Pro Android 12 ROM, while the one-shot Android 14 AIDL
+qualification module is pinned to the NX769J build. The repository also
+contains the transport-neutral frame core and AOSP HIDL/AIDL Provider
+frontends. Target applications are not hooked: Camera1, Camera2 and CameraX
+keep using the normal framework and CameraService path.
 
 The module injects a small proxy into the original Qualcomm Camera HAL. Every
 `(application package, target camera)` pair can route to physical camera 0,
@@ -33,6 +34,8 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
   temporarily unavailable, and reinstalling the same package restores it automatically.
 - A module-owned `vcamd` daemon persists configuration independently of the
   manager and exposes only an authenticated, fixed-command local protocol.
+  The NX769J AIDL dev.24 package reuses this backend and includes the static
+  media decoder, publisher and provider autostart lifecycle.
 - A transport-neutral route resolver is shared by the OEM compatibility proxy
   and the standalone AOSP Camera3 module; unscoped standalone sessions fail
   closed.

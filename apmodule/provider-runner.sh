@@ -38,8 +38,19 @@ find_streamer() {
 }
 
 streamer=$(find_streamer) || exit 69
+run_privileged_tool() {
+    context=$(cat /proc/self/attr/current 2>/dev/null)
+    case "$context" in
+        u:r:vcamd:s0*)
+            /system/bin/runcon u:r:magisk:s0 "$@"
+            ;;
+        *)
+            "$@"
+            ;;
+    esac
+}
 run_streamer() {
-    /system/bin/runcon u:r:magisk:s0 "$streamer" \
+    run_privileged_tool "$streamer" \
         "$1" "$frame" "$fps" "$max_width" "$max_height"
 }
 case "$type" in
@@ -47,7 +58,7 @@ case "$type" in
         cache="$FRAME_DIR/$id/remote-video.cache"
         temporary="$cache.new"
         rm -f "$temporary"
-        if ! /system/bin/runcon u:r:magisk:s0 /system/bin/curl \
+        if ! run_privileged_tool /system/bin/curl \
             --location --fail --silent --show-error \
             --connect-timeout 15 --retry 3 --output "$temporary" "$source"; then
             rm -f "$temporary"

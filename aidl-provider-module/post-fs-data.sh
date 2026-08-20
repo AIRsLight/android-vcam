@@ -15,7 +15,7 @@ case "$boot_mode" in
     two|route) ;;
     *) boot_mode=zero ;;
 esac
-echo "bootstrap 0.5.0-dev.23 started mode=$boot_mode" >> "$BOOT_LOG"
+echo "bootstrap 0.5.0-dev.24 started mode=$boot_mode" >> "$BOOT_LOG"
 
 disable_next_boot() {
     touch "$MODDIR/disable"

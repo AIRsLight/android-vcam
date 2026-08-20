@@ -1,6 +1,6 @@
 id=android_vcam_aidl_provider
 name=Android Virtual Camera AIDL Provider Probe
-version=0.5.0-dev.23
-versionCode=35
+version=0.5.0-dev.24
+versionCode=36
 author=android-vcam contributors
-description=One-shot NX769J Android 14 AIDL v2 provider probe with routed-source diagnostics and automatic next-boot disable.
+description=One-shot NX769J Android 14 AIDL v2 provider probe with packaged media backend and automatic next-boot disable.

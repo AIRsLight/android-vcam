@@ -340,7 +340,7 @@ def main() -> None:
     streamer = (ROOT / "native" / "stream_provider.c").read_text(encoding="utf-8")
     for required_symbol in (
         "AV_PIX_FMT_YUV420P", "MAX_SOURCE_DIMENSION", "MAX_SOURCE_PIXELS",
-        "MAX_PIXEL_RATE", "kYuvMagic",
+        "MAX_PIXEL_RATE", "kYuvMagic", "avcodec_send_packet(codec, NULL)",
     ):
         if required_symbol not in streamer:
             fail(f"stream provider lacks high-resolution YUV support: {required_symbol}")

@@ -466,3 +466,17 @@ camera whitelist was restored to its exact stock value after each test. This
 qualifies local provider routing and live frame replacement for both Android 14
 AIDL targets; public-ID routing and decoded file/network publishers remain the
 next integration layers.
+
+The decoder was then exercised against both finite and network inputs. A
+two-second 2560x1440 H.264 file initially reached EOF before publishing because
+the frame-threaded decoder was not drained. After adding the standard null
+packet flush, `vcam-streamer --once` published a 5,529,624-byte I420 frame and
+returned success. The live source `rtsp://192.168.130.171:8554/time` was
+reachable from the phone and published a 1280x720 I420 frame in 2.7 seconds.
+Camera 1000 displayed the decoded time image. A subsequent ten-second
+continuous run changed the atomically published frame hash from
+`3e7744a363155da7b8e584f76f3f55958823b42d5c4660c582cf54a7e8f08927` to
+`88bda93541d151e9db1021376b425ff65e7e4e5e630adade255f4cee93dee916`
+while the Camera2 session remained open. Provider PID `1364` and cameraserver
+remained healthy. This qualifies decoded local files and RTSP delivery into
+the Android 14 provider; normal backend packaging and public-ID routing remain.

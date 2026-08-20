@@ -180,14 +180,25 @@ static int decode_source(const char* source, const char* output_path,
     frame = av_frame_alloc();
     if (packet == NULL || frame == NULL) { result = AVERROR(ENOMEM); goto cleanup; }
 
-    while (gRunning && (result = av_read_frame(format, packet)) >= 0) {
-        if (packet->stream_index != video_stream) {
-            av_packet_unref(packet);
-            continue;
+    int draining = 0;
+    while (gRunning) {
+        if (!draining) {
+            result = av_read_frame(format, packet);
+            if (result == AVERROR_EOF) {
+                result = avcodec_send_packet(codec, NULL);
+                if (result < 0 && result != AVERROR_EOF) goto cleanup;
+                draining = 1;
+            } else if (result < 0) {
+                goto cleanup;
+            } else if (packet->stream_index != video_stream) {
+                av_packet_unref(packet);
+                continue;
+            } else {
+                result = avcodec_send_packet(codec, packet);
+                av_packet_unref(packet);
+                if (result < 0 && result != AVERROR(EAGAIN)) goto cleanup;
+            }
         }
-        result = avcodec_send_packet(codec, packet);
-        av_packet_unref(packet);
-        if (result < 0 && result != AVERROR(EAGAIN)) goto cleanup;
 
         while (gRunning && (result = avcodec_receive_frame(codec, frame)) >= 0) {
             if (scaler == NULL || output_width == 0 || output_height == 0) {
@@ -224,7 +235,15 @@ static int decode_source(const char* source, const char* output_path,
             next_frame_time = av_gettime_relative() + 1000000 / output_fps;
             av_frame_unref(frame);
         }
-        if (result == AVERROR(EAGAIN) || result == AVERROR_EOF) result = 0;
+        if (result == AVERROR_EOF) {
+            result = 0;
+            break;
+        }
+        if (result == AVERROR(EAGAIN)) {
+            result = 0;
+            if (draining) break;
+            continue;
+        }
         if (result < 0) goto cleanup;
     }
     if (!gRunning) result = 0;

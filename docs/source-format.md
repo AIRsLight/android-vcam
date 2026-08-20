@@ -45,6 +45,12 @@ applies that budget again to the largest configured client output stream. This
 keeps a 3840x2160 client surface at no more than 15 fps even when its provider
 contains a smaller 30 or 60 fps source.
 
+At end-of-file, `vcam-streamer` sends a null packet and drains the decoder
+before closing the source. This is required for finite and especially short
+local videos because frame-threaded decoders may retain every decoded frame
+until the first flush. Live sources reconnect after a read failure; `--once`
+publishes the first decoded frame after normal packet processing or EOF drain.
+
 Each provider also owns runtime configuration beside `frame.rgb`:
 
 ```text

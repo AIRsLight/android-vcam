@@ -50,7 +50,9 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
 - HTTPS video files are downloaded through the ROM's BoringSSL-enabled curl,
   then decoded in the background.
 - A regular root-free Camera2 APK validates two-stream YUV preview and accepts
-  launch extras for single-stream high-resolution output tests.
+  launch extras for single-stream high-resolution output tests. Explicit
+  `OPEN_CAMERA_1000`/`OPEN_CAMERA_1001` actions provide an OEM-independent way
+  to select internal qualification devices from ADB.
 - Module installation is systemless and pinned to the tested ROM hashes.
 
 ## Pinned target

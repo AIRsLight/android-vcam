@@ -506,6 +506,14 @@ def main() -> None:
         if required_symbol not in manager_sources:
             fail(f"manager lacks source preview support: {required_symbol}")
 
+    test_activity = (
+        ROOT / "testapp" / "src" / "io" / "github" / "androidvcam" /
+        "test" / "CameraPreviewActivity.java"
+    ).read_text(encoding="utf-8")
+    for required_symbol in ("OPEN_CAMERA_1000", "OPEN_CAMERA_1001", "camera_id"):
+        if required_symbol not in test_activity:
+            fail(f"Camera2 test app lacks deterministic camera selection: {required_symbol}")
+
     service_scripts = controller + \
         (ROOT / "apmodule" / "service.sh").read_text(encoding="utf-8") + \
         (ROOT / "apmodule" / "boot-completed.sh").read_text(encoding="utf-8")

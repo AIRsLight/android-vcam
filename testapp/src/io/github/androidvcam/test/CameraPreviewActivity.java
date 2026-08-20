@@ -30,6 +30,10 @@ import java.util.Arrays;
 /** Ordinary, root-free Camera2 client used for end-to-end validation. */
 public final class CameraPreviewActivity extends Activity {
     private static final int CAMERA_PERMISSION_REQUEST = 2001;
+    private static final String ACTION_CAMERA_1000 =
+            "io.github.androidvcam.test.OPEN_CAMERA_1000";
+    private static final String ACTION_CAMERA_1001 =
+            "io.github.androidvcam.test.OPEN_CAMERA_1001";
     private TextureView preview;
     private TextView status;
     private HandlerThread cameraThread;
@@ -49,6 +53,8 @@ public final class CameraPreviewActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         String requestedCamera = getIntent().getStringExtra("camera_id");
+        if (ACTION_CAMERA_1000.equals(getIntent().getAction())) requestedCamera = "1000";
+        if (ACTION_CAMERA_1001.equals(getIntent().getAction())) requestedCamera = "1001";
         if (requestedCamera != null && !requestedCamera.trim().isEmpty()) {
             targetCameraId = requestedCamera.trim();
         }

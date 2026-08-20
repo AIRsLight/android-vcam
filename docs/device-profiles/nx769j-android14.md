@@ -499,7 +499,7 @@ healthy. For this portrait test target, `view-0.cfg` used scale 316 (0.316x) to
 fit the complete 16:9 source inside the portrait viewport; the default 1.0x
 transform intentionally center-crops it in the same way as a physical camera.
 
-dev.24 packaged the temporary-decoder delivery gap without changing the provider
+dev.24 began closing the temporary-decoder delivery gap without changing the provider
 or CameraService processes. The module package now contains the shared
 `vcamd`/`vcamctl` control plane, `provider-runner.sh`, `vcam-publisher`, and the
 statically linked arm64 `vcam-streamer`. Installation verifies a LF-terminated
@@ -528,5 +528,32 @@ manual same-boot verification started `vcamd` from the installed payload in
 `bfa21e8433c4047f3bfbacaff3c3d55b3b3fbd3e073ebbaf4fd3aa6925881c93`
 over ten seconds. The dev.25 ZIP SHA-256 is
 `6AE6E0FE62860ECD8FCCEC2A63FB7C8947BA9D5FD86170F4BABE3D31D45858B1`.
+
+The dev.25 cold boot then exercised the actual one-shot lifecycle. Provider PID
+1388 registered in route mode, `vcamd` PID 1460 came from the installed module,
+and its boot-ID guard matched the kernel boot ID. The initial RTSP attempt ran
+before the WLAN route existed and logged `Network is unreachable`; the guarded
+post-boot retry started `vcam-streamer` as UID camera in `u:r:ksu:s0`. The frame
+hash changed from
+`43d016fc2fd17985e407f39dd1f902723256d531d66cc47aa2e3567ac58ae62f`
+to `17c9985a4794678875fddad69def8c9c0dfd66e71a540084569b3dbe15029ac1`
+over ten seconds. CameraService reported seven devices/five normal devices.
+
+The installed Camera2 test APK was not byte-identical to the repository
+artifact despite sharing its package and version, so the repository APK was
+overwritten in place with the same signing key. This OEM also failed to deliver
+the numeric-looking `--es camera_id 1000` value to the Activity. The test APK
+therefore gained explicit `OPEN_CAMERA_1000` and `OPEN_CAMERA_1001` actions.
+CameraService confirmed ordinary root-free client connections to both internal
+IDs, and both sustained the 1280x720 preview plus 640x480 YUV analysis stream.
+Camera 1000 used `view0=0,316,500,500`; the front-facing 1001 target required
+`view1=180,316,500,500` and a session reopen, after which the RTSP text was
+upright and readable. The test app was stopped and the exact stock auxiliary
+camera whitelist was restored. Both internal devices were closed while the
+Provider, `vcamd`, streamer and cameraserver remained running, with no new
+tombstone or kernel hung-task/lockup trace. The OEM provider performed one
+clean, tombstone-free restart during boot before client testing and then
+remained running; the later soak gate should continue tracking its PID.
+
 The remaining Android 14 integration item is transparent selection of internal
 1000/1001 when ordinary applications open public IDs 0/1.

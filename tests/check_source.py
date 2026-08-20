@@ -215,7 +215,8 @@ def main() -> None:
         "vcam-aidl-recovery", "post-fs-data owns AIDL provider lifecycle",
         "MOUNTED_FRAGMENT", "ANDROID_VCAM_REGISTRATION_ATTEMPTS",
         "vendor_etc", "vendor_configs_file", "NEXT_BOOT_MODE_FILE",
-        "arm-two", "intentionally read-only",
+        "arm-two", "arm-route", "ANDROID_VCAM_PROBE_CLIENT_PACKAGE",
+        "intentionally read-only",
     ):
         if required_symbol not in aidl_probe_scripts:
             fail(f"AIDL provider probe safety contract is missing: {required_symbol}")
@@ -380,6 +381,7 @@ def main() -> None:
         "libvcam_googlecamerahwl_impl", "kBackCameraId = 1000",
         "kFrontCameraId = 1001", "kVcamClientPackageTag",
         "libvcam_frame_core", "libvcam_route_core", "ConfigureRoutedFrame",
+        "ANDROID_VCAM_PROBE_CLIENT_PACKAGE",
         "VcamSetActiveFrame", "VcamRenderYuv420", "VcamRenderRgb",
         "VcamAdjustCameraMetadata", "AddHighResolutionMetadata",
         "kMaxOutputPixelRate", "outputFps", "emu_camera_back.json",

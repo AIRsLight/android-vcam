@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$ArtifactRoot = "out/android14-provider-probe",
-    [string]$Output = "dist/android-vcam-aidl-provider-v0.5.0-dev.20.zip"
+    [string]$Output = "dist/android-vcam-aidl-provider-v0.5.0-dev.21.zip"
 )
 
 $ErrorActionPreference = "Stop"

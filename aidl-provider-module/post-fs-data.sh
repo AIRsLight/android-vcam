@@ -12,10 +12,10 @@ chmod 0700 "$STATE_DIR"
 boot_mode="$(cat "$NEXT_BOOT_MODE_FILE" 2>/dev/null)"
 rm -f "$NEXT_BOOT_MODE_FILE"
 case "$boot_mode" in
-    two) ;;
+    two|route) ;;
     *) boot_mode=zero ;;
 esac
-echo "bootstrap 0.5.0-dev.20 started mode=$boot_mode" >> "$BOOT_LOG"
+echo "bootstrap 0.5.0-dev.21 started mode=$boot_mode" >> "$BOOT_LOG"
 
 disable_next_boot() {
     touch "$MODDIR/disable"
@@ -90,7 +90,7 @@ bootstrap_provider() {
         return 1
     fi
 
-    echo "$boot_mode-camera AIDL provider registered; next boot remains disabled" >> "$BOOT_LOG"
+    echo "$boot_mode AIDL provider registered; next boot remains disabled" >> "$BOOT_LOG"
     watch_boot_completion
 }
 

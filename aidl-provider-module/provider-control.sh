@@ -53,12 +53,19 @@ start_provider() {
 
     export LD_LIBRARY_PATH="$LIBDIR:/vendor/lib64:/system/lib64:/system_ext/lib64:/product/lib64"
     unset ANDROID_VCAM_PROBE_SYSTEM_STABILITY
-    if [ "$requested_mode" = "two" ]; then
+    if [ "$requested_mode" = "two" ] || [ "$requested_mode" = "route" ]; then
         export ANDROID_VCAM_CONFIG_DIR="$CAMERA_CONFIGDIR/"
-        export ANDROID_VCAM_PROBE_TEST_PATTERN=1
+        if [ "$requested_mode" = "route" ]; then
+            unset ANDROID_VCAM_PROBE_TEST_PATTERN
+            export ANDROID_VCAM_PROBE_CLIENT_PACKAGE=io.github.androidvcam.test
+        else
+            export ANDROID_VCAM_PROBE_TEST_PATTERN=1
+            unset ANDROID_VCAM_PROBE_CLIENT_PACKAGE
+        fi
     else
         export ANDROID_VCAM_CONFIG_DIR="$EMPTY_CONFIGDIR/"
         unset ANDROID_VCAM_PROBE_TEST_PATTERN
+        unset ANDROID_VCAM_PROBE_CLIENT_PACKAGE
     fi
 
     {
@@ -99,6 +106,7 @@ start_provider() {
 case "$COMMAND" in
     start-zero) start_provider zero ;;
     start-two) start_provider two ;;
+    start-route) start_provider route ;;
     arm-zero)
         echo zero > "$NEXT_BOOT_MODE_FILE"
         echo "next boot armed for zero-camera mode"
@@ -106,6 +114,10 @@ case "$COMMAND" in
     arm-two)
         echo two > "$NEXT_BOOT_MODE_FILE"
         echo "next boot armed for two-camera mode"
+        ;;
+    arm-route)
+        echo route > "$NEXT_BOOT_MODE_FILE"
+        echo "next boot armed for routed-source mode using io.github.androidvcam.test"
         ;;
     stop) stop_provider ;;
     status)
@@ -117,7 +129,7 @@ case "$COMMAND" in
         fi
         ;;
     *)
-        echo "usage: provider-control.sh MODDIR {start-zero|start-two|arm-zero|arm-two|stop|status}" >&2
+        echo "usage: provider-control.sh MODDIR {start-zero|start-two|start-route|arm-zero|arm-two|arm-route|stop|status}" >&2
         exit 2
         ;;
 esac

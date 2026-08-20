@@ -135,7 +135,15 @@ status_t ConfigureRoutedFrame(uint32_t camera_id,
                               const gch::HalCameraMetadata* session_params,
                               int64_t* frame_duration_ns) {
   if (camera_id >= g_routed_frames.size()) return BAD_VALUE;
-  const std::string package_name = ClientPackageFrom(session_params);
+  std::string package_name = ClientPackageFrom(session_params);
+  if (package_name.empty()) {
+    const char* probe_package = getenv("ANDROID_VCAM_PROBE_CLIENT_PACKAGE");
+    if (probe_package != nullptr && probe_package[0] != '\0') {
+      package_name = probe_package;
+      ALOGI("Using diagnostic client package for route lookup: '%s'",
+            package_name.c_str());
+    }
+  }
   if (package_name.empty()) {
     const char* probe_pattern = getenv("ANDROID_VCAM_PROBE_TEST_PATTERN");
     if (probe_pattern != nullptr && strcmp(probe_pattern, "1") == 0) {

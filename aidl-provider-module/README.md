@@ -50,3 +50,19 @@ su -c 'sh /data/adb/modules/android_vcam_aidl_provider/provider-control.sh \
 The bootstrap consumes and removes `next-boot.mode` before registration. With
 no arm file it always returns to the zero-camera default, and the module still
 disables the following boot.
+
+To exercise the production file-provider path on the stock CameraService,
+create routes for `io.github.androidvcam.test`, enable the selected provider
+under `/data/vendor/camera/vcam/providers/`, and arm the diagnostic route:
+
+```sh
+su -c 'sh /data/adb/modules/android_vcam_aidl_provider/provider-control.sh \
+  /data/adb/modules/android_vcam_aidl_provider arm-route'
+```
+
+`arm-route` advertises both test devices and supplies that diagnostic package
+name only when the stock CameraService omits the VCAM session vendor tag. The
+provider still resolves `routes.tsv`, verifies the enabled marker, reads
+`frame.rgb`, and applies the normal per-camera transform and source pacing. A
+patched production CameraService supplies the real client package in session
+parameters and never enables this fallback.

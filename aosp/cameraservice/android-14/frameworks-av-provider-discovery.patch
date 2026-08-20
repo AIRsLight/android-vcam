@@ -1,0 +1,59 @@
+diff --git a/services/camera/libcameraservice/common/CameraProviderManager.cpp b/services/camera/libcameraservice/common/CameraProviderManager.cpp
+index fac6e4e..72c6d16 100644
+--- a/services/camera/libcameraservice/common/CameraProviderManager.cpp
++++ b/services/camera/libcameraservice/common/CameraProviderManager.cpp
+@@ -135,15 +135,20 @@ static std::string getFullAidlProviderName(const std::string instance) {
+    return aidlHalServiceDescriptor + "/" + instance;
+ }
+ 
++constexpr char kVcamAidlProviderInstance[] = "vcam/0";
++
+ status_t CameraProviderManager::tryToAddAidlProvidersLocked() {
+     const char * aidlHalServiceDescriptor =
+             aidl::android::hardware::camera::provider::ICameraProvider::descriptor;
+     auto sm = defaultServiceManager();
+     auto aidlProviders = sm->getDeclaredInstances(
+             String16(aidlHalServiceDescriptor));
++    bool vcamProviderDeclared = false;
+     for (const auto &aidlInstance : aidlProviders) {
++        const std::string instanceName = String8(aidlInstance).c_str();
++        vcamProviderDeclared |= instanceName == kVcamAidlProviderInstance;
+         std::string aidlServiceName =
+-                getFullAidlProviderName(std::string(String8(aidlInstance).c_str()));
++                getFullAidlProviderName(instanceName);
+         auto res = sm->registerForNotifications(String16(aidlServiceName.c_str()), this);
+         if (res != OK) {
+             ALOGE("%s Unable to register for notifications with AIDL service manager",
+@@ -152,6 +157,32 @@ status_t CameraProviderManager::tryToAddAidlProvidersLocked() {
+         }
+         addAidlProviderLocked(aidlServiceName);
+     }
++
++    // The systemless VCAM provider is intentionally not declared in VINTF: a
++    // declaration makes CameraService treat it as an early-boot dependency.
++    // Listen for one collision-free instance without blocking camera startup.
++    // If it is already present, initialize it after installing the lifecycle
++    // notification; otherwise onServiceRegistration() adds it when root starts
++    // the manual provider later.
++    if (!vcamProviderDeclared) {
++        const std::string vcamServiceName =
++                getFullAidlProviderName(kVcamAidlProviderInstance);
++        const String16 vcamServiceName16(vcamServiceName.c_str());
++        auto res = sm->registerForNotifications(vcamServiceName16, this);
++        if (res != OK) {
++            ALOGE("%s Unable to watch optional VCAM provider %s", __FUNCTION__,
++                    vcamServiceName.c_str());
++            return res;
++        }
++        if (sm->checkService(vcamServiceName16) != nullptr) {
++            res = addAidlProviderLocked(vcamServiceName);
++            if (res != OK && res != ALREADY_EXISTS) {
++                ALOGE("%s Unable to initialize optional VCAM provider %s: %d",
++                        __FUNCTION__, vcamServiceName.c_str(), res);
++                return res;
++            }
++        }
++    }
+     return OK;
+ }
+ 

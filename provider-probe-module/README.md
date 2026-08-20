@@ -28,10 +28,27 @@ su -c /data/adb/modules/android_vcam_provider_probe/payload/bin/vcam_provider_pr
 The client intentionally requires root because the undeclared diagnostic
 service is hidden from the ordinary shell SELinux domain.
 
-For this manual registration test only, the provider explicitly downgrades its
+To qualify late provider discovery separately from CameraService, start the
+client before the provider:
+
+```sh
+su -c '/data/adb/modules/android_vcam_provider_probe/payload/bin/vcam_provider_probe_client --watch-registration'
+```
+
+It reports whether the exact service is VINTF-declared and waits for a
+registration notification for
+`android.hardware.camera.provider.ICameraProvider/vcam/0`. This is a transport
+diagnostic only; it does not prove that an unpatched stock CameraService will
+enumerate the provider.
+
+For this manual registration test, the provider explicitly downgrades its
 VINTF-stable Binder object to system stability. This avoids adding an undeclared
-vendor-stability Binder to the system service manager. Production delivery must
-keep VINTF stability and declare a dedicated provider instance.
+vendor-stability Binder to the system service manager. A product-integrated
+AOSP/ROM build must keep VINTF stability and declare a dedicated provider
+instance. The separate systemless design instead keeps the isolated service at
+system stability and requires the version-pinned CameraService discovery patch,
+an exact instance allowlist, and matching SELinux policy; it must not pretend to
+be a declared vendor HAL.
 
 The vcam service also selects `/dev/binder` explicitly. The upstream Google
 service selects `/dev/vndbinder` for its direct C++ Binder dependencies and

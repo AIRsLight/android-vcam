@@ -68,6 +68,9 @@ candidate, not proof that Nubia used an unmodified r1 tree.
 
 - Read-only discovery: complete.
 - AOSP r23 generic provider and CameraService compile: complete on CI.
+- Optional undeclared `vcam/0` exact-instance discovery: source build complete;
+  service-manager late-registration semantics qualified on device, but not yet
+  installed into the OEM CameraService.
 - OEM-compatible CameraService binary: not built.
 - OEM Binder transaction extraction: complete for eleven routed operations.
 - Offline ARM64 planning and pure pass-through bridge tests: complete.
@@ -289,6 +292,17 @@ sessions, explicit physical-camera settings or arbitrary third-party clients.
 After the test, the route and runtime telemetry were removed, stock mode was
 restored, and cameraserver PID `17600` remained stable for 12 seconds with
 `media.camera` available.
+
+Manual provider probe `0.5.0-dev.14` qualified a safer late-discovery primitive
+without modifying the stock CameraService. With `vcam/0` absent, the Android 14
+NDK service-manager client reported `declared=false` and registered for the
+exact full service name. Starting the provider afterward delivered the expected
+registration callback. The direct client then enumerated internal IDs 1000 and
+1001, configured a 640x480 YUV stream on each, and received one frame from each
+with luma range `[0,255]`. After stopping the probe, `vcam/0` was absent again;
+the OEM provider PID `1556` and cameraserver PID `2125` remained present. This
+qualifies the Binder service notification mechanism, not CameraService runtime
+enumeration: the device was still running its unpatched OEM CameraService.
 
 Do not mount the r23 `libcameraservice.so` over the stock library. The likely
 failure modes are a cameraserver dynamic-link failure, virtual-call ABI

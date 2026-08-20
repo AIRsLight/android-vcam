@@ -130,11 +130,66 @@ class ProbeDeviceCallback final : public camera_device::BnCameraDeviceCallback {
   int fence_result_ = -1;
 };
 
+struct RegistrationWatch {
+  std::mutex mutex;
+  std::condition_variable condition;
+  bool registered = false;
+  std::string instance;
+};
+
+void OnServiceRegistration(const char* instance, AIBinder*, void* cookie) {
+  auto* watch = static_cast<RegistrationWatch*>(cookie);
+  if (watch == nullptr) return;
+  {
+    std::lock_guard<std::mutex> lock(watch->mutex);
+    watch->registered = true;
+    watch->instance = instance == nullptr ? "" : instance;
+  }
+  watch->condition.notify_all();
+}
+
+int WatchRegistration(const char* instance) {
+  RegistrationWatch watch;
+  std::printf("watching instance=%s declared=%s\n", instance,
+              AServiceManager_isDeclared(instance) ? "true" : "false");
+  std::fflush(stdout);
+  AServiceManager_NotificationRegistration* registration =
+      AServiceManager_registerForServiceNotifications(
+          instance, OnServiceRegistration, &watch);
+  if (registration == nullptr) {
+    std::fprintf(stderr, "Unable to register service notification\n");
+    return 15;
+  }
+  bool registered = false;
+  std::string registered_instance;
+  {
+    std::unique_lock<std::mutex> lock(watch.mutex);
+    registered = watch.condition.wait_for(
+        lock, std::chrono::seconds(15),
+        [&watch] { return watch.registered; });
+    registered_instance = watch.instance;
+  }
+  AServiceManager_NotificationRegistration_delete(registration);
+  if (!registered) {
+    std::fprintf(stderr, "Timed out waiting for service registration: %s\n",
+                 instance);
+    return 16;
+  }
+  std::printf("registration received instance=%s\n",
+              registered_instance.c_str());
+  return registered_instance == instance ? 0 : 17;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
   ABinderProcess_setThreadPoolMaxThreadCount(2);
   ABinderProcess_startThreadPool();
+
+  if (argc > 1 && std::string(argv[1]) == "--watch-registration") {
+    const char* watched_instance = argc > 2 ? argv[2] : kDefaultInstance;
+    return WatchRegistration(watched_instance);
+  }
 
   const char* instance = argc > 1 ? argv[1] : kDefaultInstance;
   ndk::SpAIBinder binder(AServiceManager_checkService(instance));

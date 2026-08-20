@@ -98,14 +98,25 @@ built; it does not mean the android-vcam HWL adapter is complete.
 
 Android 14 uses `tools/verify-aosp14-build.sh` against the exact
 `android-14.0.0_r23` tag. Check mode verifies the CameraService routing and
-public-boundary patch stack plus the Google Camera HWL patch, leaving both
-checkouts pristine when it returns. Build mode temporarily applies the
-patches, compiles the stable-AIDL v2 provider,
+public-boundary patches, the optional exact-instance provider-discovery patch,
+and the Google Camera HWL patch, leaving both checkouts pristine when it
+returns. Build mode temporarily applies the patches, compiles the stable-AIDL
+v2 provider,
 and verifies the linked routing, metadata and frame-rendering hook symbols
 before restoring the source trees. The resulting frontend advertises outputs
 up to 4096x3072 and applies source-aware, pixel-budgeted frame pacing. This is
 a tier-1 AOSP/ROM integration check; it is not a systemless stock-ROM package
 and must not be installed on an arbitrary OEM Android 14 device.
+
+The discovery patch watches only the full service name
+`android.hardware.camera.provider.ICameraProvider/vcam/0`. When that instance
+is not declared by VINTF, CameraService does not wait for it during startup; an
+already-running instance is added with `checkService`, and a later instance is
+added through the existing service-registration callback. Provider death and
+removal continue through the upstream lifecycle path. This build result proves
+source compatibility only. Installing the rebuilt CameraService library on an
+OEM image still requires an exact ABI adapter and the device qualification
+gate.
 
 After initializing the space-conscious Android 14 base checkout, use the
 version-specific dependency helper before the validator. It synchronizes only

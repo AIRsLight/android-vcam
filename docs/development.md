@@ -98,10 +98,10 @@ built; it does not mean the android-vcam HWL adapter is complete.
 
 Android 14 uses `tools/verify-aosp14-build.sh` against the exact
 `android-14.0.0_r23` tag. Check mode verifies the CameraService routing and
-public-boundary patches, the optional exact-instance provider-discovery patch,
-and the Google Camera HWL patch, leaving both checkouts pristine when it
-returns. Build mode temporarily applies the patches, compiles the stable-AIDL
-v2 provider,
+public-boundary patches, the optional exact-instance provider-discovery and
+provider-contract patches, and the Google Camera HWL patch, leaving both
+checkouts pristine when it returns. Build mode temporarily applies the patches,
+compiles the stable-AIDL v2 provider,
 and verifies the linked routing, metadata and frame-rendering hook symbols
 before restoring the source trees. The resulting frontend advertises outputs
 up to 4096x3072 and applies source-aware, pixel-budgeted frame pacing. This is
@@ -117,6 +117,16 @@ removal continue through the upstream lifecycle path. This build result proves
 source compatibility only. Installing the rebuilt CameraService library on an
 OEM image still requires an exact ABI adapter and the device qualification
 gate.
+
+The provider-contract patch applies only to the extracted provider name
+`vcam/0`. Before CameraService installs callbacks, it requires the Android 14
+AIDL v2 interface version and hash. It then accepts only device names
+`device@1.1/vcam/1000` and `device@1.1/vcam/1001`, filters status and torch
+callbacks to the same namespace, rejects physical-camera callbacks, and checks
+concurrent-camera IDs. These checks prevent accidental namespace collisions and
+malformed provider configuration. They do not authenticate the process behind
+the Binder service: production policy must still reserve the service name and
+permit registration only from the dedicated provider SELinux domain.
 
 After initializing the space-conscious Android 14 base checkout, use the
 version-specific dependency helper before the validator. It synchronizes only

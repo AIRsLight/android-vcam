@@ -71,6 +71,8 @@ candidate, not proof that Nubia used an unmodified r1 tree.
 - Optional undeclared `vcam/0` exact-instance discovery: source build complete;
   service-manager late-registration semantics qualified on device, but not yet
   installed into the OEM CameraService.
+- `vcam/0` AIDL v2 contract and 1000/1001 namespace guard: AOSP r23 arm64/arm
+  libcameraservice build complete; OEM runtime installation not attempted.
 - OEM-compatible CameraService binary: not built.
 - OEM Binder transaction extraction: complete for eleven routed operations.
 - Offline ARM64 planning and pure pass-through bridge tests: complete.

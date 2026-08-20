@@ -47,8 +47,8 @@ vendor-stability Binder to the system service manager. A product-integrated
 AOSP/ROM build must keep VINTF stability and declare a dedicated provider
 instance. The separate systemless design instead keeps the isolated service at
 system stability and requires the version-pinned CameraService discovery patch,
-an exact instance allowlist, and matching SELinux policy; it must not pretend to
-be a declared vendor HAL.
+the provider-contract and device-namespace guard, an exact instance allowlist,
+and matching SELinux policy; it must not pretend to be a declared vendor HAL.
 
 The vcam service also selects `/dev/binder` explicitly. The upstream Google
 service selects `/dev/vndbinder` for its direct C++ Binder dependencies and

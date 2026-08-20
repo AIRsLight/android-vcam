@@ -69,6 +69,8 @@ boundary_patch_rel="aosp/cameraservice/android-14/frameworks-av-boundary.patch"
 boundary_patch="$source_root/$boundary_patch_rel"
 discovery_patch_rel="aosp/cameraservice/android-14/frameworks-av-provider-discovery.patch"
 discovery_patch="$source_root/$discovery_patch_rel"
+security_patch_rel="aosp/cameraservice/android-14/frameworks-av-provider-security.patch"
+security_patch="$source_root/$security_patch_rel"
 google_camera="$aosp_root/hardware/google/camera"
 google_patch_rel="aosp/provider/aidl/android-14/hardware-google-camera.patch"
 google_patch="$source_root/$google_patch_rel"
@@ -83,6 +85,7 @@ required_google_camera_commit=11f9bcc895240629b4cd88a6a595a9ef326490ff
 [[ -f "$patch" ]] || fail "CameraService patch is missing: $patch"
 [[ -f "$boundary_patch" ]] || fail "CameraService boundary patch is missing: $boundary_patch"
 [[ -f "$discovery_patch" ]] || fail "CameraService provider discovery patch is missing: $discovery_patch"
+[[ -f "$security_patch" ]] || fail "CameraService provider security patch is missing: $security_patch"
 [[ -f "$google_patch" ]] || fail "Google Camera patch is missing: $google_patch"
 
 head=$(git -C "$frameworks_av" rev-parse HEAD)
@@ -101,6 +104,8 @@ git -C "$frameworks_av" apply --check "$patch" ||
     fail "CameraService patch does not apply cleanly to frameworks/av $head"
 git -C "$frameworks_av" apply --check "$discovery_patch" ||
     fail "CameraService provider discovery patch does not apply cleanly to frameworks/av $head"
+git -C "$frameworks_av" apply --check "$security_patch" ||
+    fail "CameraService provider security patch does not apply cleanly to frameworks/av $head"
 git -C "$frameworks_av" apply "$patch"
 if ! git -C "$frameworks_av" apply --check "$boundary_patch"; then
     git -C "$frameworks_av" apply -R "$patch" || true
@@ -154,10 +159,20 @@ patch_applied=0
 boundary_patch_applied=0
 google_patch_applied=0
 discovery_patch_applied=0
+security_patch_applied=0
 cleanup() {
     original_status=$?
     set +e
     cleanup_failed=0
+    if ((security_patch_applied)); then
+        if git -C "$frameworks_av" apply -R --check "$managed_copy/$security_patch_rel" &&
+                git -C "$frameworks_av" apply -R "$managed_copy/$security_patch_rel"; then
+            printf 'Removed temporary CameraService provider security patch.\n'
+        else
+            printf 'ERROR: unable to roll back the provider security patch\n' >&2
+            cleanup_failed=1
+        fi
+    fi
     if ((discovery_patch_applied)); then
         if git -C "$frameworks_av" apply -R --check "$managed_copy/$discovery_patch_rel" &&
                 git -C "$frameworks_av" apply -R "$managed_copy/$discovery_patch_rel"; then
@@ -208,6 +223,8 @@ git -C "$frameworks_av" apply "$managed_copy/$boundary_patch_rel"
 boundary_patch_applied=1
 git -C "$frameworks_av" apply "$managed_copy/$discovery_patch_rel"
 discovery_patch_applied=1
+git -C "$frameworks_av" apply "$managed_copy/$security_patch_rel"
+security_patch_applied=1
 git -C "$google_camera" apply "$managed_copy/$google_patch_rel"
 google_patch_applied=1
 

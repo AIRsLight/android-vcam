@@ -217,7 +217,8 @@ def main() -> None:
         "vendor_etc", "vendor_configs_file", "NEXT_BOOT_MODE_FILE",
         "arm-two", "arm-route", "ANDROID_VCAM_PROBE_CLIENT_PACKAGE",
         "intentionally read-only", "ANDROID_VCAM_CURRENT_BOOT_ACTIVE",
-        "provider-start", "vcamd",
+        "provider-start", "vcamd", "retry_unpublished_providers_after_boot",
+        "sys.boot_completed", "retry-provider=",
     ):
         if required_symbol not in aidl_probe_scripts:
             fail(f"AIDL provider probe safety contract is missing: {required_symbol}")

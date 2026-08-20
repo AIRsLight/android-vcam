@@ -78,8 +78,10 @@ parameters and never enables this fallback.
 
 At the late-start service stage, the module starts the authenticated abstract
 socket backend and resumes only providers carrying an explicit `autostart`
-marker. This does not restart cameraserver or the OEM camera provider. KernelSU
-children keep the `ksu` domain; the legacy APatch build continues to use its
-dedicated `vcamd` transition and returns privileged media work to the `magisk`
-domain. Removing this probe suspends its running media providers while
-preserving their configuration for a later compatible backend installation.
+marker. Providers that fail before Wi-Fi routing is ready receive one further
+attempt five seconds after Android reports boot completion. This does not
+restart cameraserver or the OEM camera provider. KernelSU children keep the
+`ksu` domain; the legacy APatch build continues to use its dedicated `vcamd`
+transition and returns privileged media work to the `magisk` domain. Removing
+this probe suspends its running media providers while preserving their
+configuration for a later compatible backend installation.

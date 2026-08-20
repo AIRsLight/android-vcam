@@ -48,3 +48,29 @@ for provider in "$BACKEND_STATE_DIR"/providers/*; do
     id=${provider##*/}
     "$MODDIR/vcamctl" provider-start "$id" >> "$BACKEND_LOG" 2>&1
 done
+
+retry_unpublished_providers_after_boot() {
+    attempt=0
+    while [ "$attempt" -lt 180 ]; do
+        [ "$(getprop sys.boot_completed)" = "1" ] && break
+        sleep 1
+        attempt=$((attempt + 1))
+    done
+    [ "$(getprop sys.boot_completed)" = "1" ] || {
+        echo "service: backend retry skipped; boot did not complete" >> "$BACKEND_LOG"
+        return 0
+    }
+    # Give Android's network validation and route selection a short settling
+    # interval after boot_completed before retrying failed remote providers.
+    sleep 5
+    for provider in "$BACKEND_STATE_DIR"/providers/*; do
+        [ -f "$provider/meta" ] || continue
+        [ -e "$provider/autostart" ] || continue
+        id=${provider##*/}
+        [ -e "/data/vendor/camera/vcam/providers/$id/enabled" ] && continue
+        echo "service: retry-provider=$id" >> "$BACKEND_LOG"
+        "$MODDIR/vcamctl" provider-start "$id" >> "$BACKEND_LOG" 2>&1
+    done
+}
+
+retry_unpublished_providers_after_boot &

@@ -5,7 +5,7 @@ of a declared stable-AIDL v2 `vcam/0` provider on the NX769J Android 14 build.
 It is not a production release. It advertises zero cameras by default and can
 advertise the two test cameras for one explicitly armed boot.
 
-dev.24 also packages the shared manager-independent backend: `vcamd`,
+dev.25 packages the shared manager-independent backend: `vcamd`,
 `vcamctl`, `provider-runner.sh`, `vcam-publisher` and the statically linked
 arm64 `vcam-streamer`. Provider metadata remains under
 `/data/adb/android_vcam/providers`, while frames remain under
@@ -76,10 +76,14 @@ provider still resolves `routes.tsv`, verifies the enabled marker, reads
 patched production CameraService supplies the real client package in session
 parameters and never enables this fallback.
 
-At the late-start service stage, the module starts the authenticated abstract
-socket backend and resumes only providers carrying an explicit `autostart`
-marker. Providers that fail before Wi-Fi routing is ready receive one further
-attempt five seconds after Android reports boot completion. This does not
+After the AIDL Provider registers, the post-fs-data worker explicitly starts
+the authenticated abstract-socket backend and resumes only providers carrying
+an explicit `autostart` marker. This placement is required because KernelSU
+skips the module's normal late-start service after the one-shot probe writes
+its next-boot `disable` marker. A boot-ID guard prevents duplicate startup on
+root managers that still invoke `service.sh`. Providers that fail before Wi-Fi
+routing is ready receive one further attempt five seconds after Android reports
+boot completion. This does not
 restart cameraserver or the OEM camera provider. KernelSU children keep the
 `ksu` domain; the legacy APatch build continues to use its dedicated `vcamd`
 transition and returns privileged media work to the `magisk` domain. Removing

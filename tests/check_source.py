@@ -212,18 +212,23 @@ def main() -> None:
     for required_symbol in (
         "start-zero", "start-two", "unset ANDROID_VCAM_PROBE_SYSTEM_STABILITY",
         "target_fcm", "disable_next_boot", "bootstrap_provider &",
-        "vcam-aidl-recovery", "post-fs-data owns AIDL provider lifecycle",
+        "vcam-aidl-recovery", "backend lifecycle reached",
         "MOUNTED_FRAGMENT", "ANDROID_VCAM_REGISTRATION_ATTEMPTS",
         "vendor_etc", "vendor_configs_file", "NEXT_BOOT_MODE_FILE",
         "arm-two", "arm-route", "ANDROID_VCAM_PROBE_CLIENT_PACKAGE",
         "intentionally read-only", "ANDROID_VCAM_CURRENT_BOOT_ACTIVE",
         "provider-start", "vcamd", "retry_unpublished_providers_after_boot",
-        "sys.boot_completed", "retry-provider=",
+        "sys.boot_completed", "retry-provider=", "backend.boot-id",
     ):
         if required_symbol not in aidl_probe_scripts:
             fail(f"AIDL provider probe safety contract is missing: {required_symbol}")
     if "ctl.restart cameraserver" in aidl_probe_scripts:
         fail("AIDL provider probe must not restart cameraserver in isolation")
+    aidl_post_fs = (
+        ROOT / "aidl-provider-module" / "post-fs-data.sh"
+    ).read_text(encoding="utf-8")
+    if 'sh "$MODDIR/service.sh"' not in aidl_post_fs:
+        fail("AIDL one-shot bootstrap must explicitly start its backend lifecycle")
     aidl_packager = (
         ROOT / "tools" / "package-aosp14-aidl-provider.ps1"
     ).read_text(encoding="utf-8")

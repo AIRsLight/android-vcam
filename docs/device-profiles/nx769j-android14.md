@@ -499,7 +499,7 @@ healthy. For this portrait test target, `view-0.cfg` used scale 316 (0.316x) to
 fit the complete 16:9 source inside the portrait viewport; the default 1.0x
 transform intentionally center-crops it in the same way as a physical camera.
 
-dev.24 closes the temporary-decoder delivery gap without changing the provider
+dev.24 packaged the temporary-decoder delivery gap without changing the provider
 or CameraService processes. The module package now contains the shared
 `vcamd`/`vcamctl` control plane, `provider-runner.sh`, `vcam-publisher`, and the
 statically linked arm64 `vcam-streamer`. Installation verifies a LF-terminated
@@ -512,10 +512,21 @@ Before installation, the exact staged payload was pushed under
 manifest entries passed device-side `sha256sum -c`. A temporary RTSP provider
 published a correctly labeled 1,382,424-byte 1280x720 `VCAMYUV1` frame in
 approximately eight seconds, then its process, persistent metadata, frame and
-temporary package tree were removed. The late-start script also launched the
+temporary package tree were removed. The service script also launched the
 packaged daemon as the exact expected executable in `u:r:ksu:s0`, preserved
-`ANDROID_VCAM_CURRENT_BOOT_ACTIVE=1`, and shut it down cleanly. The final
-dev.24 ZIP SHA-256 is
-`05A8E9512C33F33A4F12047ED24D5F09CA8D6EA0BFA16FFCF93B944376E409F1`.
+`ANDROID_VCAM_CURRENT_BOOT_ACTIVE=1`, and shut it down cleanly.
+
+The first dev.24 cold boot exposed a KernelSU lifecycle constraint: the AIDL
+Provider registered normally as PID 1372, but KernelSU skipped the module's
+late-start `service.sh` after post-fs-data created the intentional next-boot
+`disable` marker. No daemon or streamer started and the saved RTSP frame hash
+remained unchanged. dev.25 invokes the guarded backend lifecycle explicitly
+from the still-running post-fs-data worker after Provider registration. A
+manual same-boot verification started `vcamd` from the installed payload in
+`u:r:ksu:s0` and changed the RTSP frame hash from
+`e7c3921e6a963458025fd356a630539985a001ad98e7b1b491f9657c89e862a2` to
+`bfa21e8433c4047f3bfbacaff3c3d55b3b3fbd3e073ebbaf4fd3aa6925881c93`
+over ten seconds. The dev.25 ZIP SHA-256 is
+`6AE6E0FE62860ECD8FCCEC2A63FB7C8947BA9D5FD86170F4BABE3D31D45858B1`.
 The remaining Android 14 integration item is transparent selection of internal
 1000/1001 when ordinary applications open public IDs 0/1.

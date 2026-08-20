@@ -15,7 +15,7 @@ case "$boot_mode" in
     two|route) ;;
     *) boot_mode=zero ;;
 esac
-echo "bootstrap 0.5.0-dev.24 started mode=$boot_mode" >> "$BOOT_LOG"
+echo "bootstrap 0.5.0-dev.25 started mode=$boot_mode" >> "$BOOT_LOG"
 
 disable_next_boot() {
     touch "$MODDIR/disable"
@@ -91,6 +91,11 @@ bootstrap_provider() {
     fi
 
     echo "$boot_mode AIDL provider registered; next boot remains disabled" >> "$BOOT_LOG"
+    # KernelSU skips late-start service.sh after this one-shot probe writes its
+    # next-boot disable marker. Start the independent backend explicitly from
+    # the still-running post-fs-data worker; service.sh has a boot-ID guard for
+    # root managers that do invoke it later in the same boot.
+    sh "$MODDIR/service.sh" >> "$BOOT_LOG" 2>&1
     watch_boot_completion
 }
 

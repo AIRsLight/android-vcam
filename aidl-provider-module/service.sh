@@ -7,10 +7,19 @@ BOOT_LOG=$PROBE_STATE_DIR/bootstrap.log
 BACKEND_LOG=$BACKEND_STATE_DIR/module.log
 DAEMON=$MODDIR/system/bin/vcamd
 DAEMON_PID=$BACKEND_STATE_DIR/vcamd.pid
+BACKEND_BOOT_ID_FILE=$PROBE_STATE_DIR/backend.boot-id
 
 mkdir -p "$PROBE_STATE_DIR" "$BACKEND_STATE_DIR"
 chmod 0700 "$PROBE_STATE_DIR" "$BACKEND_STATE_DIR"
-echo "service stage reached; post-fs-data owns AIDL provider lifecycle" >> "$BOOT_LOG"
+current_boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+if [ -n "$current_boot_id" ] && \
+   [ "$(cat "$BACKEND_BOOT_ID_FILE" 2>/dev/null)" = "$current_boot_id" ]; then
+    echo "backend lifecycle already started for boot=$current_boot_id" >> "$BOOT_LOG"
+    exit 0
+fi
+printf '%s\n' "$current_boot_id" > "$BACKEND_BOOT_ID_FILE"
+chmod 0600 "$BACKEND_BOOT_ID_FILE"
+echo "backend lifecycle reached boot=${current_boot_id:-unknown}" >> "$BOOT_LOG"
 
 mkdir -p /data/vendor/camera/vcam/providers
 chown camera:camera /data/vendor/camera/vcam /data/vendor/camera/vcam/providers

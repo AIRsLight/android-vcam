@@ -42,6 +42,27 @@ The OEM provider process also owns ZTE transfer and Qualcomm offline, AON and
 post-processing interfaces. A standalone virtual provider must use a separate
 instance; it must not impersonate or replace `vendor_qti/0`.
 
+### Live restart constraint
+
+`cameraserver` must not be restarted in isolation on this firmware. During a
+controlled late-provider diagnostic on 2026-08-20, terminating cameraserver
+caused `/vendor/bin/hw/vendor.qti.camera.provider-service_64` to receive its
+client death notification and deliberately raise `SIGABRT`. DropBox tombstone
+`SYSTEM_TOMBSTONE@1787207852998` records the abort at 14:37:32 in
+`camx.provider-impl.so`:
+
+```text
+CameraProvider::binderDied(void*)
+AIBinder_DeathRecipient::TransferDeathRecipient::binderDied(...)
+BpBinder::sendObituary()
+```
+
+This is an OEM lifecycle contract rather than a crash in VCAM code. Any
+recovery that needs a fresh CameraService must first disable the experimental
+module and perform a complete device reboot, allowing init to tear down and
+start cameraserver plus the OEM provider in their normal order. Runtime tests
+must not use a cameraserver restart to force late-provider discovery.
+
 ## ABI assessment
 
 The stock `libcameraservice.so` was compared with the current
@@ -314,3 +335,13 @@ allowlist, a reviewed live-process backend, and on-device thread/cache/rollback
 qualification. Read-only observation, pass-through and the narrowly scoped
 standard Camera2 single-stream route are qualified on this fingerprint;
 general transaction mutation and visual routing are not.
+
+An additional HIDL registration diagnostic proved that an undeclared
+`android.hardware.camera.provider@2.4::ICameraProvider/vcam/0` can be added to
+hwservicemanager with an explicitly gated test override, but stock
+CameraService cannot acquire that instance because its own libhidl transport
+lookup still requires a VINTF declaration. The provider was stopped and
+`ro.debuggable` was restored to `0`. A follow-up cameraserver restart used to
+test pre-existing discovery triggered the OEM provider abort documented above;
+that restart method is now prohibited on this profile. The persistent HIDL
+VINTF experiment remains disabled and unqualified.

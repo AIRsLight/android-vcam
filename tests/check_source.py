@@ -62,12 +62,21 @@ def main() -> None:
         ROOT / "tools" / "fetch-aosp14-router-artifacts.ps1",
         ROOT / "tools" / "stage-cameraserver-bootstrap.ps1",
         ROOT / "tools" / "package-portable-bootstrap.ps1",
+        ROOT / "tools" / "package-aosp14-hidl-provider.ps1",
         ROOT / "portable-module" / "module.prop",
         ROOT / "portable-module" / "customize.sh",
         ROOT / "portable-module" / "post-mount.sh",
         ROOT / "portable-module" / "service.sh",
         ROOT / "portable-module" / "sepolicy.rule",
         ROOT / "portable-module" / "system" / "etc" / "android_vcam" / "bootstrap.mode",
+        ROOT / "hidl-provider-module" / "module.prop",
+        ROOT / "hidl-provider-module" / "customize.sh",
+        ROOT / "hidl-provider-module" / "provider-control.sh",
+        ROOT / "hidl-provider-module" / "post-fs-data.sh",
+        ROOT / "hidl-provider-module" / "service.sh",
+        ROOT / "hidl-provider-module" / "sepolicy.rule",
+        ROOT / "hidl-provider-module" / "system" / "vendor" / "etc" / "vintf" /
+        "manifest" / "android.hardware.camera.provider@2.4-vcam-service.xml",
         ROOT / "tools" / "run-signal-quiescence-device-test.ps1",
         ROOT / "tools" / "verify-arm64-signal-handler.ps1",
         ROOT / "docs" / "portable-integration-strategy.md",
@@ -160,6 +169,35 @@ def main() -> None:
             fail(f"APatch script uses CRLF: {shell_script.name}")
         if not raw.startswith(b"#!/system/bin/sh\n"):
             fail(f"invalid Android shell shebang: {shell_script.name}")
+
+    hidl_probe_scripts = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (ROOT / "hidl-provider-module").glob("*.sh")
+    )
+    for required_symbol in (
+        "start-zero", "start-two", "ANDROID_VCAM_HIDL_MODULE_PATH",
+        "unset ANDROID_VCAM_HIDL_ALLOW_UNDECLARED", "sys.boot_completed",
+        "vendor_configs_file", "vcam-hidl-recovery",
+    ):
+        if required_symbol not in hidl_probe_scripts:
+            fail(f"HIDL provider probe safety contract is missing: {required_symbol}")
+    hidl_fragment = (
+        ROOT / "hidl-provider-module" / "system" / "vendor" / "etc" / "vintf" /
+        "manifest" / "android.hardware.camera.provider@2.4-vcam-service.xml"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "android.hardware.camera.provider", "hwbinder", "vcam/0",
+    ):
+        if required_symbol not in hidl_fragment:
+            fail(f"HIDL provider VINTF declaration is missing: {required_symbol}")
+
+    portable_service = (ROOT / "portable-module" / "service.sh").read_text(
+        encoding="utf-8"
+    )
+    if "ctl.restart cameraserver" in portable_service:
+        fail("portable recovery must not restart cameraserver in isolation")
+    if "reboot,vcam-bootstrap-recovery" not in portable_service:
+        fail("portable recovery does not request a full device reboot")
 
     source = (ROOT / "hal" / "src" / "VirtualCamera.cpp").read_text(encoding="utf-8")
     for required_symbol in (

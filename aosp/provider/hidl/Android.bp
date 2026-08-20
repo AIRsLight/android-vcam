@@ -40,6 +40,7 @@ cc_binary {
         "libbinder",
         "libcamera_metadata",
         "libcutils",
+        "libdl",
         "libhardware",
         "libhidlbase",
         "liblog",

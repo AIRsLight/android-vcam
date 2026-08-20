@@ -1,0 +1,6 @@
+allow ksu hal_camera_hwservice hwservice_manager { add find }
+allow ksu hidl_base_hwservice hwservice_manager add
+allow ksu hwservicemanager binder { call transfer }
+allow hwservicemanager ksu binder { call transfer }
+allow cameraserver ksu binder { call transfer }
+allow ksu cameraserver binder { call transfer }

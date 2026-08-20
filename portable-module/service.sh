@@ -42,12 +42,17 @@ if [ -z "$pid" ]; then
     touch "$MODDIR/disable"
     if [ -x /system/bin/vcam/cameraserver ] && [ -e /system/bin/cameraserver ]; then
         if mount -o bind /system/bin/vcam/cameraserver /system/bin/cameraserver 2>> "$LOG_FILE"; then
-            setprop ctl.restart cameraserver
-            echo "service: stock cameraserver rebound and restart requested" >> "$LOG_FILE"
+            echo "service: stock cameraserver rebound for recovery reboot" >> "$LOG_FILE"
         else
             echo "service: emergency stock bind failed" >> "$LOG_FILE"
         fi
     fi
+    # NX769J's OEM provider deliberately aborts when cameraserver dies. Never
+    # restart cameraserver in isolation: persist the disabled marker and let a
+    # complete reboot tear down the camera stack in normal init order.
+    sync
+    echo "service: module disabled; requesting full recovery reboot" >> "$LOG_FILE"
+    setprop sys.powerctl reboot,vcam-bootstrap-recovery
 else
     echo "service: CameraService stable for 10 seconds" >> "$LOG_FILE"
 fi

@@ -18,6 +18,7 @@ namespace android::hardware::camera::provider::V2_4::implementation {
 class VcamProvider final : public ICameraProvider {
   public:
     VcamProvider();
+    ~VcamProvider() override;
 
     Return<common::V1_0::Status> setCallback(
             const sp<ICameraProviderCallback>& callback) override;
@@ -39,6 +40,7 @@ class VcamProvider final : public ICameraProvider {
     std::mutex mutex_;
     sp<ICameraProviderCallback> callback_;
     sp<common::V1_0::helper::CameraModule> module_;
+    void* moduleHandle_ = nullptr;
     SortedVector<std::pair<std::string, std::string>> cameraDeviceNames_;
     bool ready_ = false;
     bool enabled_ = false;

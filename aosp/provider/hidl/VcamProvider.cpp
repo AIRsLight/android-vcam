@@ -12,6 +12,10 @@
 #include <hardware/camera_common.h>
 #include <hardware/hardware.h>
 
+#include <cerrno>
+#include <cstdlib>
+#include <dlfcn.h>
+
 #include "vcam/VendorTags.h"
 
 namespace android::hardware::camera::provider::V2_4::implementation {
@@ -20,8 +24,26 @@ using common::V1_0::Status;
 
 VcamProvider::VcamProvider() {
     const hw_module_t* rawModule = nullptr;
-    const int loadResult = hw_get_module_by_class(
-            CAMERA_HARDWARE_MODULE_ID, "vcam", &rawModule);
+    int loadResult = 0;
+    const char* modulePath = std::getenv("ANDROID_VCAM_HIDL_MODULE_PATH");
+    if (modulePath != nullptr && modulePath[0] != '\0') {
+        moduleHandle_ = dlopen(modulePath, RTLD_NOW | RTLD_LOCAL);
+        if (moduleHandle_ == nullptr) {
+            LOG(ERROR) << "Unable to load explicit camera.vcam module: " << dlerror();
+            loadResult = -EINVAL;
+        } else {
+            rawModule = static_cast<const hw_module_t*>(
+                    dlsym(moduleHandle_, HAL_MODULE_INFO_SYM_AS_STR));
+            if (rawModule == nullptr) {
+                LOG(ERROR) << "Explicit camera.vcam module has no HAL_MODULE_INFO_SYM: "
+                           << dlerror();
+                loadResult = -EINVAL;
+            }
+        }
+    } else {
+        loadResult = hw_get_module_by_class(
+                CAMERA_HARDWARE_MODULE_ID, "vcam", &rawModule);
+    }
     if (loadResult != 0 || rawModule == nullptr) {
         LOG(ERROR) << "Unable to load camera.vcam module: " << loadResult;
         return;
@@ -52,9 +74,19 @@ VcamProvider::VcamProvider() {
     cameraDeviceNames_.add(std::make_pair(std::string("1"),
                                          std::string(kFrontDeviceName)));
     ready_ = true;
+    const char* advertiseCameras =
+            std::getenv("ANDROID_VCAM_HIDL_ADVERTISE_CAMERAS");
     enabled_ = android::base::GetBoolProperty(
-            "ro.vendor.vcam.provider.enabled", false);
+                       "ro.vendor.vcam.provider.enabled", false) ||
+            (advertiseCameras != nullptr && std::string(advertiseCameras) == "1");
     LOG(INFO) << "VCAM Camera3 module ready; enumeration enabled=" << enabled_;
+}
+
+VcamProvider::~VcamProvider() {
+    module_.clear();
+    if (moduleHandle_ != nullptr) {
+        dlclose(moduleHandle_);
+    }
 }
 
 Return<Status> VcamProvider::setCallback(

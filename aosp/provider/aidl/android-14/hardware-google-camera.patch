@@ -129,7 +129,15 @@ diff --git a/common/hal/aidl_service/aidl_service.cc b/common/hal/aidl_service/a
 index a98753a..c3b63f7 100644
 --- a/common/hal/aidl_service/aidl_service.cc
 +++ b/common/hal/aidl_service/aidl_service.cc
-@@ -32,6 +32,7 @@
+@@ -23,6 +23,7 @@
+ #include <aidl/android/hardware/camera/provider/ICameraProvider.h>
+ #include <android/binder_manager.h>
+ #include <android/binder_process.h>
++#include <dlfcn.h>
+ #include <apex_update_listener.h>
+ #include <binder/ProcessState.h>
+ #include <cutils/properties.h>
+@@ -32,6 +33,7 @@
  #include <utils/Errors.h>
  
  #include <cinttypes>
@@ -137,7 +145,7 @@ index a98753a..c3b63f7 100644
  
  #include "aidl_camera_build_version.h"
  #include "aidl_camera_provider.h"
-@@ -45,7 +46,11 @@ const bool kLazyService = true;
+@@ -45,5 +47,9 @@ const bool kLazyService = true;
  const bool kLazyService = false;
  #endif
  
@@ -147,9 +155,19 @@ index a98753a..c3b63f7 100644
  const std::string kProviderInstance = "/internal/0";
 +#endif
  
- int main() {
+@@ -51,7 +57,11 @@ int main() {
    ALOGI("Google camera provider service is starting.");
-@@ -61,6 +66,13 @@ int main() {
+   // The camera HAL may communicate to other vendor components via
+   // /dev/vndbinder
+   mallopt(M_DECAY_TIME, 1);
++#ifdef ANDROID_VCAM_PROVIDER
++  android::ProcessState::initWithDriver("/dev/binder");
++#else
+   android::ProcessState::initWithDriver("/dev/vndbinder");
++#endif
+   android::hardware::configureRpcThreadpool(/*maxThreads=*/6,
+                                             /*callerWillJoin=*/true);
+@@ -61,6 +71,18 @@ int main() {
    ABinderProcess_setThreadPoolMaxThreadCount(6);
    ABinderProcess_startThreadPool();
  
@@ -159,10 +177,57 @@ index a98753a..c3b63f7 100644
 +    ALOGE("Unable to select the android-vcam HWL library");
 +    return android::NO_INIT;
 +  }
++  if (getenv("ANDROID_VCAM_CONFIG_DIR") == nullptr &&
++      setenv("ANDROID_VCAM_CONFIG_DIR", "/vendor/etc/android_vcam/", 1) != 0) {
++    ALOGE("Unable to select the android-vcam configuration directory");
++    return android::NO_INIT;
++  }
 +#endif
  #ifdef __ANDROID_APEX__
    int start_count = property_get_int32("vendor.camera.hal.start.count", 0);
    property_set("vendor.camera.hal.start.count",
+@@ -85,20 +107,39 @@ int main() {
+   std::shared_ptr<ICameraProvider> camera_provider =
+       AidlCameraProvider::Create();
+   if (camera_provider == nullptr) {
+     return android::NO_INIT;
+   }
++  auto camera_provider_binder = camera_provider->asBinder();
++#ifdef ANDROID_VCAM_PROVIDER
++  const char* probe_system_stability =
++      getenv("ANDROID_VCAM_PROBE_SYSTEM_STABILITY");
++  if (probe_system_stability != nullptr &&
++      probe_system_stability[0] == '1' &&
++      probe_system_stability[1] == '\0') {
++    using ForceDowngradeToSystemStability = void (*)(AIBinder*);
++    auto force_downgrade_to_system =
++        reinterpret_cast<ForceDowngradeToSystemStability>(
++            dlsym(RTLD_DEFAULT,
++                  "AIBinder_forceDowngradeToSystemStability"));
++    if (force_downgrade_to_system == nullptr) {
++      ALOGE("System-stability downgrade API is unavailable: %s", dlerror());
++      return android::NO_INIT;
++    }
++    force_downgrade_to_system(camera_provider_binder.get());
++  }
++#endif
+   std::string instance =
+       std::string() + AidlCameraProvider::descriptor + kProviderInstance;
+   if (kLazyService) {
+-    if (AServiceManager_registerLazyService(camera_provider->asBinder().get(),
++    if (AServiceManager_registerLazyService(camera_provider_binder.get(),
+                                             instance.c_str()) != STATUS_OK) {
+       ALOGE("Cannot register AIDL Google camera provider lazy service");
+       return android::NO_INIT;
+     }
+   } else {
+-    if (AServiceManager_addService(camera_provider->asBinder().get(),
++    if (AServiceManager_addService(camera_provider_binder.get(),
+                                    instance.c_str()) != STATUS_OK) {
+       ALOGE("Cannot register AIDL Google camera provider service");
+       return android::NO_INIT;
+     }
+   }
 diff --git a/common/hal/google_camera_hal/camera_provider.cc b/common/hal/google_camera_hal/camera_provider.cc
 index 30e184d..6242e0d 100644
 --- a/common/hal/google_camera_hal/camera_provider.cc
@@ -184,7 +249,18 @@ index 30e184d..6242e0d 100644
  #endif
  
  namespace android {
-@@ -304,11 +307,16 @@ status_t CameraProvider::CreateHwl(
+@@ -40,5 +43,10 @@ namespace google_camera_hal {
+ CameraProvider::~CameraProvider() {
+   VendorTagManager::GetInstance().Reset();
++  // Objects implemented by the selected HWL must be destroyed while its DSO
++  // is still loaded. Otherwise an initialization or registration failure can
++  // jump through an unloaded CameraProviderHwl vtable during member cleanup.
++  camera_allocator_hwl_.reset();
++  camera_provider_hwl_.reset();
+   if (hwl_lib_handle_ != nullptr) {
+     dlclose(hwl_lib_handle_);
+     hwl_lib_handle_ = nullptr;
+@@ -304,11 +312,16 @@ status_t CameraProvider::CreateHwl(
  #if GCH_HWL_USE_DLOPEN
    CreateCameraProviderHwl_t create_hwl;
  
@@ -204,7 +280,7 @@ index 30e184d..6242e0d 100644
            dlerror());
      return NO_INIT;
    }
-@@ -316,7 +324,7 @@ status_t CameraProvider::CreateHwl(
+@@ -316,7 +329,7 @@ status_t CameraProvider::CreateHwl(
    create_hwl = (CreateCameraProviderHwl_t)dlsym(hwl_lib_handle_,
                                                  "CreateCameraProviderHwl");
    if (create_hwl == nullptr) {
@@ -359,7 +435,14 @@ diff --git a/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.cpp b/devi
 index d4fae3e..d8f179c 100644
 --- a/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.cpp
 +++ b/devices/EmulatedCamera/hwl/EmulatedCameraProviderHWLImpl.cpp
-@@ -34,6 +34,10 @@
+@@ -21,5 +21,6 @@
+ #include <android-base/file.h>
+ #include <android-base/strings.h>
++#include <cstdlib>
+ #include <cutils/properties.h>
+ #include <hardware/camera_common.h>
+ #include <log/log.h>
+@@ -34,6 +35,10 @@
  
  namespace android {
  
@@ -370,7 +453,20 @@ index d4fae3e..d8f179c 100644
  // Location of the camera configuration files.
  constexpr std::string_view kConfigurationFileNames[] = {
      "emu_camera_back.json",
-@@ -809,6 +813,13 @@ status_t EmulatedCameraProviderHwlImpl::Initialize() {
+@@ -710,5 +715,12 @@ status_t EmulatedCameraProviderHwlImpl::Initialize() {
+     config_dir += kConfigurationFileDirVendor.data();
+   }
++#ifdef ANDROID_VCAM_CUSTOM_FACTORY
++  if (const char* selected_config_dir = getenv("ANDROID_VCAM_CONFIG_DIR");
++      selected_config_dir != nullptr && selected_config_dir[0] == '/') {
++    config_dir = selected_config_dir;
++    if (config_dir.back() != '/') config_dir.push_back('/');
++  }
++#endif
+   char prop[PROPERTY_VALUE_MAX];
+   if (!property_get_bool("ro.boot.qemu", false)) {
+     for (const auto& iter : kConfigurationFileNames) {
+@@ -809,6 +821,13 @@ status_t EmulatedCameraProviderHwlImpl::Initialize() {
        camera_id_map_.emplace(logical_id, std::vector<std::pair<CameraDeviceStatus, uint32_t>>());
      }
  

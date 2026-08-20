@@ -1,0 +1,6 @@
+id=android_vcam_provider_probe
+name=Android Virtual Camera Manual AIDL Probe
+version=0.5.0-dev.13
+versionCode=25
+author=android-vcam contributors
+description=Manual, non-mounted Android 14 vcam/0 system-stability registration probe. No VINTF fragment and no boot-time service.

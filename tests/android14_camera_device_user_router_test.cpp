@@ -30,6 +30,7 @@ public:
     }
 
     std::string observedId;
+    std::vector<std::string> observedIds;
     std::size_t observedBinderObjects = 0;
 
 protected:
@@ -40,15 +41,28 @@ protected:
             std::uint32_t) override {
         data.setDataPosition(0);
         assert(data.enforceInterface(android::String16(kDescriptor)));
+        std::int32_t count = 1;
         if (code == kSubmitRequestListCode) {
-            std::int32_t count = 0;
-            assert(data.readInt32(&count) == android::OK && count == 1);
+            assert(data.readInt32(&count) == android::OK && count > 0);
         }
-        std::int32_t present = 0;
-        std::int32_t settingsCount = 0;
-        assert(data.readInt32(&present) == android::OK && present == 1);
-        assert(data.readInt32(&settingsCount) == android::OK && settingsCount == 1);
-        observedId = android::String8(data.readString16()).c_str();
+        observedIds.clear();
+        for (std::int32_t index = 0; index < count; ++index) {
+            std::int32_t present = 0;
+            std::int32_t settingsCount = 0;
+            assert(data.readInt32(&present) == android::OK && present == 1);
+            assert(data.readInt32(&settingsCount) == android::OK &&
+                   settingsCount == 1);
+            observedIds.emplace_back(
+                    android::String8(data.readString16()).c_str());
+            if (count > 1) {
+                std::int32_t emptyField = -1;
+                for (int field = 0; field < 5; ++field) {
+                    assert(data.readInt32(&emptyField) == android::OK &&
+                           emptyField == 0);
+                }
+            }
+        }
+        observedId = observedIds.back();
         observedBinderObjects = data.debugReadAllStrongBinders().size();
         return android::OK;
     }
@@ -81,12 +95,15 @@ void writeRequestParcel(
         android::Parcel* parcel,
         std::uint32_t code,
         const char* cameraId,
-        const android::sp<android::IBinder>& surfaceBinder = nullptr) {
+        const android::sp<android::IBinder>& surfaceBinder = nullptr,
+        std::int32_t requestCount = 1) {
     assert(parcel->writeInterfaceToken(android::String16(kDescriptor)) == android::OK);
     if (code == kSubmitRequestListCode) {
-        assert(parcel->writeInt32(1) == android::OK);
+        assert(parcel->writeInt32(requestCount) == android::OK);
     }
-    writeRequest(parcel, cameraId, surfaceBinder);
+    for (std::int32_t index = 0; index < requestCount; ++index) {
+        writeRequest(parcel, cameraId, surfaceBinder);
+    }
     assert(parcel->writeBool(true) == android::OK);
 }
 
@@ -99,7 +116,7 @@ int main() {
     assert(android::binder::Status::ok().writeToParcel(&connectReply) == android::OK);
     assert(connectReply.writeStrongBinder(target) == android::OK);
     assert(vcam::runtime::wrapAndroid14CameraDeviceUserReply(
-                   &connectReply, "0", "1") ==
+                   &connectReply, "0", "1000") ==
            vcam::runtime::CameraDeviceUserReplyRouteStatus::kWrapped);
 
     android::binder::Status serviceStatus;
@@ -118,15 +135,17 @@ int main() {
             single.debugReadAllStrongBinders().size();
     assert(singleBinderObjects > 0);
     assert(routed->transact(kSubmitRequestCode, single, nullptr, 0) == android::OK);
-    assert(target->observedId == "1");
+    assert(target->observedId == "1000");
     assert(target->observedBinderObjects == singleBinderObjects);
     assert(single.dataSize() == singleBytes.size());
     assert(std::memcmp(single.data(), singleBytes.data(), singleBytes.size()) == 0);
 
     android::Parcel batch;
-    writeRequestParcel(&batch, kSubmitRequestListCode, "0");
+    writeRequestParcel(&batch, kSubmitRequestListCode, "0", nullptr, 2);
     assert(routed->transact(kSubmitRequestListCode, batch, nullptr, 0) == android::OK);
-    assert(target->observedId == "1");
+    assert(target->observedId == "1000");
+    assert(target->observedIds ==
+           std::vector<std::string>({"1000", "1000"}));
 
     android::Parcel wrongId;
     writeRequestParcel(&wrongId, kSubmitRequestCode, "2");
@@ -135,7 +154,7 @@ int main() {
 
     assert(vcam::runtime::android14CameraDeviceUserWrappers() == 1);
     assert(vcam::runtime::android14CameraRequestBatchesRewritten() == 2);
-    assert(vcam::runtime::android14CameraRequestsRewritten() == 2);
+    assert(vcam::runtime::android14CameraRequestsRewritten() == 3);
     assert(vcam::runtime::android14CameraRequestBatchesSkipped() == 1);
 
     android::Parcel malformed;

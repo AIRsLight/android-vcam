@@ -15,15 +15,14 @@ enum class CameraIdRewriteStatus {
     kNotEligible,
     kInvalidOffsets,
     kInvalidReplacement,
-    kEncodedSizeMismatch,
     kCopyFailed,
     kWriteFailed,
 };
 
-// Builds a separate Parcel and overwrites only the already-decoded camera ID.
-// String replacements must have the same UTF-16 length. The input Parcel and
-// its cursor are never modified, and binder objects are copied by appendFrom().
-CameraIdRewriteStatus rewriteAndroid14CameraIdSameWidth(
+// Builds a separate Parcel around the already-decoded camera ID. String IDs
+// may change encoded size; prefix/suffix segments and their binder objects are
+// copied with appendFrom(). The input Parcel and its cursor are never modified.
+CameraIdRewriteStatus rewriteAndroid14CameraId(
         const ParcelObservation& observation,
         const std::string& replacementCameraId,
         const android::Parcel& input,

@@ -254,12 +254,15 @@ decisions consistent where identity is provable without weakening shared-UID
 privacy.
 
 `physical-route` is a separate experimental mode; `passthrough` never mutates a
-Parcel. The Android 14 copier currently accepts only same-width existing camera
-IDs. It duplicates the complete Parcel with `appendFrom()` so Binder objects
-remain owned and indexed correctly, overwrites the decoded ID at recorded type
-boundaries, and fails open to the original Parcel on any offset, copy, size or
-write mismatch. Variable-width virtual IDs remain disabled until a registered
-virtual provider and segmented-Parcel reconstruction are both qualified.
+Parcel. The Android 14 copier reconstructs the Parcel around the observed
+camera-ID boundary, so public IDs `0`/`1` can become internal IDs `1000`/`1001`.
+It copies the prefix and suffix separately with `appendFrom()`, which preserves
+and relocates Binder objects after the resized UTF-16 field, and remaps the
+Parcel cursor. Invalid offsets, non-ASCII IDs, malformed payloads and any copy
+or write failure still fail open to the original Parcel. Expansion and
+contraction, Binder objects on both sides, source immutability and cursor
+mapping are covered by the Android 14 host test. This is protocol/build
+qualification, not yet authorization to activate the route on a device.
 
 A successful connect-ID rewrite is not an end-to-end physical route. Camera2
 clients commonly query characteristics and choose output sizes before opening a
@@ -275,13 +278,14 @@ mode and must not be enabled by normal manager routes.
 The Android 14 diagnostic path now wraps only the `ICameraDeviceUser` returned
 by a successfully rewritten Camera2 connect. The wrapper forwards every unknown
 device transaction unchanged and inspects only the platform-confirmed
-`submitRequest` and `submitRequestList` codes. For a request containing exactly
-one logical settings block, it copies the complete Parcel with `appendFrom()`,
-preserves Binder objects, and changes the same-width public ID to the opened
-device ID. Multiple physical settings, malformed payloads, unknown IDs and
-variable-width IDs are passed through unchanged and counted. This adapter uses
-only raw Binder/Parcel APIs; it deliberately avoids a `libcamera_client`
-dependency and therefore does not import the full OEM camera client ABI.
+`submitRequest` and `submitRequestList` codes. For each request containing
+exactly one logical settings block, it rebuilds the Parcel from copied segments,
+preserves and relocates Binder objects, and changes the public ID to the opened
+device ID even when their encoded lengths differ. Batched requests are rebuilt
+in one pass. Multiple physical settings, malformed payloads and unknown IDs are
+passed through unchanged and counted. This adapter uses only raw Binder/Parcel
+APIs; it deliberately avoids a `libcamera_client` dependency and therefore does
+not import the full OEM camera client ABI.
 
 Binder transaction numbers in a strategy are part of the allowlisted build
 recipe. An AOSP AIDL layout is only a candidate until the OEM

@@ -19,7 +19,8 @@ enum class CameraDeviceUserReplyRouteStatus {
 
 // Replaces a successful Android 14 connectDevice reply's ICameraDeviceUser
 // with a local delegator. The delegator keeps the public camera ID seen by the
-// client consistent with the actual device ID in CaptureRequest settings.
+// client consistent with the actual device ID in CaptureRequest settings,
+// including when the two IDs have different encoded lengths.
 CameraDeviceUserReplyRouteStatus wrapAndroid14CameraDeviceUserReply(
         android::Parcel* reply,
         const std::string& publicCameraId,

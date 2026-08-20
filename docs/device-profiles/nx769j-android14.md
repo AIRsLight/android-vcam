@@ -557,3 +557,16 @@ remained running; the later soak gate should continue tracking its PID.
 
 The remaining Android 14 integration item is transparent selection of internal
 1000/1001 when ordinary applications open public IDs 0/1.
+
+The next host-only routing increment removes the earlier same-width constraint.
+CameraService request Parcels are now rebuilt from prefix, replacement-ID and
+suffix segments, and the returned `ICameraDeviceUser` applies the same method
+to every request in `submitRequest` or `submitRequestList`. Android 14 r23 Soong
+built both host tests and the arm64 router library with `-Werror`; expansion
+from `0` to `1000`, contraction back to a one-digit ID, Binder objects before
+and after the resized field, a two-request batch, cursor remapping and source
+immutability all passed. The router now forwards an available virtual route's
+`effectiveCameraId`, rather than only counting that selection. No device module
+was installed or activated by this host qualification. Listener/enumeration
+filtering and a guarded public-ID device test remain required before the route
+can be considered transparent.

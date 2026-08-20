@@ -108,6 +108,9 @@ int main() {
     assert(camera2.writeStrongBinder(callback) == android::OK);
     assert(camera2.writeString16(android::String16(u"0")) == android::OK);
     assert(camera2.writeString16(android::String16(u"com.example.camera2")) == android::OK);
+    const android::sp<android::BBinder> trailingBinder =
+            android::sp<android::BBinder>::make();
+    assert(camera2.writeStrongBinder(trailingBinder) == android::OK);
     const std::size_t camera2Position = camera2.dataPosition();
     const auto camera2Observation =
             vcam::runtime::observeAndroid14CameraServiceParcel(transactions, 4, &camera2);
@@ -118,15 +121,15 @@ int main() {
     const std::vector<std::uint8_t> originalCamera2Bytes(
             camera2.data(), camera2.data() + camera2.dataSize());
     android::Parcel rewrittenCamera2;
-    assert(vcam::runtime::rewriteAndroid14CameraIdSameWidth(
+    assert(vcam::runtime::rewriteAndroid14CameraId(
             camera2Observation, "1", camera2, &rewrittenCamera2) ==
            vcam::runtime::CameraIdRewriteStatus::kRewritten);
     assert(camera2.dataPosition() == camera2Position);
     assert(camera2.dataSize() == rewrittenCamera2.dataSize());
     assert(std::memcmp(camera2.data(), originalCamera2Bytes.data(),
                        originalCamera2Bytes.size()) == 0);
-    assert(camera2.debugReadAllStrongBinders().size() == 1);
-    assert(rewrittenCamera2.debugReadAllStrongBinders().size() == 1);
+    assert(camera2.debugReadAllStrongBinders().size() == 2);
+    assert(rewrittenCamera2.debugReadAllStrongBinders().size() == 2);
     const auto rewrittenCamera2Observation =
             vcam::runtime::observeAndroid14CameraServiceParcel(
                     transactions, 4, &rewrittenCamera2);
@@ -134,12 +137,36 @@ int main() {
            vcam::runtime::ParcelObservationStatus::kObserved);
     assert(rewrittenCamera2Observation.cameraId == "1");
     assert(rewrittenCamera2Observation.packageName == "com.example.camera2");
-    assert(vcam::runtime::rewriteAndroid14CameraIdSameWidth(
-            camera2Observation, "1000", camera2, &rewrittenCamera2) ==
-           vcam::runtime::CameraIdRewriteStatus::kEncodedSizeMismatch);
+    android::Parcel expandedCamera2;
+    assert(vcam::runtime::rewriteAndroid14CameraId(
+            camera2Observation, "1000", camera2, &expandedCamera2) ==
+           vcam::runtime::CameraIdRewriteStatus::kRewritten);
+    assert(expandedCamera2.dataSize() > camera2.dataSize());
+    assert(expandedCamera2.dataPosition() == expandedCamera2.dataSize());
+    assert(expandedCamera2.debugReadAllStrongBinders().size() == 2);
+    const auto expandedCamera2Observation =
+            vcam::runtime::observeAndroid14CameraServiceParcel(
+                    transactions, 4, &expandedCamera2);
+    assert(expandedCamera2Observation.status ==
+           vcam::runtime::ParcelObservationStatus::kObserved);
+    assert(expandedCamera2Observation.cameraId == "1000");
+    assert(expandedCamera2Observation.packageName == "com.example.camera2");
+
+    android::Parcel contractedCamera2;
+    assert(vcam::runtime::rewriteAndroid14CameraId(
+            expandedCamera2Observation, "7", expandedCamera2,
+            &contractedCamera2) ==
+           vcam::runtime::CameraIdRewriteStatus::kRewritten);
+    assert(contractedCamera2.dataSize() == camera2.dataSize());
+    assert(contractedCamera2.debugReadAllStrongBinders().size() == 2);
+    const auto contractedCamera2Observation =
+            vcam::runtime::observeAndroid14CameraServiceParcel(
+                    transactions, 4, &contractedCamera2);
+    assert(contractedCamera2Observation.cameraId == "7");
+    assert(contractedCamera2Observation.packageName == "com.example.camera2");
 
     android::Parcel rewrittenCamera1;
-    assert(vcam::runtime::rewriteAndroid14CameraIdSameWidth(
+    assert(vcam::runtime::rewriteAndroid14CameraId(
             camera1Observation, "0", camera1, &rewrittenCamera1) ==
            vcam::runtime::CameraIdRewriteStatus::kRewritten);
     const auto rewrittenCamera1Observation =

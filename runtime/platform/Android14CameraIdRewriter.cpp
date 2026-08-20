@@ -26,16 +26,34 @@ bool parseNonNegativeInteger(
 }
 
 bool isAscii(const std::string& value) noexcept {
-    if (value.empty()) return false;
+    if (value.empty() || value.size() > 255) return false;
     for (const unsigned char character : value) {
         if (character > 0x7f) return false;
     }
     return true;
 }
 
+bool appendRange(
+        const android::Parcel& input,
+        std::size_t offset,
+        std::size_t length,
+        android::Parcel* output) noexcept {
+    return length == 0 || output->appendFrom(&input, offset, length) == android::OK;
+}
+
+std::size_t remapDataPosition(
+        std::size_t originalPosition,
+        std::size_t originalStart,
+        std::size_t originalEnd,
+        std::size_t replacementEnd) noexcept {
+    if (originalPosition <= originalStart) return originalPosition;
+    if (originalPosition < originalEnd) return replacementEnd;
+    return replacementEnd + (originalPosition - originalEnd);
+}
+
 }  // namespace
 
-CameraIdRewriteStatus rewriteAndroid14CameraIdSameWidth(
+CameraIdRewriteStatus rewriteAndroid14CameraId(
         const ParcelObservation& observation,
         const std::string& replacementCameraId,
         const android::Parcel& input,
@@ -54,22 +72,18 @@ CameraIdRewriteStatus rewriteAndroid14CameraIdSameWidth(
     }
 
     const BinderPayloadShape shape = observation.transaction.payloadShape;
-    if (shape == BinderPayloadShape::kConnectDevice ||
-        shape == BinderPayloadShape::kStringCameraId) {
-        if (replacementCameraId.size() != observation.cameraId.size()) {
-            return CameraIdRewriteStatus::kEncodedSizeMismatch;
-        }
-    } else if (shape != BinderPayloadShape::kConnectApi1 &&
+    if (shape != BinderPayloadShape::kConnectDevice &&
+        shape != BinderPayloadShape::kStringCameraId &&
+        shape != BinderPayloadShape::kConnectApi1 &&
                shape != BinderPayloadShape::kIntegerCameraId) {
         return CameraIdRewriteStatus::kNotEligible;
     }
 
     output->setDataPosition(0);
     if (output->setDataSize(0) != android::OK ||
-        output->appendFrom(&input, 0, input.dataSize()) != android::OK) {
+        !appendRange(input, 0, observation.cameraIdStart, output)) {
         return CameraIdRewriteStatus::kCopyFailed;
     }
-    output->setDataPosition(observation.cameraIdStart);
     android::status_t writeStatus = android::BAD_VALUE;
     if (shape == BinderPayloadShape::kConnectDevice ||
         shape == BinderPayloadShape::kStringCameraId) {
@@ -82,12 +96,26 @@ CameraIdRewriteStatus rewriteAndroid14CameraIdSameWidth(
         }
         writeStatus = output->writeInt32(integerCameraId);
     }
-    if (writeStatus != android::OK ||
-        output->dataPosition() != observation.cameraIdEnd ||
-        output->dataSize() != input.dataSize()) {
+    if (writeStatus != android::OK) {
         return CameraIdRewriteStatus::kWriteFailed;
     }
-    output->setDataPosition(observation.initialDataPosition);
+    const std::size_t replacementEnd = output->dataPosition();
+    if (!appendRange(
+                input,
+                observation.cameraIdEnd,
+                input.dataSize() - observation.cameraIdEnd,
+                output)) {
+        return CameraIdRewriteStatus::kCopyFailed;
+    }
+    const std::size_t remappedPosition = remapDataPosition(
+            observation.initialDataPosition,
+            observation.cameraIdStart,
+            observation.cameraIdEnd,
+            replacementEnd);
+    if (remappedPosition > output->dataSize()) {
+        return CameraIdRewriteStatus::kWriteFailed;
+    }
+    output->setDataPosition(remappedPosition);
     return CameraIdRewriteStatus::kRewritten;
 }
 
@@ -97,7 +125,6 @@ const char* cameraIdRewriteStatusName(CameraIdRewriteStatus status) noexcept {
         case CameraIdRewriteStatus::kNotEligible: return "not_eligible";
         case CameraIdRewriteStatus::kInvalidOffsets: return "invalid_offsets";
         case CameraIdRewriteStatus::kInvalidReplacement: return "invalid_replacement";
-        case CameraIdRewriteStatus::kEncodedSizeMismatch: return "encoded_size_mismatch";
         case CameraIdRewriteStatus::kCopyFailed: return "copy_failed";
         case CameraIdRewriteStatus::kWriteFailed: return "write_failed";
     }

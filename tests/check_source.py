@@ -157,7 +157,8 @@ def main() -> None:
         "package_claims_verified", "route_candidates_package",
         "kRuntimeRoutesPath", "ScopedCameraRouter::resolve",
         "uid_packages_unique", "uid_packages_ambiguous",
-        "physical_rewrite_successes", "rewriteAndroid14CameraIdSameWidth",
+        "physical_rewrite_successes", "rewriteAndroid14CameraId",
+        "replacementCameraId = route.effectiveCameraId",
     ):
         if required_symbol not in router_source:
             fail(f"camera service router telemetry is missing: {required_symbol}")

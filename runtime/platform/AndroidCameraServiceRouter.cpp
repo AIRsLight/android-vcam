@@ -220,7 +220,7 @@ protected:
                         observation.callingPid,
                         observation.packageName);
         std::string verifiedPackage;
-        std::string physicalReplacementCameraId;
+        std::string replacementCameraId;
         const bool routesConfigured = access(kRuntimeRoutesPath, R_OK) == 0;
         if (observation.status == ParcelObservationStatus::kObserved &&
             identity.kind == CameraCallerIdentityKind::kClaimedPackage) {
@@ -283,6 +283,7 @@ protected:
                         ? gPackageRouteCandidates
                         : gGlobalRouteCandidates;
                 counter.fetch_add(1, std::memory_order_relaxed);
+                replacementCameraId = route.effectiveCameraId;
             } else {
                 gPhysicalRouteDecisions.fetch_add(
                         1, std::memory_order_relaxed);
@@ -291,17 +292,17 @@ protected:
                                 route.providerId);
                 if (route.configured && physicalId >= 0 &&
                     std::to_string(physicalId) != observation.cameraId) {
-                    physicalReplacementCameraId = std::to_string(physicalId);
+                    replacementCameraId = std::to_string(physicalId);
                 }
             }
         }
-        if (physicalRoutingEnabled_ && !physicalReplacementCameraId.empty()) {
+        if (physicalRoutingEnabled_ && !replacementCameraId.empty()) {
             gPhysicalRewriteAttempts.fetch_add(1, std::memory_order_relaxed);
             android::Parcel rewritten;
             const CameraIdRewriteStatus rewriteStatus =
-                    rewriteAndroid14CameraIdSameWidth(
+                    rewriteAndroid14CameraId(
                             observation,
-                            physicalReplacementCameraId,
+                            replacementCameraId,
                             data,
                             &rewritten);
             if (rewriteStatus == CameraIdRewriteStatus::kRewritten) {
@@ -315,7 +316,7 @@ protected:
                             wrapAndroid14CameraDeviceUserReply(
                                     reply,
                                     observation.cameraId,
-                                    physicalReplacementCameraId);
+                                    replacementCameraId);
                     if (replyStatus !=
                                 CameraDeviceUserReplyRouteStatus::kWrapped &&
                         replyStatus !=
@@ -449,7 +450,7 @@ void* routerMonitor(void*) {
     if (mode == CameraServiceRouterMode::kPhysicalRoute) {
         setTerminalState(
                 AndroidCameraServiceRouterState::kPhysicalRouteReady,
-                "media.camera allows qualified same-width physical ID routing");
+                "media.camera allows qualified segmented physical ID routing");
     } else {
         setTerminalState(AndroidCameraServiceRouterState::kPassThroughReady,
                          "media.camera now forwards to the original local Binder");

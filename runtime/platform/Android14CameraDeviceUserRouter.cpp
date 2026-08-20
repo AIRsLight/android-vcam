@@ -219,26 +219,59 @@ bool rewriteRequestIds(
         const std::string& deviceCameraId,
         android::Parcel* output,
         std::size_t* requestCount) {
-    if (output == nullptr || publicCameraId.size() != deviceCameraId.size()) {
+    if (output == nullptr || deviceCameraId.empty() || deviceCameraId.size() > 255) {
         return false;
+    }
+    for (const unsigned char character : deviceCameraId) {
+        if (character > 0x7f) return false;
     }
     std::vector<CameraIdOffset> offsets;
     if (!observeRequestOffsets(code, input, publicCameraId, &offsets)) return false;
+    if (input.dataPosition() > input.dataSize()) return false;
     output->setDataPosition(0);
-    if (output->setDataSize(0) != android::OK ||
-        output->appendFrom(&input, 0, input.dataSize()) != android::OK) {
-        return false;
-    }
+    if (output->setDataSize(0) != android::OK) return false;
+    const std::size_t originalPosition = input.dataPosition();
+    std::size_t sourcePosition = 0;
+    std::size_t remappedPosition = 0;
+    bool positionMapped = false;
     for (const CameraIdOffset& offset : offsets) {
-        output->setDataPosition(offset.start);
-        if (output->writeString16(
-                    android::String16(deviceCameraId.c_str())) != android::OK ||
-            output->dataPosition() != offset.end) {
+        if (offset.start < sourcePosition || offset.start >= offset.end ||
+            offset.end > input.dataSize()) {
             return false;
         }
+        const std::size_t segmentOutputStart = output->dataPosition();
+        if (output->appendFrom(
+                    &input, sourcePosition, offset.start - sourcePosition) !=
+            android::OK) {
+            return false;
+        }
+        if (output->writeString16(
+                    android::String16(deviceCameraId.c_str())) != android::OK) {
+            return false;
+        }
+        const std::size_t replacementEnd = output->dataPosition();
+        if (!positionMapped && originalPosition <= offset.start) {
+            remappedPosition = segmentOutputStart +
+                    (originalPosition - sourcePosition);
+            positionMapped = true;
+        } else if (!positionMapped && originalPosition < offset.end) {
+            remappedPosition = replacementEnd;
+            positionMapped = true;
+        }
+        sourcePosition = offset.end;
     }
-    if (output->dataSize() != input.dataSize()) return false;
-    output->setDataPosition(input.dataPosition());
+    if (output->appendFrom(
+                &input,
+                sourcePosition,
+                input.dataSize() - sourcePosition) != android::OK) {
+        return false;
+    }
+    if (!positionMapped) {
+        remappedPosition = output->dataSize() -
+                (input.dataSize() - originalPosition);
+    }
+    if (remappedPosition > output->dataSize()) return false;
+    output->setDataPosition(remappedPosition);
     *requestCount = offsets.size();
     return true;
 }
@@ -297,8 +330,7 @@ CameraDeviceUserReplyRouteStatus wrapAndroid14CameraDeviceUserReply(
         const std::string& publicCameraId,
         const std::string& deviceCameraId) noexcept {
     if (reply == nullptr || publicCameraId.empty() || deviceCameraId.empty() ||
-        publicCameraId == deviceCameraId ||
-        publicCameraId.size() != deviceCameraId.size()) {
+        publicCameraId == deviceCameraId) {
         return CameraDeviceUserReplyRouteStatus::kNotEligible;
     }
 

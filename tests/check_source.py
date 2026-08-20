@@ -341,6 +341,7 @@ def main() -> None:
     for required_symbol in (
         "AV_PIX_FMT_YUV420P", "MAX_SOURCE_DIMENSION", "MAX_SOURCE_PIXELS",
         "MAX_PIXEL_RATE", "kYuvMagic", "avcodec_send_packet(codec, NULL)",
+        "awaiting_keyframe", "live_keyframes_seen", "AV_FRAME_FLAG_CORRUPT",
     ):
         if required_symbol not in streamer:
             fail(f"stream provider lacks high-resolution YUV support: {required_symbol}")
@@ -398,6 +399,33 @@ def main() -> None:
     if configure_pipeline < 0 or build_pipelines < 0 or \
             "ConfigureRoutedFrame(" not in aidl_hwl[configure_pipeline:build_pipelines]:
         fail("AOSP AIDL provider must initialize routing from ConfigurePipeline")
+    for android_version in ("android-13", "android-14"):
+        google_camera_patch = (
+            ROOT / "aosp" / "provider" / "aidl" / android_version /
+            "hardware-google-camera.patch"
+        ).read_text(encoding="utf-8")
+        process_yuv = google_camera_patch.find("EmulatedSensor::ProcessYUV420")
+        next_diff = google_camera_patch.find("diff --git", process_yuv)
+        process_yuv_patch = google_camera_patch[
+            process_yuv:next_diff if next_diff >= 0 else None
+        ]
+        for required_symbol in (
+            "const YCbCrPlanes& planes = output.planes",
+            "output.width, output.height",
+            "return OK",
+        ):
+            if process_yuv < 0 or required_symbol not in process_yuv_patch:
+                fail(
+                    f"{android_version} must render routed YUV into the final "
+                    f"ProcessYUV420 output: {required_symbol}"
+                )
+        capture_yuv = google_camera_patch.find("EmulatedSensor::CaptureYUV420")
+        if capture_yuv >= 0 and "VcamRenderYuv420" in google_camera_patch[
+                capture_yuv:process_yuv if process_yuv > capture_yuv else None]:
+            fail(
+                f"{android_version} must not inject routed YUV into the "
+                "low-resolution CaptureYUV420 intermediate"
+            )
     aidl_v2_manifest = (
         ROOT / "aosp" / "provider" / "aidl" / "android-14" /
         "android.hardware.camera.provider-service-vcam-v2.xml"

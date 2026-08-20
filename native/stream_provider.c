@@ -145,6 +145,8 @@ static int decode_source(const char* source, const char* output_path,
     int output_height = 0;
     int64_t next_frame_time = 0;
     const int live_source = strstr(source, "://") != NULL;
+    int awaiting_keyframe = live_source;
+    unsigned live_keyframes_seen = 0;
 
     av_dict_set(&options, "rw_timeout", "10000000", 0);
     // FFmpeg 4.2 interprets the deprecated RTSP "timeout" option as a
@@ -201,6 +203,22 @@ static int decode_source(const char* source, const char* output_path,
         }
 
         while (gRunning && (result = avcodec_receive_frame(codec, frame)) >= 0) {
+            // RTSP sessions can begin in the middle of a GOP. Some encoders
+            // also mark early recovery pictures as keyframes before all H.264
+            // reference state is usable. If one is published, text and QR
+            // codes remain visibly fragmented. Let three decoder-reported
+            // keyframes establish reference state and never publish frames
+            // that FFmpeg explicitly marks corrupt.
+            if (live_source && frame->key_frame && live_keyframes_seen < 3) {
+                ++live_keyframes_seen;
+            }
+            if ((awaiting_keyframe && live_keyframes_seen < 3) ||
+                frame->decode_error_flags != 0 ||
+                (frame->flags & AV_FRAME_FLAG_CORRUPT) != 0) {
+                av_frame_unref(frame);
+                continue;
+            }
+            awaiting_keyframe = 0;
             if (scaler == NULL || output_width == 0 || output_height == 0) {
                 output_dimensions(frame->width, frame->height,
                                   max_width, max_height,

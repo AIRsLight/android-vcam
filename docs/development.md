@@ -116,6 +116,14 @@ hook only for source branches that still invoke it. `tests/check_source.py`
 guards this placement because initializing only from the unused hook silently
 falls back to EmulatedCamera's built-in test pattern.
 
+Routed YUV must be written at the beginning of `ProcessYUV420()` into
+`output.planes`, using `output.width` and `output.height`. `CaptureYUV420()`
+generates an EmulatedScene intermediate whose dimensions may be much smaller
+than the client stream; injecting there downsamples the provider frame and then
+enlarges it with nearest-neighbor scaling, producing large blocks and
+unreadable text. Source checks enforce the final-output hook for both Android
+13 and Android 14 patches.
+
 The discovery patch watches only the full service name
 `android.hardware.camera.provider.ICameraProvider/vcam/0`. When that instance
 is not declared by VINTF, CameraService does not wait for it during startup; an

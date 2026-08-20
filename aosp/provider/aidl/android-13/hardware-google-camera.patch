@@ -297,15 +297,16 @@ index 7d93ded..22a480c 100644
 +  }
    float total_gain = gain / 100.0 * GetBaseGainFactor(chars.max_raw_value);
    // In fixed-point math, calculate total scaling from electrons to 8bpp
-@@ -1490,4 +1511,11 @@ void EmulatedSensor::CaptureYUV420(YCbCrPlanes yuv_layout, uint32_t width,
-                                    const SensorCharacteristics& chars) {
+@@ -1627,4 +1648,12 @@ status_t EmulatedSensor::ProcessYUV420(const YUV420Frame& input,
+                                        const SensorCharacteristics& chars) {
    ATRACE_CALL();
++  const YCbCrPlanes& planes = output.planes;
 +  if (VcamRenderYuv420 != nullptr &&
-+      VcamRenderYuv420(yuv_layout.img_y, yuv_layout.img_cb,
-+                       yuv_layout.img_cr, width, height, yuv_layout.y_stride,
-+                       yuv_layout.cbcr_stride, yuv_layout.cbcr_step,
-+                       yuv_layout.bytesPerPixel)) {
-+    return;
++      VcamRenderYuv420(planes.img_y, planes.img_cb, planes.img_cr,
++                       output.width, output.height, planes.y_stride,
++                       planes.cbcr_stride, planes.cbcr_step,
++                       planes.bytesPerPixel)) {
++    return OK;
 +  }
-   float total_gain = gain / 100.0 * GetBaseGainFactor(chars.max_raw_value);
-   // Using fixed-point math with 6 bits of fractional precision.
+   size_t input_width, input_height;
+   YCbCrPlanes input_planes, output_planes;

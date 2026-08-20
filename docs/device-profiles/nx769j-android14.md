@@ -480,3 +480,21 @@ continuous run changed the atomically published frame hash from
 while the Camera2 session remained open. Provider PID `1364` and cameraserver
 remained healthy. This qualifies decoded local files and RTSP delivery into
 the Android 14 provider; normal backend packaging and public-ID routing remain.
+
+Visual verification then corrected two limitations hidden by the frame-size
+and hash checks above. A direct host capture of the RTSP stream was sharp, but
+the first device-decoded pictures contained H.264 recovery artifacts. Waiting
+through three decoder-reported keyframes produced a clean 1280x720 I420 frame.
+The Camera2 preview nevertheless remained blocky because the Google
+EmulatedCamera hook was inside `CaptureYUV420()`: it reduced the routed frame to
+the small EmulatedScene intermediate before `ProcessYUV420()` enlarged it.
+
+dev.23 moves the hook to the final `ProcessYUV420()` output planes and adds the
+live-source keyframe warm-up. The Android 14 r23 Soong build passed in 2 minutes
+32 seconds, and the installed HWL SHA-256 was
+`3AB6DC75DFF2515BBD4E2E71CD5671C38CF942B8D2B8F6B5C0D57CFD4E0485A1`.
+Camera 1000 then displayed the continuously updating RTSP clock with readable
+Chinese and Latin text while both the VCAM provider and cameraserver remained
+healthy. For this portrait test target, `view-0.cfg` used scale 316 (0.316x) to
+fit the complete 16:9 source inside the portrait viewport; the default 1.0x
+transform intentionally center-crops it in the same way as a physical camera.

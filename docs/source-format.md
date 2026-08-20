@@ -49,7 +49,13 @@ At end-of-file, `vcam-streamer` sends a null packet and drains the decoder
 before closing the source. This is required for finite and especially short
 local videos because frame-threaded decoders may retain every decoded frame
 until the first flush. Live sources reconnect after a read failure; `--once`
-publishes the first decoded frame after normal packet processing or EOF drain.
+publishes the first usable frame after normal packet processing or EOF drain.
+Because an RTSP session can join midway through a GOP and some H.264 encoders
+report incomplete recovery pictures as keyframes, a live source waits through
+three decoder-reported keyframes before its first publication. Frames that
+FFmpeg marks corrupt are always discarded. This can add up to several GOPs of
+startup latency, but prevents error-concealed blocks from making text and QR
+codes unreadable.
 
 Each provider also owns runtime configuration beside `frame.rgb`:
 

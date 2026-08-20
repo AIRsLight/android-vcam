@@ -5,10 +5,17 @@ STATE_DIR=/data/adb/android_vcam_aidl_provider
 WATCHDOG_LOG=$STATE_DIR/watchdog.log
 BOOT_LOG=$STATE_DIR/bootstrap.log
 MOUNTED_FRAGMENT=/vendor/etc/vintf/manifest/android.hardware.camera.provider-service-vcam-v2.xml
+NEXT_BOOT_MODE_FILE=$STATE_DIR/next-boot.mode
 
 mkdir -p "$STATE_DIR"
 chmod 0700 "$STATE_DIR"
-echo "bootstrap 0.5.0-dev.18 started" >> "$BOOT_LOG"
+boot_mode="$(cat "$NEXT_BOOT_MODE_FILE" 2>/dev/null)"
+rm -f "$NEXT_BOOT_MODE_FILE"
+case "$boot_mode" in
+    two) ;;
+    *) boot_mode=zero ;;
+esac
+echo "bootstrap 0.5.0-dev.19 started mode=$boot_mode" >> "$BOOT_LOG"
 
 disable_next_boot() {
     touch "$MODDIR/disable"
@@ -69,7 +76,7 @@ bootstrap_provider() {
     registered=0
     attempt=0
     while [ "$attempt" -lt 15 ]; do
-        if sh "$MODDIR/provider-control.sh" "$MODDIR" start-zero >> "$BOOT_LOG" 2>&1; then
+        if sh "$MODDIR/provider-control.sh" "$MODDIR" "start-$boot_mode" >> "$BOOT_LOG" 2>&1; then
             registered=1
             break
         fi
@@ -83,7 +90,7 @@ bootstrap_provider() {
         return 1
     fi
 
-    echo "zero-camera AIDL provider registered; next boot remains disabled" >> "$BOOT_LOG"
+    echo "$boot_mode-camera AIDL provider registered; next boot remains disabled" >> "$BOOT_LOG"
     watch_boot_completion
 }
 

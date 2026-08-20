@@ -78,6 +78,7 @@ set_perm "$MODPATH/uninstall.sh" 0 0 0755
 ui_print "- Adds the checkvintf-qualified AIDL v2 vcam/0 declaration"
 ui_print "- Preserves vendor_configs_file on the complete VINTF directory chain"
 ui_print "- Registration runs in the background before CameraService starts"
-ui_print "- This boot advertises zero cameras; the next boot is disabled after mount"
+ui_print "- Boot defaults to zero cameras; arm-two is an explicit one-boot diagnostic"
+ui_print "- The following boot is disabled after the VINTF overlay is mounted"
 ui_print "- Failure recovery uses a full reboot and never restarts cameraserver"
 ui_print "- Reboot is required; KernelSU bootloop protection remains available"

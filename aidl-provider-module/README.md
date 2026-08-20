@@ -31,4 +31,14 @@ cameraserver.
 The action button is read-only for this qualification. After a successful boot,
 inspect `/data/adb/android_vcam_aidl_provider/` and verify that the physical
 camera list and ordinary camera applications remain healthy. Advertising the
-test cameras is reserved for a later explicitly armed diagnostic.
+test cameras requires an explicit one-boot arm command while the module is
+enabled:
+
+```sh
+su -c 'sh /data/adb/modules/android_vcam_aidl_provider/provider-control.sh \
+  /data/adb/modules/android_vcam_aidl_provider arm-two'
+```
+
+The bootstrap consumes and removes `next-boot.mode` before registration. With
+no arm file it always returns to the zero-camera default, and the module still
+disables the following boot.

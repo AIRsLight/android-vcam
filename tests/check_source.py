@@ -214,7 +214,8 @@ def main() -> None:
         "target_fcm", "disable_next_boot", "bootstrap_provider &",
         "vcam-aidl-recovery", "post-fs-data owns AIDL provider lifecycle",
         "MOUNTED_FRAGMENT", "ANDROID_VCAM_REGISTRATION_ATTEMPTS",
-        "vendor_etc", "vendor_configs_file", "intentionally read-only",
+        "vendor_etc", "vendor_configs_file", "NEXT_BOOT_MODE_FILE",
+        "arm-two", "intentionally read-only",
     ):
         if required_symbol not in aidl_probe_scripts:
             fail(f"AIDL provider probe safety contract is missing: {required_symbol}")

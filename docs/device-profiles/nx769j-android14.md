@@ -395,3 +395,12 @@ CameraService again reported five devices, three normal devices and zero error
 traces. This qualifies a zero-camera provider coexisting with the OEM stack and
 the one-boot recovery contract. Advertising IDs 1000/1001 and routing real app
 sessions into the AIDL provider remain separate tests.
+
+Restarting only the already-declared VCAM process from zero-camera mode to
+two-camera mode did not make stock CameraService enumerate new devices at
+runtime. The direct NDK client still saw IDs 1000/1001 and rendered a 640x480
+YUV frame from each with luma range `[0,255]`, while CameraService remained at
+the OEM five/three device counts. The next diagnostic must therefore advertise
+1000/1001 before CameraService initializes. dev.19 adds an explicit, consumed
+once `arm-two` state; its default remains zero cameras and its next boot remains
+automatically disabled.

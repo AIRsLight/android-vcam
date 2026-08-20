@@ -5,6 +5,7 @@ COMMAND=$2
 STATE_DIR=/data/adb/android_vcam_aidl_provider
 PID_FILE=$STATE_DIR/provider.pid
 MODE_FILE=$STATE_DIR/provider.mode
+NEXT_BOOT_MODE_FILE=$STATE_DIR/next-boot.mode
 LOG_FILE=$STATE_DIR/provider.log
 BINARY=$MODDIR/payload/bin/android.hardware.camera.provider-service-vcam-v2
 LIBDIR=$MODDIR/payload/lib64
@@ -98,6 +99,14 @@ start_provider() {
 case "$COMMAND" in
     start-zero) start_provider zero ;;
     start-two) start_provider two ;;
+    arm-zero)
+        echo zero > "$NEXT_BOOT_MODE_FILE"
+        echo "next boot armed for zero-camera mode"
+        ;;
+    arm-two)
+        echo two > "$NEXT_BOOT_MODE_FILE"
+        echo "next boot armed for two-camera mode"
+        ;;
     stop) stop_provider ;;
     status)
         if is_owned_process; then
@@ -108,7 +117,7 @@ case "$COMMAND" in
         fi
         ;;
     *)
-        echo "usage: provider-control.sh MODDIR {start-zero|start-two|stop|status}" >&2
+        echo "usage: provider-control.sh MODDIR {start-zero|start-two|arm-zero|arm-two|stop|status}" >&2
         exit 2
         ;;
 esac

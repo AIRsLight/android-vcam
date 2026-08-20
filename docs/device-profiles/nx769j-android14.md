@@ -376,3 +376,22 @@ stock boot completed with `media.camera`, cameraserver and the OEM provider all
 healthy and `vcam/0` absent. dev.18 fixes delivery by labeling the entire
 `vendor/etc/vintf/manifest` directory chain as `vendor_configs_file`; it does
 not add a broad servicemanager permission for `vendor_file`.
+
+dev.18 then completed the one-shot cold-boot qualification. The mounted
+directory chain and AIDL v2 fragment all retained `vendor_configs_file`; the
+declared provider registered as PID `1356`, the direct NDK client reported
+interface version 2 and `camera_count=0`, and Android reached
+`sys.boot_completed=1` without a recovery reboot. The OEM provider PID `1576`
+and cameraserver PID `2127` remained active. CameraService still exposed five
+OEM camera devices (three normal) with zero error traces. The regular
+`io.github.androidvcam.test` application opened physical camera 0 and sustained
+a Camera2 preview plus YUV analysis at approximately 30 fps; the captured UI
+showed increasing frame count and a non-flat luma range.
+
+The module wrote its `disable` marker during that boot. A subsequent ordinary
+reboot qualified automatic rollback: the added fragment and `vcam/0` were both
+absent, while `media.camera`, the OEM provider and cameraserver were healthy;
+CameraService again reported five devices, three normal devices and zero error
+traces. This qualifies a zero-camera provider coexisting with the OEM stack and
+the one-boot recovery contract. Advertising IDs 1000/1001 and routing real app
+sessions into the AIDL provider remain separate tests.

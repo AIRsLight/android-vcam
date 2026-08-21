@@ -112,12 +112,12 @@ tools/build-ffmpeg-android.sh --ndk-root /path/to/android-ndk-r27d
 Outputs:
 
 ```text
-dist/android-vcam-manager-v0.5.0-dev.30-debug.apk
-dist/android-vcam-camera2-test-v0.5.0-dev.30-debug.apk
-dist/android-vcam-oneplus7pro-apm-v0.5.0-dev.30.zip
-dist/android-vcam-aidl-provider-v0.5.0-dev.30.zip
-dist/android-vcam-portable-bootstrap-v0.5.0-dev.30-physical-route.zip
-dist/android-vcam-supported-v0.5.0-dev.30.json
+dist/android-vcam-manager-v0.5.0-dev.31-debug.apk
+dist/android-vcam-camera2-test-v0.5.0-dev.31-debug.apk
+dist/android-vcam-oneplus7pro-apm-v0.5.0-dev.31.zip
+dist/android-vcam-aidl-provider-v0.5.0-dev.31.zip
+dist/android-vcam-portable-bootstrap-v0.5.0-dev.31-physical-route.zip
+dist/android-vcam-supported-v0.5.0-dev.31.json
 ```
 
 The unified release command still creates device-specific module files because
@@ -132,8 +132,10 @@ pwsh -File tools/build-manager.ps1
 pwsh -File tools/build-testapp.ps1
 ```
 
-The frozen NX769J dev.29 artifact hashes and qualification boundary are listed
-in [the integration snapshot](docs/releases/nx769j-dev29.md).
+The current dual-device artifact hashes and installation map are listed in
+[the dev.31 release snapshot](docs/releases/supported-dev31.md). The original
+NX769J qualification boundary remains preserved in
+[the dev.29 integration snapshot](docs/releases/nx769j-dev29.md).
 
 The APatch ZIP contains a patched copy of the pinned OEM HAL, the dependency
 proxy, the CameraService package-tag patch, native publisher/stream decoder,

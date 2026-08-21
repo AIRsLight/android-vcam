@@ -28,4 +28,4 @@ either the pinned stock hashes or payload hashes from the currently installed
 The universal Manager performs a root-free fingerprint match and then requires
 the backend to return the same profile ID with `profile_status=qualified` before
 showing the Camera ABI as verified. The device-specific release artifact is
-`android-vcam-oneplus7pro-apm-v0.5.0-dev.30.zip`.
+`android-vcam-oneplus7pro-apm-v0.5.0-dev.31.zip`.

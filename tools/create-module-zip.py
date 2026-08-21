@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import datetime
 import pathlib
 import stat
 import zipfile
@@ -24,9 +23,9 @@ EXECUTABLE_NAMES = {
 
 
 def zip_info(path: pathlib.Path, archive_name: str, is_directory: bool) -> zipfile.ZipInfo:
-    modified = datetime.datetime.fromtimestamp(path.stat().st_mtime)
-    modified = max(modified, datetime.datetime(1980, 1, 1))
-    info = zipfile.ZipInfo(archive_name, modified.timetuple()[:6])
+    # Module archives are release artifacts. A fixed DOS-compatible timestamp
+    # makes their SHA-256 independent of checkout and staging file mtimes.
+    info = zipfile.ZipInfo(archive_name, (2024, 1, 1, 0, 0, 0))
     info.create_system = 3
     permissions = 0o755 if is_directory or path.name in EXECUTABLE_NAMES else 0o644
     file_type = stat.S_IFDIR if is_directory else stat.S_IFREG

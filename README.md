@@ -1,8 +1,8 @@
 # android-vcam
 
 System-level, app-scoped virtual camera project. The compatibility adapter is
-pinned to a OnePlus 7 Pro Android 12 ROM, while the one-shot Android 14 AIDL
-qualification module is pinned to the NX769J build. The repository also
+pinned to a OnePlus 7 Pro Android 12 ROM, while the Android 14 AIDL provider and
+public-ID CameraService router are qualified on the exact NX769J UKQ1 build. The repository also
 contains the transport-neutral frame core and AOSP HIDL/AIDL Provider
 frontends. Target applications are not hooked: Camera1, Camera2 and CameraX
 keep using the normal framework and CameraService path.
@@ -34,8 +34,12 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
   temporarily unavailable, and reinstalling the same package restores it automatically.
 - A module-owned `vcamd` daemon persists configuration independently of the
   manager and exposes only an authenticated, fixed-command local protocol.
-  The NX769J AIDL dev.24 package reuses this backend and includes the static
-  media decoder, publisher and provider autostart lifecycle.
+  The NX769J AIDL dev.29 package reuses this backend and includes the static
+  media decoder, publisher, bounded late-network retry and provider autostart lifecycle.
+- The root-free Manager recognizes the exact qualified NX769J build locally,
+  cross-checks the backend CameraService/libcamera_client hashes when active,
+  reports router/provider/rollback state, and launches the ordinary test APK
+  against public cameras 0 or 1. Unknown builds remain configuration-only.
 - A transport-neutral route resolver is shared by the OEM compatibility proxy
   and the standalone AOSP Camera3 module; unscoped standalone sessions fail
   closed.
@@ -55,7 +59,25 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
   to select internal qualification devices from ADB.
 - Module installation is systemless and pinned to the tested ROM hashes.
 
-## Pinned target
+## Qualified targets
+
+### Nubia NX769J Android 14
+
+| Property | Required value |
+| --- | --- |
+| Device / product | `NX769J` / `NX769J` |
+| Android | 14 / API 34 |
+| Build | `UKQ1.230917.001/20240417.145608` |
+| CameraService SHA-256 | `a26f8ee10002769428871e042c7993e87ad769703897dd75a2fb93a725c64438` |
+| libcamera_client SHA-256 | `1cf518e86a2e5461e585d8dbd7a1dbc93e7ba2bcc95c3e254ebdcc72ee0433c5` |
+| Root delivery | KernelSU + OverlayFS MetaModule |
+
+This profile supports per-app public 0/1 routing to hidden internal 1000/1001,
+local and RTSP sources, listener filtering, request repair, delayed-Wi-Fi
+recovery and automatic next-boot rollback. Exact details and recovery evidence
+are in [the device profile](docs/device-profiles/nx769j-android14.md).
+
+### OnePlus 7 Pro Android 12
 
 | Property | Required value |
 | --- | --- |
@@ -65,7 +87,8 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
 | Build | `P.202303230244` |
 | OEM HAL SHA-256 | `dab50dfd0bde9f710c92097442d6451695f7ef82cb9e836b0af2b9369751daa6` |
 
-Do not install the APatch module on another device or ROM build.
+Do not install either pinned delivery on another device or ROM build. Unknown
+fingerprints and camera-library hashes must fail closed.
 
 ## Build
 
@@ -92,6 +115,19 @@ dist/android-vcam-apm-v0.4.0-dev.zip
 dist/android-vcam-manager-v0.4.0-dev-debug.apk
 dist/android-vcam-camera2-test-v0.4.0-dev-debug.apk
 ```
+
+The NX769J delivery is built separately because it uses the stable-AIDL v2
+Provider and guarded cameraserver router:
+
+```powershell
+pwsh -File tools/package-aosp14-aidl-provider.ps1
+pwsh -File tools/package-portable-bootstrap.ps1 -BootstrapMode physical-route
+pwsh -File tools/build-manager.ps1
+pwsh -File tools/build-testapp.ps1
+```
+
+The frozen NX769J dev.29 artifact hashes and qualification boundary are listed
+in [the integration snapshot](docs/releases/nx769j-dev29.md).
 
 The APatch ZIP contains a patched copy of the pinned OEM HAL, the dependency
 proxy, the CameraService package-tag patch, native publisher/stream decoder,

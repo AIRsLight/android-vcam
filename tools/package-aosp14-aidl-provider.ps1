@@ -2,7 +2,7 @@
 param(
     [string]$ArtifactRoot = "out/android14-provider-probe",
     [string]$NativeArtifactRoot = "out/native/arm64-v8a",
-    [string]$Output = "dist/android-vcam-aidl-provider-v0.5.0-dev.27.zip"
+    [string]$Output = "dist/android-vcam-aidl-provider-v0.5.0-dev.29.zip"
 )
 
 $ErrorActionPreference = "Stop"

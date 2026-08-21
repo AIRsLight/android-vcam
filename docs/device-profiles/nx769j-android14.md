@@ -654,3 +654,15 @@ the first frame, and the worker logged `network-provider retry complete
 round=3`. The streamer remained active, the frame hash changed over ten seconds,
 and public camera 0 again opened internal 1000 with a readable live preview. No
 new `system_app_crash` entry was created.
+
+dev.29 freezes the qualified device integration for mainline delivery. The
+backend probe schema is now 4 and requires the exact build fingerprint plus the
+pinned `libcameraservice.so` and `libcamera_client.so` hashes before returning
+`profile_status=qualified`. The root-free Manager recognizes the same local
+fingerprint, cross-checks the backend profile when available, reports router,
+Provider and rollback state, and launches public camera 0/1 tests. With both
+modules disabled it reports the certified device without requesting root; when
+the backend is unavailable, runtime state remains explicitly unknown instead of
+being inferred from the connection failure. Artifact hashes and the deliberately excluded
+delegated-camera boundary are recorded in
+[`docs/releases/nx769j-dev29.md`](../releases/nx769j-dev29.md).

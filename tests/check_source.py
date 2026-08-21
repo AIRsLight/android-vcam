@@ -528,7 +528,9 @@ def main() -> None:
     for verbose_home_copy in (
         "无需 Root 授权", "虚拟摄像头控制中心",
         "管理器不申请 root 权限，只连接模块内受鉴权的本地后端",
-        "模块健康度与当前替换资源",
+        "模块健康度与当前替换资源", "未检测到双模块回退标记",
+        "故障自动回退已触发", "故障自动回退就绪",
+        'localBadge = pill("本机"',
     ):
         if verbose_home_copy in manager_sources:
             fail(f"manager home still contains verbose explanatory copy: {verbose_home_copy}")

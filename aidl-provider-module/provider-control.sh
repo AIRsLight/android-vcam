@@ -10,6 +10,7 @@ fi
 PID_FILE=$STATE_DIR/provider.pid
 MODE_FILE=$STATE_DIR/provider.mode
 NEXT_BOOT_MODE_FILE=$STATE_DIR/next-boot.mode
+CONFIGURED_MODE_FILE=$STATE_DIR/configured.mode
 LOG_FILE=$STATE_DIR/provider.log
 BINARY=$MODDIR/payload/bin/android.hardware.camera.provider-service-vcam-v2
 LIBDIR=$MODDIR/payload/lib64
@@ -123,6 +124,12 @@ case "$COMMAND" in
         echo route > "$NEXT_BOOT_MODE_FILE"
         echo "next boot armed for routed-source mode using io.github.androidvcam.test"
         ;;
+    set-zero|set-two|set-route)
+        configured_mode=${COMMAND#set-}
+        echo "$configured_mode" > "$CONFIGURED_MODE_FILE"
+        chmod 0600 "$CONFIGURED_MODE_FILE"
+        echo "persistent provider mode set to $configured_mode"
+        ;;
     stop) stop_provider ;;
     status)
         if is_owned_process; then
@@ -133,7 +140,7 @@ case "$COMMAND" in
         fi
         ;;
     *)
-        echo "usage: provider-control.sh MODDIR {start-zero|start-two|start-route|arm-zero|arm-two|arm-route|stop|status}" >&2
+        echo "usage: provider-control.sh MODDIR {start-zero|start-two|start-route|arm-zero|arm-two|arm-route|set-zero|set-two|set-route|stop|status}" >&2
         exit 2
         ;;
 esac

@@ -112,10 +112,10 @@ tools/build-ffmpeg-android.sh --ndk-root /path/to/android-ndk-r27d
 Outputs:
 
 ```text
-dist/android-vcam-manager-v0.5.0-dev.32-debug.apk
-dist/android-vcam-camera2-test-v0.5.0-dev.32-debug.apk
-dist/android-vcam-module-v0.5.0-dev.32.zip
-dist/android-vcam-supported-v0.5.0-dev.32.json
+dist/android-vcam-manager-v0.5.0-dev.33-debug.apk
+dist/android-vcam-camera2-test-v0.5.0-dev.33-debug.apk
+dist/android-vcam-module-v0.5.0-dev.33.zip
+dist/android-vcam-supported-v0.5.0-dev.33.json
 ```
 
 The release contains one `android_vcam` root module. Its installer requires the
@@ -132,6 +132,8 @@ pwsh -File tools/build-testapp.ps1
 ```
 
 The current single-module artifact hashes and installation map are listed in
+[the dev.33 release snapshot](docs/releases/supported-dev33.md). The first
+single-module qualification remains documented in
 [the dev.32 release snapshot](docs/releases/supported-dev32.md). The earlier
 multi-module packaging remains documented in
 [the dev.31 release snapshot](docs/releases/supported-dev31.md). The original

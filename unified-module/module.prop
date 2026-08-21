@@ -1,6 +1,6 @@
 id=android_vcam
 name=Android Virtual Camera
-version=0.5.0-dev.32
-versionCode=44
+version=0.5.0-dev.33
+versionCode=45
 author=android-vcam contributors
-description=Automatic device profile selection for qualified Android camera stacks.
+description=Persistent automatic device profile selection for qualified Android camera stacks.

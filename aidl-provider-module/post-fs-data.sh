@@ -2,9 +2,11 @@
 
 MODDIR=${0%/*}
 if [ "$(cat "$MODDIR/profile.id" 2>/dev/null)" = nx769j-ukq1-20240417 ]; then
+    UNIFIED_MODULE=1
     STATE_DIR=/data/adb/android_vcam/runtime/aidl
     ROUTER_STATE_DIR=/data/adb/android_vcam/runtime/router
 else
+    UNIFIED_MODULE=0
     STATE_DIR=/data/adb/android_vcam_aidl_provider
     ROUTER_STATE_DIR=/data/adb/android_vcam_portable
 fi
@@ -12,17 +14,23 @@ WATCHDOG_LOG=$STATE_DIR/watchdog.log
 BOOT_LOG=$STATE_DIR/bootstrap.log
 MOUNTED_FRAGMENT=/vendor/etc/vintf/manifest/android.hardware.camera.provider-service-vcam-v2.xml
 NEXT_BOOT_MODE_FILE=$STATE_DIR/next-boot.mode
+CONFIGURED_MODE_FILE=$STATE_DIR/configured.mode
 ROUTER_READY_FILE=$ROUTER_STATE_DIR/post-mount.boot-id
 
 mkdir -p "$STATE_DIR"
 chmod 0700 "$STATE_DIR"
 boot_mode="$(cat "$NEXT_BOOT_MODE_FILE" 2>/dev/null)"
 rm -f "$NEXT_BOOT_MODE_FILE"
+if [ -z "$boot_mode" ] && [ "$UNIFIED_MODULE" = 1 ]; then
+    boot_mode="$(cat "$CONFIGURED_MODE_FILE" 2>/dev/null)"
+fi
 case "$boot_mode" in
-    two|route) ;;
-    *) boot_mode=zero ;;
+    zero|two|route) ;;
+    *)
+        if [ "$UNIFIED_MODULE" = 1 ]; then boot_mode=route; else boot_mode=zero; fi
+        ;;
 esac
-echo "bootstrap 0.5.0-dev.32 started mode=$boot_mode" >> "$BOOT_LOG"
+echo "bootstrap 0.5.0-dev.33 started mode=$boot_mode unified=$UNIFIED_MODULE" >> "$BOOT_LOG"
 
 disable_next_boot() {
     touch "$MODDIR/disable"
@@ -98,9 +106,10 @@ bootstrap_provider() {
         fi
     fi
 
-    # The current overlay stays mounted after this point. A manual reboot or
-    # power loss now returns to stock even if provider registration fails.
-    disable_next_boot
+    # Standalone engineering probes remain one-shot. The unified production
+    # module stays enabled after a healthy boot and disables itself only from
+    # the recovery paths above/below.
+    [ "$UNIFIED_MODULE" = 1 ] || disable_next_boot
 
     export ANDROID_VCAM_REGISTRATION_ATTEMPTS=10
     registered=0
@@ -120,11 +129,13 @@ bootstrap_provider() {
         return 1
     fi
 
-    echo "$boot_mode AIDL provider registered; next boot remains disabled" >> "$BOOT_LOG"
-    # KernelSU skips late-start service.sh after this one-shot probe writes its
-    # next-boot disable marker. Start the independent backend explicitly from
-    # the still-running post-fs-data worker; service.sh has a boot-ID guard for
-    # root managers that do invoke it later in the same boot.
+    if [ "$UNIFIED_MODULE" = 1 ]; then
+        echo "$boot_mode AIDL provider registered; unified module remains enabled" >> "$BOOT_LOG"
+    else
+        echo "$boot_mode AIDL provider registered; next boot remains disabled" >> "$BOOT_LOG"
+    fi
+    # Start the independent backend from this already-qualified early worker.
+    # service.sh has a boot-ID guard when the root manager invokes it again.
     sh "$MODDIR/service.sh" >> "$BOOT_LOG" 2>&1
     watch_boot_completion
 }

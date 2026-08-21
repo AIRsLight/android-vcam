@@ -60,9 +60,13 @@ if [ -z "$pid" ]; then
     setprop sys.powerctl reboot,vcam-bootstrap-recovery
 else
     echo "service: CameraService stable for 10 seconds" >> "$LOG_FILE"
-    touch "$MODDIR/disable"
-    sync
-    echo "service: armed automatic disable for the next boot" >> "$LOG_FILE"
+    if [ "$(cat "$MODDIR/profile.id" 2>/dev/null)" = nx769j-ukq1-20240417 ]; then
+        echo "service: unified module remains enabled" >> "$LOG_FILE"
+    else
+        touch "$MODDIR/disable"
+        sync
+        echo "service: armed automatic disable for the next boot" >> "$LOG_FILE"
+    fi
 fi
 
 {

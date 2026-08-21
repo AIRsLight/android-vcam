@@ -77,6 +77,13 @@ case "$profile" in
     nx769j-ukq1-20240417)
         . "$MODPATH/install-provider.sh"
         . "$MODPATH/install-router.sh"
+        provider_state=/data/adb/android_vcam/runtime/aidl
+        mkdir -p "$provider_state"
+        chmod 0700 /data/adb/android_vcam/runtime "$provider_state"
+        if [ ! -s "$provider_state/configured.mode" ]; then
+            printf 'route\n' > "$provider_state/configured.mode"
+            chmod 0600 "$provider_state/configured.mode"
+        fi
         ;;
 esac
 

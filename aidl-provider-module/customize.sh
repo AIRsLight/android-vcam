@@ -111,9 +111,13 @@ set_perm "$MODPATH/uninstall.sh" 0 0 0755
 ui_print "- Adds the checkvintf-qualified AIDL v2 vcam/0 declaration"
 ui_print "- Preserves vendor_configs_file on the complete VINTF directory chain"
 ui_print "- Registration runs in the background before CameraService starts"
-ui_print "- Boot defaults to zero cameras; arm-two is an explicit one-boot diagnostic"
-ui_print "- arm-route validates configured frame providers through the test package route"
+if [ "$(cat "$MODPATH/profile.id" 2>/dev/null)" = nx769j-ukq1-20240417 ]; then
+    ui_print "- Persistent Provider mode defaults to route"
+    ui_print "- Healthy boots keep the unified module enabled"
+else
+    ui_print "- Boot defaults to zero cameras; arm-two is an explicit one-boot diagnostic"
+    ui_print "- The following boot is disabled after the VINTF overlay is mounted"
+fi
 ui_print "- Includes the manager-independent image/video/RTSP backend"
-ui_print "- The following boot is disabled after the VINTF overlay is mounted"
 ui_print "- Failure recovery uses a full reboot and never restarts cameraserver"
 ui_print "- Reboot is required; KernelSU bootloop protection remains available"

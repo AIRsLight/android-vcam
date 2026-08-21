@@ -7,7 +7,7 @@ import zipfile
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-DEFAULT_ZIP = ROOT / "dist" / "android-vcam-module-v0.5.0-dev.32.zip"
+DEFAULT_ZIP = ROOT / "dist" / "android-vcam-module-v0.5.0-dev.33.zip"
 PROFILES = {
     "oneplus7pro-p202303230244": {
         "install-profile.sh",
@@ -77,6 +77,7 @@ def main() -> None:
         nx_service = archive.read(nx + "router-service.sh").decode("utf-8")
         nx_post_fs = archive.read(nx + "post-fs-data.sh").decode("utf-8")
         nx_post_mount = archive.read(nx + "post-mount.sh").decode("utf-8")
+        nx_control = archive.read(nx + "provider-control.sh").decode("utf-8")
         nx_policy = archive.read(nx + "sepolicy.rule").decode("utf-8")
         if "ANDROID_VCAM_CURRENT_BOOT_ACTIVE" not in nx_service:
             fail("NX router cannot distinguish current-boot rollback arming")
@@ -86,6 +87,10 @@ def main() -> None:
             fail("NX Provider state is not isolated from legacy module uninstall")
         if "/data/adb/android_vcam/runtime/router" not in nx_post_mount:
             fail("NX router state is not owned by the unified module")
+        if "unified module remains enabled" not in nx_service:
+            fail("NX healthy CameraService path still disables the unified module")
+        if "CONFIGURED_MODE_FILE" not in nx_post_fs or "set-route" not in nx_control:
+            fail("NX unified Provider mode is not persistent")
         for rule in (
             "allow ksu default_android_service service_manager { add find }",
             "allow cameraserver cameraserver_exec file execute_no_trans",

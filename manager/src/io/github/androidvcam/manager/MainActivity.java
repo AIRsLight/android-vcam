@@ -186,8 +186,6 @@ public final class MainActivity extends Activity {
         brandTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         brand.addView(brandTitle);
         appBar.addView(brand, weightedMargins(12, 0, 0, 0));
-        TextView localBadge = pill("本机", 0xffeff6ff, 0xff2563eb);
-        appBar.addView(localBadge);
         root.addView(appBar, matchWrap());
 
         content = new FrameLayout(this);
@@ -386,12 +384,7 @@ public final class MainActivity extends Activity {
                 ? ("true".equals(status.get("mount_active")) ? "OEM HAL 代理已挂载" : "OEM HAL 代理未挂载")
                 : ("true".equals(status.get("virtual_provider_active"))
                     ? "虚拟 Provider 运行中" : "虚拟 Provider 未运行");
-        String rollback = onePlus
-                ? "精确固件与 Camera ABI 保护"
-                : ("true".equals(status.get("rollback_armed"))
-                    ? "下次启动已自动回退" : "未检测到双模块回退标记");
-        runtimeText.setText(routeStateName(router) + "  ·  " + provider +
-                "\n" + rollback);
+        runtimeText.setText(routeStateName(router) + "  ·  " + provider);
     }
 
     private String routeStateName(String state) {

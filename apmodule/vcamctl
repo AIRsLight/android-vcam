@@ -314,7 +314,7 @@ provider_update() {
         *)
             if [ "$was_enabled" = true ]; then
                 stop_provider "$id"
-                start_error=$(start_provider 2>&1)
+                start_error=$(start_provider "$id" 2>&1)
                 if [ "$?" -ne 0 ]; then
                     cp "$backup" "$meta"
                     chmod 0600 "$meta"

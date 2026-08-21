@@ -334,6 +334,9 @@ def main() -> None:
     ):
         if required_symbol not in unified_service:
             fail(f"unified service lacks profile race recovery: {required_symbol}")
+    controller = (ROOT / "apmodule" / "vcamctl").read_text(encoding="utf-8")
+    if 'start_error=$(start_provider "$id" 2>&1)' not in controller:
+        fail("provider update must pass the provider ID when restarting a source")
     route_resolver = (ROOT / "hal" / "src" / "RouteResolver.cpp").read_text(
         encoding="utf-8"
     )

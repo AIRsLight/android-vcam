@@ -30,7 +30,7 @@ case "$boot_mode" in
         if [ "$UNIFIED_MODULE" = 1 ]; then boot_mode=route; else boot_mode=zero; fi
         ;;
 esac
-echo "bootstrap 0.5.0-dev.35 started mode=$boot_mode unified=$UNIFIED_MODULE" >> "$BOOT_LOG"
+echo "bootstrap 0.5.0-dev.36 started mode=$boot_mode unified=$UNIFIED_MODULE" >> "$BOOT_LOG"
 
 disable_next_boot() {
     touch "$MODDIR/disable"

@@ -94,6 +94,7 @@ public final class MainActivity extends Activity {
     private final List<Provider> providers = new ArrayList<>();
     private final List<AppEntry> allApps = new ArrayList<>();
     private final Map<String, String> routes = new HashMap<>();
+    private final DeviceCompatibility.Profile deviceProfile = DeviceCompatibility.detect();
 
     private FrameLayout content;
     private View statusPage;
@@ -104,6 +105,9 @@ public final class MainActivity extends Activity {
     private TextView providerCountText;
     private TextView routeCountText;
     private TextView halText;
+    private TextView compatibilityText;
+    private TextView compatibilityDetail;
+    private TextView runtimeText;
     private LinearLayout providerList;
     private LinearLayout routeList;
     private TextView providerRefreshText;
@@ -249,6 +253,28 @@ public final class MainActivity extends Activity {
         details.addView(halText, matchWrapMargins(0, 10, 0, 0));
         body.addView(details, matchWrapMargins(0, 14, 0, 0));
 
+        LinearLayout compatibility = card();
+        compatibility.addView(cardHeading("设备适配", "本机配方与当前 CameraService 路由状态"));
+        compatibilityText = text(deviceProfile.title, 16,
+                deviceProfile.qualified ? 0xff047857 : 0xffb45309);
+        compatibilityText.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        compatibility.addView(compatibilityText, matchWrapMargins(0, 10, 0, 0));
+        compatibilityDetail = text(deviceProfile.detail, 12, 0xff64748b);
+        compatibility.addView(compatibilityDetail, matchWrapMargins(0, 6, 0, 0));
+        runtimeText = text("后端尚未连接；路由状态尚未确认", 12, 0xff475569);
+        runtimeText.setBackground(roundRect(0xfff8fafc, 12));
+        runtimeText.setPadding(dp(12), dp(10), dp(12), dp(10));
+        compatibility.addView(runtimeText, matchWrapMargins(0, 10, 0, 0));
+        LinearLayout tests = horizontal();
+        TextView test0 = compactSecondaryButton("测试公共相机 0");
+        TextView test1 = compactSecondaryButton("测试公共相机 1");
+        test0.setOnClickListener(view -> openCameraTest("0"));
+        test1.setOnClickListener(view -> openCameraTest("1"));
+        tests.addView(test0, weightedMargins(0, 0, 6, 0));
+        tests.addView(test1, weightedMargins(6, 0, 0, 0));
+        compatibility.addView(tests, matchWrapMargins(0, 10, 0, 0));
+        body.addView(compatibility, matchWrapMargins(0, 14, 0, 0));
+
         TextView refresh = primaryButton("刷新状态");
         refresh.setOnClickListener(view -> refreshStatus());
         body.addView(refresh, matchWrapMargins(0, 14, 0, 0));
@@ -318,9 +344,18 @@ public final class MainActivity extends Activity {
     private void refreshStatus() {
         statusText.setText("正在检查服务…");
         statusDetail.setText("正在读取模块状态");
-        runAsync(() -> BackendClient.controller("status"), result -> {
-            result.requireSuccess();
-            Map<String, String> values = parseProperties(result.output);
+        compatibilityText.setText(deviceProfile.title);
+        compatibilityDetail.setText(deviceProfile.detail);
+        runAsync(() -> {
+            BackendClient.Result status = BackendClient.controller("status");
+            status.requireSuccess();
+            BackendClient.Result capabilities = BackendClient.controller("capabilities");
+            return new StatusResult(status.output,
+                    capabilities.code == 0 ? capabilities.output : "");
+        }, result -> {
+            StatusResult latest = (StatusResult) result;
+            Map<String, String> values = parseProperties(latest.statusOutput);
+            Map<String, String> capabilities = parseProperties(latest.capabilitiesOutput);
             boolean healthy = "true".equals(values.get("module_enabled")) &&
                     "true".equals(values.get("mount_active"));
             statusText.setText(healthy ? "服务运行正常" : "服务需要检查");
@@ -330,7 +365,58 @@ public final class MainActivity extends Activity {
             providerCountText.setText(values.getOrDefault("provider_count", "0"));
             routeCountText.setText(values.getOrDefault("route_count", "0"));
             halText.setText(values.getOrDefault("hal_hash", "未知"));
+            updateCompatibilityStatus(values, capabilities);
+        }, error -> {
+            statusText.setText(deviceProfile.qualified ? "设备已认证 · 后端未连接" : "后端未运行");
+            statusDetail.setText("无法连接本机后端；Manager 不能确认当前路由状态");
+            providerCountText.setText("—");
+            routeCountText.setText("—");
+            halText.setText("后端未连接");
+            runtimeText.setText("状态未知：后端不可达，无法确认是否存在活动路由。请使用 root 管理器核对模块状态；VCAM Manager 不申请 root。\n" +
+                    friendlyError(error));
         });
+    }
+
+    private void updateCompatibilityStatus(Map<String, String> status,
+                                           Map<String, String> capabilities) {
+        String backendProfile = capabilities.getOrDefault("profile_id", "none");
+        String backendQualification = capabilities.getOrDefault("profile_status", "unknown");
+        boolean exact = deviceProfile.qualified && deviceProfile.id.equals(backendProfile) &&
+                "qualified".equals(backendQualification);
+        if (exact) {
+            compatibilityText.setText("NX769J Android 14 · 配方与 Camera ABI 已验证");
+            compatibilityText.setTextColor(0xff047857);
+        } else if (deviceProfile.qualified) {
+            compatibilityText.setText("NX769J Android 14 · 后端配方校验不完整");
+            compatibilityText.setTextColor(0xffb45309);
+        }
+        String router = status.getOrDefault("router_state", "unknown");
+        String provider = "true".equals(status.get("virtual_provider_active"))
+                ? "虚拟 Provider 运行中" : "虚拟 Provider 未运行";
+        String rollback = "true".equals(status.get("rollback_armed"))
+                ? "下次启动已自动回退" : "未检测到双模块回退标记";
+        runtimeText.setText("路由：" + routeStateName(router) + "  ·  " + provider +
+                "\n保护：" + rollback + "  ·  配方：" + backendProfile);
+    }
+
+    private String routeStateName(String state) {
+        if ("physical_route_ready".equals(state)) return "按应用替换已就绪";
+        if ("pass_through_ready".equals(state)) return "仅透传";
+        if ("preflight_ready".equals(state)) return "只读预检";
+        if ("stock".equals(state)) return "stock";
+        return state;
+    }
+
+    private void openCameraTest(String cameraId) {
+        Intent intent = new Intent();
+        intent.setClassName("io.github.androidvcam.test",
+                "io.github.androidvcam.test.CameraPreviewActivity");
+        intent.putExtra("camera_id", cameraId);
+        try {
+            startActivity(intent);
+        } catch (Exception error) {
+            toast("未安装 VCAM 测试应用，无法打开公共相机 " + cameraId);
+        }
     }
 
     private void refreshProviders() { refreshProviders(true); }
@@ -1709,6 +1795,17 @@ public final class MainActivity extends Activity {
     private static final class PreviewResult extends BackendClient.Result {
         final Bitmap bitmap;
         PreviewResult(Bitmap bitmap) { super(0, "preview"); this.bitmap = bitmap; }
+    }
+
+    private static final class StatusResult extends BackendClient.Result {
+        final String statusOutput;
+        final String capabilitiesOutput;
+
+        StatusResult(String statusOutput, String capabilitiesOutput) {
+            super(0, "status");
+            this.statusOutput = statusOutput;
+            this.capabilitiesOutput = capabilitiesOutput;
+        }
     }
     private static final class RoutesResult extends BackendClient.Result {
         final Map<String, String> routes;

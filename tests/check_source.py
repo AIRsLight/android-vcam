@@ -388,7 +388,8 @@ def main() -> None:
     for required_symbol in (
         "provider_transport", "provider_version", "provider_instance", "adapter_hint",
         "aidl_service_line", "provider_service_hash", "legacy_module_hash",
-        "cameraservice_hash", "root_manager",
+        "cameraservice_hash", "camera_client_hash", "profile_status",
+        "nx769j-ukq1-20240417", "root_manager",
     ):
         if required_symbol not in probe:
             fail(f"device probe is missing field: {required_symbol}")
@@ -512,6 +513,8 @@ def main() -> None:
     for required_symbol in (
         "source-preview", "loadBackendNetworkPreview", "showProviderPreview",
         "provider-frame", "刷新帧", "MAX_SOURCE_PIXEL_RATE", "12 MP",
+        "DeviceCompatibility", "NX769J Android 14", "测试公共相机 0",
+        "router_state", "profile_status", "openCameraTest",
     ):
         if required_symbol not in manager_sources:
             fail(f"manager lacks source preview support: {required_symbol}")
@@ -535,7 +538,7 @@ def main() -> None:
     for required_symbol in (
         "provider_manifest", "provider_init_service", "provider_service_context",
         "provider_process_context", "camera_ids", "api1_camera_ids",
-        "under_screen_camera",
+        "under_screen_camera", "route_scope", "virtual_camera_ids",
     ):
         if required_symbol not in device_probe:
             fail(f"device compatibility probe is missing: {required_symbol}")

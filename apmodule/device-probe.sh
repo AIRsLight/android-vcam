@@ -152,6 +152,16 @@ cameraservice_hash=unknown
 if [ -r /system/lib64/libcameraservice.so ]; then
     cameraservice_hash="$(sha256sum /system/lib64/libcameraservice.so 2>/dev/null | awk '{print $1}')"
 fi
+camera_client_path=none
+camera_client_hash=none
+for candidate in \
+    /system/lib64/libcamera_client.so \
+    /system_ext/lib64/libcamera_client.so; do
+    [ -r "$candidate" ] || continue
+    camera_client_path="$candidate"
+    camera_client_hash="$(sha256sum "$candidate" 2>/dev/null | awk '{print $1}')"
+    break
+done
 legacy_module_hash=none
 if [ -n "$legacy_module" ]; then
     legacy_module_hash="$(sha256sum "$legacy_module" 2>/dev/null | awk '{print $1}')"
@@ -170,12 +180,37 @@ case "$root_context" in
         ;;
 esac
 
+fingerprint="$(prop ro.build.fingerprint)"
+profile_id=none
+profile_status=unsupported
+profile_reason=no_qualified_recipe
+case "$fingerprint" in
+    nubia/NX769J/NX769J:14/UKQ1.230917.001/20240417.145608:user/release-keys)
+        profile_id=nx769j-ukq1-20240417
+        if [ "$cameraservice_hash" = \
+                a26f8ee10002769428871e042c7993e87ad769703897dd75a2fb93a725c64438 ] && \
+           [ "$camera_client_hash" = \
+                1cf518e86a2e5461e585d8dbd7a1dbc93e7ba2bcc95c3e254ebdcc72ee0433c5 ]; then
+            profile_status=qualified
+            profile_reason=exact_fingerprint_and_camera_abi
+        else
+            profile_status=abi_mismatch
+            profile_reason=qualified_fingerprint_with_unexpected_camera_abi
+        fi
+        ;;
+    nubia/NX769J/NX769J:14/*)
+        profile_id=nx769j-android14-candidate
+        profile_status=build_mismatch
+        profile_reason=nx769j_android14_build_not_qualified
+        ;;
+esac
+
 emit_profile() {
-    field schema_version 3
+    field schema_version 4
     field sdk "$(prop ro.build.version.sdk)"
     field release "$(prop ro.build.version.release)"
     field abi "$(prop ro.product.cpu.abi)"
-    field fingerprint "$(prop ro.build.fingerprint)"
+    field fingerprint "$fingerprint"
     field manufacturer "$(prop ro.product.manufacturer)"
     field product_device "$(prop ro.product.device)"
     field board_platform "$(prop ro.board.platform)"
@@ -194,6 +229,13 @@ emit_profile() {
     field legacy_module "${legacy_module:-none}"
     field legacy_module_hash "$legacy_module_hash"
     field cameraservice_hash "$cameraservice_hash"
+    field camera_client_path "$camera_client_path"
+    field camera_client_hash "$camera_client_hash"
+    field profile_id "$profile_id"
+    field profile_status "$profile_status"
+    field profile_reason "$profile_reason"
+    field route_scope "$([ "$profile_status" = qualified ] && printf per_app || printf unavailable)"
+    field virtual_camera_ids "$([ "$profile_status" = qualified ] && printf 1000,1001 || printf none)"
     field camera_count "$camera_count"
     field camera_ids "$camera_ids"
     field api1_camera_ids "$api1_camera_ids"

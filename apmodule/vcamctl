@@ -796,10 +796,33 @@ print_status() {
     if [ -r /vendor/lib64/hw/camera.qcom.so ]; then
         echo "hal_hash=$(sha256sum /vendor/lib64/hw/camera.qcom.so | awk '{print $1}')"
     fi
+    router_state=stock
+    router_profile=none
+    if [ -r /dev/vcam/router.stats ]; then
+        router_state=$(sed -n 's/^state=//p' /dev/vcam/router.stats | head -n 1)
+        router_profile=$(sed -n 's/^profile=//p' /dev/vcam/router.stats | head -n 1)
+        [ -n "$router_state" ] || router_state=unknown
+        [ -n "$router_profile" ] || router_profile=none
+    fi
+    echo "router_state=$router_state"
+    echo "router_profile=$router_profile"
+    if pidof android.hardware.camera.provider-service-vcam-v2 >/dev/null 2>&1; then
+        echo "virtual_provider_active=true"
+    else
+        echo "virtual_provider_active=false"
+    fi
+    if [ -e /data/adb/modules/android_vcam_portable/disable ] && \
+       [ -e /data/adb/modules/android_vcam_aidl_provider/disable ]; then
+        echo "rollback_armed=true"
+    else
+        echo "rollback_armed=false"
+    fi
 }
 
 print_capabilities() {
-    if [ ! -r "$PROFILE_FILE" ] && [ -x "$MODDIR/device-probe.sh" ]; then
+    profile_schema=$(sed -n 's/^schema_version=//p' "$PROFILE_FILE" 2>/dev/null | head -n 1)
+    if { [ ! -r "$PROFILE_FILE" ] || [ "$profile_schema" != 4 ]; } && \
+       [ -x "$MODDIR/device-probe.sh" ]; then
         "$MODDIR/device-probe.sh" "$PROFILE_FILE" >/dev/null 2>&1 || true
     fi
     [ -r "$PROFILE_FILE" ] || {

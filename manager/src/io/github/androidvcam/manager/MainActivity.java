@@ -108,6 +108,7 @@ public final class MainActivity extends Activity {
     private TextView compatibilityText;
     private TextView compatibilityDetail;
     private TextView runtimeText;
+    private String lastStatusError = "";
     private LinearLayout providerList;
     private LinearLayout routeList;
     private TextView providerRefreshText;
@@ -172,7 +173,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout appBar = horizontal();
         appBar.setGravity(Gravity.CENTER_VERTICAL);
-        appBar.setPadding(dp(20), dp(12), dp(20), dp(12));
+        appBar.setPadding(dp(20), dp(14), dp(20), dp(14));
         appBar.setBackgroundColor(Color.WHITE);
         appBar.setElevation(dp(2));
         TextView mark = text("V", 20, Color.WHITE);
@@ -184,9 +185,8 @@ public final class MainActivity extends Activity {
         TextView brandTitle = text("VCAM", 20, 0xff111827);
         brandTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         brand.addView(brandTitle);
-        brand.addView(text("虚拟摄像头控制中心", 11, 0xff64748b));
         appBar.addView(brand, weightedMargins(12, 0, 0, 0));
-        TextView localBadge = pill("本机后端", 0xffeff6ff, 0xff2563eb);
+        TextView localBadge = pill("本机", 0xffeff6ff, 0xff2563eb);
         appBar.addView(localBadge);
         root.addView(appBar, matchWrap());
 
@@ -222,69 +222,62 @@ public final class MainActivity extends Activity {
     private View buildStatusPage() {
         ScrollView scroll = new ScrollView(this);
         LinearLayout body = pageBody();
-        body.addView(pageTitle("系统概览", "模块健康度与当前替换资源"));
+        LinearLayout titleRow = horizontal();
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        titleRow.addView(pageTitle("概览", ""), weighted());
+        TextView refresh = compactSecondaryButton("刷新");
+        refresh.setOnClickListener(view -> refreshStatus());
+        titleRow.addView(refresh);
+        body.addView(titleRow, matchWrap());
 
         LinearLayout hero = vertical();
         hero.setPadding(dp(20), dp(18), dp(20), dp(18));
         hero.setBackground(roundGradient(0xff1d4ed8, 0xff4f46e5, 22));
         hero.setElevation(dp(3));
-        TextView overline = text("VCAM SERVICE", 11, 0xffbfdbfe);
+        TextView overline = text("服务", 11, 0xffbfdbfe);
         overline.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         hero.addView(overline);
         statusText = text("正在连接后端…", 23, Color.WHITE);
         statusText.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         hero.addView(statusText, matchWrapMargins(0, 5, 0, 0));
-        statusDetail = text("正在读取模块状态", 13, 0xffdbeafe);
+        statusDetail = text("正在读取状态", 13, 0xffdbeafe);
         hero.addView(statusDetail, matchWrapMargins(0, 7, 0, 0));
         body.addView(hero, matchWrapMargins(0, 18, 0, 0));
 
         LinearLayout metrics = horizontal();
         providerCountText = metricCard("视频源", "—", 0xffeff6ff, 0xff2563eb);
-        routeCountText = metricCard("替换规则", "—", 0xfff5f3ff, 0xff7c3aed);
+        routeCountText = metricCard("路由", "—", 0xfff5f3ff, 0xff7c3aed);
         metrics.addView((View) providerCountText.getTag(), weightedMargins(0, 0, 7, 0));
         metrics.addView((View) routeCountText.getTag(), weightedMargins(7, 0, 0, 0));
         body.addView(metrics, matchWrapMargins(0, 14, 0, 0));
 
-        LinearLayout details = card();
-        details.addView(cardHeading("HAL 指纹", "当前挂载的相机代理版本"));
         halText = text("读取中…", 12, 0xff475569);
         halText.setTextIsSelectable(true);
         halText.setTypeface(Typeface.MONOSPACE);
-        details.addView(halText, matchWrapMargins(0, 10, 0, 0));
-        body.addView(details, matchWrapMargins(0, 14, 0, 0));
 
         LinearLayout compatibility = card();
-        compatibility.addView(cardHeading("设备适配", "本机配方与当前 CameraService 路由状态"));
+        compatibility.addView(cardHeading("设备", ""));
         compatibilityText = text(deviceProfile.title, 16,
                 deviceProfile.qualified ? 0xff047857 : 0xffb45309);
         compatibilityText.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         compatibility.addView(compatibilityText, matchWrapMargins(0, 10, 0, 0));
         compatibilityDetail = text(deviceProfile.detail, 12, 0xff64748b);
-        compatibility.addView(compatibilityDetail, matchWrapMargins(0, 6, 0, 0));
-        runtimeText = text("后端尚未连接；路由状态尚未确认", 12, 0xff475569);
+        runtimeText = text("路由状态未知", 12, 0xff475569);
         runtimeText.setBackground(roundRect(0xfff8fafc, 12));
         runtimeText.setPadding(dp(12), dp(10), dp(12), dp(10));
         compatibility.addView(runtimeText, matchWrapMargins(0, 10, 0, 0));
         LinearLayout tests = horizontal();
-        TextView test0 = compactSecondaryButton("测试公共相机 0");
-        TextView test1 = compactSecondaryButton("测试公共相机 1");
+        TextView details = compactSecondaryButton("详情");
+        TextView test0 = compactSecondaryButton("相机 0");
+        TextView test1 = compactSecondaryButton("相机 1");
+        details.setOnClickListener(view -> showSystemDetails());
         test0.setOnClickListener(view -> openCameraTest("0"));
         test1.setOnClickListener(view -> openCameraTest("1"));
-        tests.addView(test0, weightedMargins(0, 0, 6, 0));
+        tests.addView(details, weightedMargins(0, 0, 6, 0));
+        tests.addView(test0, weightedMargins(6, 0, 6, 0));
         tests.addView(test1, weightedMargins(6, 0, 0, 0));
         compatibility.addView(tests, matchWrapMargins(0, 10, 0, 0));
         body.addView(compatibility, matchWrapMargins(0, 14, 0, 0));
-
-        TextView refresh = primaryButton("刷新状态");
-        refresh.setOnClickListener(view -> refreshStatus());
-        body.addView(refresh, matchWrapMargins(0, 14, 0, 0));
-        LinearLayout privacy = card();
-        privacy.addView(cardHeading("无需 Root 授权", "管理器仅通过受鉴权的本地后端修改配置"));
-        TextView note = text(
-                "管理器不申请 root 权限，只连接模块内受鉴权的本地后端。配置和媒体由后端持久保存，卸载管理器也不会停止已配置的视频源与替换规则。",
-                12, 0xff64748b);
-        privacy.addView(note, matchWrapMargins(0, 8, 0, 0));
-        body.addView(privacy, matchWrapMargins(0, 14, 0, 0));
         scroll.addView(body);
         return scroll;
     }
@@ -294,13 +287,11 @@ public final class MainActivity extends Activity {
         LinearLayout body = pageBody();
         LinearLayout titleRow = horizontal();
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
-        titleRow.addView(pageTitle("视频源", "管理物理、图片与网络输入"), weighted());
+        titleRow.addView(pageTitle("视频源", ""), weighted());
         TextView add = compactPrimaryButton("＋ 添加");
         add.setOnClickListener(view -> showAddProviderDialog());
         titleRow.addView(add);
         body.addView(titleRow, matchWrap());
-        body.addView(text("每个来源可独立设置两个目标相机的取景与方向。",
-                12, 0xff64748b), matchWrapMargins(0, 8, 0, 12));
         LinearLayout refreshRow = horizontal();
         refreshRow.setGravity(Gravity.CENTER_VERTICAL);
         providerRefreshText = text("尚未读取", 11, 0xff64748b);
@@ -308,7 +299,7 @@ public final class MainActivity extends Activity {
         TextView refresh = compactSecondaryButton("刷新");
         refresh.setOnClickListener(view -> refreshProviders(true));
         refreshRow.addView(refresh);
-        body.addView(refreshRow, matchWrapMargins(0, 0, 0, 10));
+        body.addView(refreshRow, matchWrapMargins(0, 10, 0, 10));
         providerList = vertical();
         body.addView(providerList, matchWrap());
         scroll.addView(body);
@@ -320,13 +311,11 @@ public final class MainActivity extends Activity {
         LinearLayout body = pageBody();
         LinearLayout titleRow = horizontal();
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
-        titleRow.addView(pageTitle("应用路由", "仅显示已配置的应用及双相机来源"), weighted());
+        titleRow.addView(pageTitle("路由", ""), weighted());
         TextView add = compactPrimaryButton("＋ 新增");
         add.setOnClickListener(view -> showAddRouteDialog());
         titleRow.addView(add);
         body.addView(titleRow, matchWrap());
-        body.addView(text("卸载应用不会删除路由；重新安装同一包名后会自动恢复。",
-                12, 0xff64748b), matchWrapMargins(0, 8, 0, 10));
         LinearLayout refreshRow = horizontal();
         refreshRow.setGravity(Gravity.CENTER_VERTICAL);
         routeRefreshText = text("尚未读取路由", 11, 0xff64748b);
@@ -334,7 +323,7 @@ public final class MainActivity extends Activity {
         TextView refresh = compactSecondaryButton("刷新");
         refresh.setOnClickListener(view -> refreshRoutes(true));
         refreshRow.addView(refresh);
-        body.addView(refreshRow, matchWrapMargins(0, 0, 0, 10));
+        body.addView(refreshRow, matchWrapMargins(0, 10, 0, 10));
         routeList = vertical();
         body.addView(routeList, matchWrap());
         scroll.addView(body);
@@ -343,7 +332,8 @@ public final class MainActivity extends Activity {
 
     private void refreshStatus() {
         statusText.setText("正在检查服务…");
-        statusDetail.setText("正在读取模块状态");
+        statusDetail.setText("正在读取状态");
+        lastStatusError = "";
         compatibilityText.setText(deviceProfile.title);
         compatibilityDetail.setText(deviceProfile.detail);
         runAsync(() -> {
@@ -368,12 +358,12 @@ public final class MainActivity extends Activity {
             updateCompatibilityStatus(values, capabilities);
         }, error -> {
             statusText.setText(deviceProfile.qualified ? "设备已认证 · 后端未连接" : "后端未运行");
-            statusDetail.setText("无法连接本机后端；Manager 不能确认当前路由状态");
+            statusDetail.setText("后端未连接");
             providerCountText.setText("—");
             routeCountText.setText("—");
             halText.setText("后端未连接");
-            runtimeText.setText("状态未知：后端不可达，无法确认是否存在活动路由。请使用 root 管理器核对模块状态；VCAM Manager 不申请 root。\n" +
-                    friendlyError(error));
+            lastStatusError = friendlyError(error);
+            runtimeText.setText("路由未知  ·  后端不可达");
         });
     }
 
@@ -400,8 +390,8 @@ public final class MainActivity extends Activity {
                 ? "精确固件与 Camera ABI 保护"
                 : ("true".equals(status.get("rollback_armed"))
                     ? "下次启动已自动回退" : "未检测到双模块回退标记");
-        runtimeText.setText("路由：" + routeStateName(router) + "  ·  " + provider +
-                "\n保护：" + rollback + "  ·  配方：" + backendProfile);
+        runtimeText.setText(routeStateName(router) + "  ·  " + provider +
+                "\n" + rollback);
     }
 
     private String routeStateName(String state) {
@@ -411,6 +401,20 @@ public final class MainActivity extends Activity {
         if ("preflight_ready".equals(state)) return "只读预检";
         if ("stock".equals(state)) return "stock";
         return state;
+    }
+
+    private void showSystemDetails() {
+        StringBuilder details = new StringBuilder();
+        details.append(deviceProfile.detail)
+                .append("\n\n服务：").append(statusDetail.getText())
+                .append("\n路由：").append(runtimeText.getText())
+                .append("\nHAL：").append(halText.getText());
+        if (!lastStatusError.isEmpty()) details.append("\n\n").append(lastStatusError);
+        new AlertDialog.Builder(this)
+                .setTitle("系统详情")
+                .setMessage(details.toString())
+                .setPositiveButton("完成", null)
+                .show();
     }
 
     private void openCameraTest(String cameraId) {
@@ -455,7 +459,13 @@ public final class MainActivity extends Activity {
             }
         }, error -> {
             providerRefreshInFlight = false;
-            providerRefreshText.setText("更新失败，保留现有列表");
+            providerRefreshText.setText("");
+            if (providers.isEmpty()) {
+                providerList.removeAllViews();
+                LinearLayout empty = card();
+                empty.addView(cardHeading("后端未连接", ""));
+                providerList.addView(empty, matchWrap());
+            }
             showError(error);
         });
     }
@@ -553,7 +563,7 @@ public final class MainActivity extends Activity {
         resolutionPresets.addView(ultraHd, weightedMargins(8, 0, 0, 0));
         resolutionPresets.addView(twelveMp, weightedMargins(8, 0, 0, 0));
         form.addView(resolutionPresets, matchWrapMargins(0, 8, 0, 0));
-        form.addView(text("高分辨率会按像素吞吐预算限制帧率：4K 最高 15 fps，12 MP 最高 9 fps。",
+        form.addView(text("4K · 15 fps    12 MP · 9 fps",
                 11, 0xff64748b), matchWrapMargins(0, 6, 0, 0));
         LinearLayout progressRow = horizontal();
         progressRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -798,10 +808,6 @@ public final class MainActivity extends Activity {
 
     private void showProviderPreview(Provider provider) {
         LinearLayout body = dialogForm();
-        TextView description = text("显示后端当前实际发布的画面，不改变来源配置。",
-                12, 0xff64748b);
-        body.addView(description);
-
         FrameLayout frame = new FrameLayout(this);
         frame.setBackground(roundRect(0xff0f172a, 14));
         ImageView image = new ImageView(this);
@@ -1206,7 +1212,13 @@ public final class MainActivity extends Activity {
             }
         }, error -> {
             routeRefreshInFlight = false;
-            routeRefreshText.setText("更新失败，保留现有路由");
+            routeRefreshText.setText("");
+            if (routes.isEmpty()) {
+                routeList.removeAllViews();
+                LinearLayout empty = card();
+                empty.addView(cardHeading("后端未连接", ""));
+                routeList.addView(empty, matchWrap());
+            }
             showError(error);
         });
     }
@@ -1217,7 +1229,7 @@ public final class MainActivity extends Activity {
         Set<String> packages = routePackages();
         if (packages.isEmpty()) {
             LinearLayout empty = card();
-            empty.addView(cardHeading("尚未添加应用路由", "点击右上角“新增”，选择应用并配置相机来源"));
+            empty.addView(cardHeading("暂无路由", ""));
             routeList.addView(empty, matchWrap());
             return;
         }
@@ -1633,7 +1645,9 @@ public final class MainActivity extends Activity {
         TextView heading = text(title, 25, 0xff0f172a);
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         block.addView(heading);
-        block.addView(text(subtitle, 12, 0xff64748b), matchWrapMargins(0, 3, 0, 0));
+        if (!subtitle.isEmpty()) {
+            block.addView(text(subtitle, 12, 0xff64748b), matchWrapMargins(0, 3, 0, 0));
+        }
         return block;
     }
     private LinearLayout cardHeading(String title, String subtitle) {
@@ -1641,7 +1655,9 @@ public final class MainActivity extends Activity {
         TextView heading = text(title, 15, 0xff111827);
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         block.addView(heading);
-        block.addView(text(subtitle, 11, 0xff64748b), matchWrapMargins(0, 3, 0, 0));
+        if (!subtitle.isEmpty()) {
+            block.addView(text(subtitle, 11, 0xff64748b), matchWrapMargins(0, 3, 0, 0));
+        }
         return block;
     }
     private LinearLayout card() {

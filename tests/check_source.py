@@ -515,11 +515,18 @@ def main() -> None:
         "source-preview", "loadBackendNetworkPreview", "showProviderPreview",
         "provider-frame", "刷新帧", "MAX_SOURCE_PIXEL_RATE", "12 MP",
         "DeviceCompatibility", "NX769J Android 14", "OnePlus 7 Pro Android 12",
-        "ONEPLUS7PRO_PROFILE", "测试公共相机 0",
+        "ONEPLUS7PRO_PROFILE", 'compactSecondaryButton("相机 0")',
         "router_state", "profile_status", "openCameraTest",
     ):
         if required_symbol not in manager_sources:
             fail(f"manager lacks source preview support: {required_symbol}")
+    for verbose_home_copy in (
+        "无需 Root 授权", "虚拟摄像头控制中心",
+        "管理器不申请 root 权限，只连接模块内受鉴权的本地后端",
+        "模块健康度与当前替换资源",
+    ):
+        if verbose_home_copy in manager_sources:
+            fail(f"manager home still contains verbose explanatory copy: {verbose_home_copy}")
 
     test_activity = (
         ROOT / "testapp" / "src" / "io" / "github" / "androidvcam" /

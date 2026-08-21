@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -133,6 +134,23 @@ public:
         return descriptor;
     }
 
+    android::status_t linkToDeath(
+            const android::sp<android::IBinder::DeathRecipient>& recipient,
+            void* cookie = nullptr,
+            std::uint32_t flags = 0) override {
+        return target_->linkToDeath(recipient, cookie, flags);
+    }
+
+    android::status_t unlinkToDeath(
+            const android::wp<android::IBinder::DeathRecipient>& recipient,
+            void* cookie = nullptr,
+            std::uint32_t flags = 0,
+            android::wp<android::IBinder::DeathRecipient>* outRecipient =
+                    nullptr) override {
+        return target_->unlinkToDeath(
+                recipient, cookie, flags, outRecipient);
+    }
+
 protected:
     android::status_t onTransact(
             std::uint32_t code,
@@ -149,6 +167,46 @@ protected:
 private:
     const android::sp<android::IBinder> target_;
 };
+
+struct ListenerRegistryEntry {
+    android::wp<android::IBinder> original;
+    android::wp<FilteringCameraServiceListener> wrapper;
+};
+
+std::mutex gListenerRegistryMutex;
+std::vector<ListenerRegistryEntry> gListenerRegistry;
+
+android::sp<FilteringCameraServiceListener> listenerWrapperFor(
+        const android::sp<android::IBinder>& original,
+        bool createIfMissing,
+        bool* created) {
+    std::lock_guard<std::mutex> lock(gListenerRegistryMutex);
+    for (auto entry = gListenerRegistry.begin();
+         entry != gListenerRegistry.end();) {
+        const android::sp<android::IBinder> candidate =
+                entry->original.promote();
+        const android::sp<FilteringCameraServiceListener> wrapper =
+                entry->wrapper.promote();
+        if (candidate == nullptr || wrapper == nullptr) {
+            entry = gListenerRegistry.erase(entry);
+            continue;
+        }
+        if (candidate.get() == original.get()) {
+            *created = false;
+            return wrapper;
+        }
+        ++entry;
+    }
+    if (!createIfMissing) {
+        *created = false;
+        return nullptr;
+    }
+    const android::sp<FilteringCameraServiceListener> wrapper =
+            android::sp<FilteringCameraServiceListener>::make(original);
+    gListenerRegistry.push_back({original, wrapper});
+    *created = true;
+    return wrapper;
+}
 
 struct CameraStatusRecord {
     android::String16 cameraId;
@@ -189,11 +247,10 @@ bool writeCameraStatusRecord(
             parcel->writeString16(record.clientPackage) == android::OK;
 }
 
-}  // namespace
-
-CameraListenerRequestRouteStatus wrapAndroid14CameraListenerRequest(
+CameraListenerRequestRouteStatus routeListenerRequest(
         const android::Parcel& input,
-        android::Parcel* output) noexcept {
+        android::Parcel* output,
+        bool createIfMissing) {
     if (output == nullptr || output == &input) {
         return CameraListenerRequestRouteStatus::kMalformedRequest;
     }
@@ -212,14 +269,17 @@ CameraListenerRequestRouteStatus wrapAndroid14CameraListenerRequest(
         return CameraListenerRequestRouteStatus::kMalformedRequest;
     }
 
+    bool created = false;
+    const android::sp<FilteringCameraServiceListener> wrapper =
+            listenerWrapperFor(listener, createIfMissing, &created);
+    if (wrapper == nullptr) {
+        return CameraListenerRequestRouteStatus::kNoRegisteredWrapper;
+    }
     output->setDataPosition(0);
     if (output->setDataSize(0) != android::OK ||
         output->appendFrom(&input, 0, listenerStart) != android::OK) {
         return CameraListenerRequestRouteStatus::kCopyFailed;
     }
-    const android::sp<FilteringCameraServiceListener> wrapper =
-            android::sp<FilteringCameraServiceListener>::make(
-                    std::move(listener));
     if (output->writeStrongBinder(wrapper) != android::OK) {
         return CameraListenerRequestRouteStatus::kWriteFailed;
     }
@@ -233,8 +293,24 @@ CameraListenerRequestRouteStatus wrapAndroid14CameraListenerRequest(
         return CameraListenerRequestRouteStatus::kWriteFailed;
     }
     output->setDataPosition(positionGuard.position());
-    gListenerWrappers.fetch_add(1, std::memory_order_relaxed);
+    if (created) {
+        gListenerWrappers.fetch_add(1, std::memory_order_relaxed);
+    }
     return CameraListenerRequestRouteStatus::kWrapped;
+}
+
+}  // namespace
+
+CameraListenerRequestRouteStatus wrapAndroid14CameraListenerRequest(
+        const android::Parcel& input,
+        android::Parcel* output) noexcept {
+    return routeListenerRequest(input, output, true);
+}
+
+CameraListenerRequestRouteStatus wrapAndroid14CameraListenerRemovalRequest(
+        const android::Parcel& input,
+        android::Parcel* output) noexcept {
+    return routeListenerRequest(input, output, false);
 }
 
 CameraStatusReplyFilterStatus filterAndroid14CameraStatusReply(
@@ -310,6 +386,8 @@ const char* cameraListenerRequestRouteStatusName(
         CameraListenerRequestRouteStatus status) noexcept {
     switch (status) {
         case CameraListenerRequestRouteStatus::kWrapped: return "wrapped";
+        case CameraListenerRequestRouteStatus::kNoRegisteredWrapper:
+            return "no_registered_wrapper";
         case CameraListenerRequestRouteStatus::kMalformedRequest:
             return "malformed_request";
         case CameraListenerRequestRouteStatus::kCopyFailed: return "copy_failed";

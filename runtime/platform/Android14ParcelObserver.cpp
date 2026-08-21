@@ -148,6 +148,7 @@ ParcelObservation observeAndroid14CameraServiceParcel(
             result.cameraIdEnd = parcel.dataPosition();
             break;
         case BinderPayloadShape::kListener:
+        case BinderPayloadShape::kListenerRemoval:
         case BinderPayloadShape::kConcurrentIds:
             decoded = true;
             break;

@@ -30,6 +30,8 @@ BinderTransactionClass classificationForRole(
         result.cameraScoped = true;
     } else if (role == "add_listener") {
         result.payloadShape = BinderPayloadShape::kListener;
+    } else if (role == "remove_listener") {
+        result.payloadShape = BinderPayloadShape::kListenerRemoval;
     } else if (role == "get_concurrent_camera_ids") {
         result.payloadShape = BinderPayloadShape::kConcurrentIds;
     } else if (role == "concurrent_session_support") {
@@ -62,6 +64,7 @@ const char* binderPayloadShapeName(BinderPayloadShape shape) {
         case BinderPayloadShape::kStringCameraId: return "string_camera_id";
         case BinderPayloadShape::kIntegerCameraId: return "integer_camera_id";
         case BinderPayloadShape::kListener: return "listener";
+        case BinderPayloadShape::kListenerRemoval: return "listener_removal";
         case BinderPayloadShape::kConcurrentIds: return "concurrent_ids";
         case BinderPayloadShape::kConcurrentSessionConfiguration:
             return "concurrent_session_configuration";

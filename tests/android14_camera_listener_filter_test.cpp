@@ -37,6 +37,25 @@ public:
 
     std::uint64_t forwarded = 0;
     std::uint32_t lastCode = 0;
+    std::uint64_t deathLinks = 0;
+    std::uint64_t deathUnlinks = 0;
+
+    android::status_t linkToDeath(
+            const android::sp<android::IBinder::DeathRecipient>&,
+            void* = nullptr,
+            std::uint32_t = 0) override {
+        ++deathLinks;
+        return android::OK;
+    }
+
+    android::status_t unlinkToDeath(
+            const android::wp<android::IBinder::DeathRecipient>&,
+            void* = nullptr,
+            std::uint32_t = 0,
+            android::wp<android::IBinder::DeathRecipient>* = nullptr) override {
+        ++deathUnlinks;
+        return android::OK;
+    }
 
 protected:
     android::status_t onTransact(
@@ -48,6 +67,11 @@ protected:
         lastCode = code;
         return android::OK;
     }
+};
+
+class TestDeathRecipient final : public android::IBinder::DeathRecipient {
+public:
+    void binderDied(const android::wp<android::IBinder>&) override {}
 };
 
 void writeStatusCallback(android::Parcel* parcel, const char* cameraId) {
@@ -144,6 +168,38 @@ int main() {
     android::sp<android::IBinder> routedListener;
     assert(wrappedRequest.readStrongBinder(&routedListener) == android::OK);
     assert(routedListener != nullptr && routedListener.get() != target.get());
+
+    const android::sp<TestDeathRecipient> deathRecipient =
+            android::sp<TestDeathRecipient>::make();
+    assert(routedListener->linkToDeath(deathRecipient) == android::OK);
+    assert(target->deathLinks == 1);
+    assert(routedListener->unlinkToDeath(deathRecipient) == android::OK);
+    assert(target->deathUnlinks == 1);
+
+    android::Parcel removalRequest;
+    assert(removalRequest.writeInterfaceToken(
+                   android::String16(kServiceDescriptor)) == android::OK);
+    assert(removalRequest.writeStrongBinder(target) == android::OK);
+    android::Parcel wrappedRemovalRequest;
+    assert(vcam::runtime::wrapAndroid14CameraListenerRemovalRequest(
+                   removalRequest, &wrappedRemovalRequest) ==
+           vcam::runtime::CameraListenerRequestRouteStatus::kWrapped);
+    wrappedRemovalRequest.setDataPosition(0);
+    assert(wrappedRemovalRequest.enforceInterface(
+            android::String16(kServiceDescriptor)));
+    android::sp<android::IBinder> removalListener;
+    assert(wrappedRemovalRequest.readStrongBinder(&removalListener) == android::OK);
+    assert(removalListener.get() == routedListener.get());
+
+    const android::sp<RecordingListener> unknownTarget =
+            android::sp<RecordingListener>::make();
+    android::Parcel unknownRemovalRequest;
+    assert(unknownRemovalRequest.writeInterfaceToken(
+                   android::String16(kServiceDescriptor)) == android::OK);
+    assert(unknownRemovalRequest.writeStrongBinder(unknownTarget) == android::OK);
+    assert(vcam::runtime::wrapAndroid14CameraListenerRemovalRequest(
+                   unknownRemovalRequest, &wrappedRemovalRequest) ==
+           vcam::runtime::CameraListenerRequestRouteStatus::kNoRegisteredWrapper);
 
     android::Parcel publicStatus;
     writeStatusCallback(&publicStatus, "0");

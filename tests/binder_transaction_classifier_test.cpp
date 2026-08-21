@@ -10,6 +10,7 @@ int main() {
         {"add_listener", 5},
         {"get_concurrent_camera_ids", 6},
         {"concurrent_session_support", 7},
+        {"remove_listener", 8},
         {"get_camera_characteristics", 9},
         {"get_legacy_parameters", 12},
         {"supports_camera_api", 13},
@@ -33,6 +34,12 @@ int main() {
     const auto listener = vcam::runtime::classifyBinderTransaction(recipe, 5);
     assert(listener.payloadShape == vcam::runtime::BinderPayloadShape::kListener);
     assert(!listener.cameraScoped);
+
+    const auto listenerRemoval =
+            vcam::runtime::classifyBinderTransaction(recipe, 8);
+    assert(listenerRemoval.payloadShape ==
+           vcam::runtime::BinderPayloadShape::kListenerRemoval);
+    assert(!listenerRemoval.cameraScoped);
 
     const auto concurrent = vcam::runtime::classifyBinderTransaction(recipe, 7);
     assert(concurrent.payloadShape ==

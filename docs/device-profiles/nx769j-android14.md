@@ -585,3 +585,28 @@ device-user request test all passed, and the arm64 router linked with `-Werror`.
 No device process or installed module changed during this qualification. A
 guarded cold-boot public-ID test, provider-loss fallback and OEM/third-party app
 coverage are still required.
+
+The first dev.26 delivery attempt also exposed an install-time mode detail. A
+stock-default ZIP was installed and its live module configuration was changed
+afterward, but the KernelSU update overlay had already copied the stock mode.
+The resulting boot correctly stayed stock. The packager now emits a distinct
+`physical-route` candidate whose staged mode can be verified before reboot, and
+the AIDL provider still requires its independent one-shot route arm marker.
+
+The correctly staged dev.26 physical-route boot reached CameraService but failed
+before a public camera could be opened. SystemUI repeatedly reported
+`Failed to register a camera service listener` with `Function not implemented
+(-38)`. Six `system_app_crash` records triggered RescueParty, which rebooted the
+device to stock; both one-shot module disable markers worked, and there was no
+new tombstone, hung-task or kernel-lockup trace. The failure came from replacing
+the remote listener with a local `BBinder`: CameraService calls `linkToDeath()`
+during registration, while the local default returns `INVALID_OPERATION`.
+
+The router now proxies listener death-link operations to the original Binder and
+records the exact wrapper weakly so the OEM `removeListener` transaction reuses
+the registered Binder identity. The NX769J recipe classifies its confirmed
+transaction code 8 as `remove_listener`. Listener lifecycle, listener/status
+filtering, Parcel observation, trampoline allowlisting and arm64 router linking
+pass the Android 14 r23 host gates with `-Werror`. A new guarded cold-boot test is
+still required; the recovered device remains on stock with both modules disabled
+until that candidate is packaged and checked.

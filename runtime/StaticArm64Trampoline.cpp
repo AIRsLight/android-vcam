@@ -41,12 +41,13 @@ struct ExpectedTransaction {
     std::uint32_t code;
 };
 
-constexpr std::array<ExpectedTransaction, 11> kTransactions = {{
+constexpr std::array<ExpectedTransaction, 12> kTransactions = {{
     {"connect_api1", 3},
     {"connect_device", 4},
     {"add_listener", 5},
     {"get_concurrent_camera_ids", 6},
     {"concurrent_session_support", 7},
+    {"remove_listener", 8},
     {"get_camera_characteristics", 9},
     {"get_legacy_parameters", 12},
     {"supports_camera_api", 13},

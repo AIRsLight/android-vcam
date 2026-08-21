@@ -42,8 +42,8 @@ constexpr char16_t kCameraServiceDescriptor[] = u"android.hardware.ICameraServic
 constexpr std::uint32_t kServiceWaitAttempts = 3000;
 constexpr useconds_t kServiceWaitDelayMicroseconds = 10000;
 constexpr unsigned int kStatsPublishIntervalSeconds = 1;
-constexpr char kRuntimeRoutesPath[] = "/dev/vcam/routes.tsv";
-constexpr char kRuntimeProvidersPath[] = "/dev/vcam/providers";
+constexpr char kRuntimeRoutesPath[] = "/data/vendor/camera/vcam/routes.tsv";
+constexpr char kRuntimeProvidersPath[] = "/data/vendor/camera/vcam/providers";
 
 std::atomic<AndroidCameraServiceRouterState> gState {
         AndroidCameraServiceRouterState::kNotStarted};
@@ -230,15 +230,23 @@ protected:
         const ParcelObservation observation = observer_.observe(code, &data);
         if (physicalRoutingEnabled_ &&
             observation.status == ParcelObservationStatus::kObserved &&
-            observation.transaction.payloadShape == BinderPayloadShape::kListener) {
+            (observation.transaction.payloadShape == BinderPayloadShape::kListener ||
+             observation.transaction.payloadShape ==
+                     BinderPayloadShape::kListenerRemoval)) {
+            const bool addingListener =
+                    observation.transaction.payloadShape ==
+                    BinderPayloadShape::kListener;
             android::Parcel rewrittenListenerRequest;
             const CameraListenerRequestRouteStatus requestStatus =
-                    wrapAndroid14CameraListenerRequest(
-                            data, &rewrittenListenerRequest);
+                    addingListener
+                    ? wrapAndroid14CameraListenerRequest(
+                              data, &rewrittenListenerRequest)
+                    : wrapAndroid14CameraListenerRemovalRequest(
+                              data, &rewrittenListenerRequest);
             if (requestStatus == CameraListenerRequestRouteStatus::kWrapped) {
                 const android::status_t forwardStatus = target_->transact(
                         code, rewrittenListenerRequest, reply, flags);
-                if (forwardStatus == android::OK) {
+                if (addingListener && forwardStatus == android::OK) {
                     const CameraStatusReplyFilterStatus filterStatus =
                             filterAndroid14CameraStatusReply(reply);
                     if (filterStatus !=
@@ -253,8 +261,11 @@ protected:
                 }
                 return forwardStatus;
             }
-            ALOGW("camera listener route failed: status=%s",
-                  cameraListenerRequestRouteStatusName(requestStatus));
+            if (requestStatus !=
+                    CameraListenerRequestRouteStatus::kNoRegisteredWrapper) {
+                ALOGW("camera listener route failed: status=%s",
+                      cameraListenerRequestRouteStatusName(requestStatus));
+            }
         }
         if (physicalRoutingEnabled_ &&
             observation.status == ParcelObservationStatus::kObserved &&

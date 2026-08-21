@@ -14,6 +14,7 @@ enum class BinderPayloadShape {
     kStringCameraId,
     kIntegerCameraId,
     kListener,
+    kListenerRemoval,
     kConcurrentIds,
     kConcurrentSessionConfiguration,
 };

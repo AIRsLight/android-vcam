@@ -14,6 +14,7 @@ transaction	connect_device	4
 transaction	add_listener	5
 transaction	get_concurrent_camera_ids	6
 transaction	concurrent_session_support	7
+transaction	remove_listener	8
 transaction	get_camera_characteristics	9
 transaction	get_legacy_parameters	12
 transaction	supports_camera_api	13

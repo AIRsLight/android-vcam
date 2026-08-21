@@ -12,6 +12,7 @@ AbiRecipe makeNx769jAndroid14CameraServiceRecipe() {
             {"add_listener", 5},
             {"get_concurrent_camera_ids", 6},
             {"concurrent_session_support", 7},
+            {"remove_listener", 8},
             {"get_camera_characteristics", 9},
             {"get_legacy_parameters", 12},
             {"supports_camera_api", 13},

@@ -33,6 +33,7 @@ vcam::runtime::AbiRecipe recipe() {
         {"connect_device", 4},
         {"add_listener", 5},
         {"concurrent_session_support", 7},
+        {"remove_listener", 8},
         {"get_camera_characteristics", 9},
         {"get_legacy_parameters", 12},
     };
@@ -72,7 +73,7 @@ int main() {
     const auto qualifiedRecipe =
             vcam::runtime::makeNx769jAndroid14CameraServiceRecipe();
     assert(qualifiedRecipe.schema == 2);
-    assert(qualifiedRecipe.transactions.size() == 11);
+    assert(qualifiedRecipe.transactions.size() == 12);
 
     const auto transactions = recipe();
 

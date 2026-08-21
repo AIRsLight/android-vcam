@@ -278,6 +278,22 @@ Public 0/1 availability still reflects the OEM devices rather than synthesizing
 virtual-provider status, so runtime qualification must cover provider loss and
 fallback behavior before this becomes a production route.
 
+The listener wrapper must preserve Binder lifecycle behavior as well as callback
+payloads. A local `BBinder` returns `INVALID_OPERATION` from its default
+`linkToDeath()` implementation, which makes CameraService reject the listener
+before any status filtering occurs. The wrapper therefore delegates
+`linkToDeath()` and `unlinkToDeath()` to the original remote listener. It also
+keeps a weak original-to-wrapper registry so `removeListener` receives the same
+Binder object that was registered by `addListener`; expired entries are removed
+without retaining an application listener. Both transaction numbers remain
+recipe-controlled because OEM interfaces can insert or remove methods relative
+to AOSP.
+
+The router resolves the same manager-independent runtime paths as the backend:
+`/data/vendor/camera/vcam/routes.tsv` and
+`/data/vendor/camera/vcam/providers/<id>/enabled`. `/dev/vcam` is reserved for
+per-boot bootstrap state and telemetry; it is not a persistent route store.
+
 A successful connect-ID rewrite is not an end-to-end physical route. Camera2
 clients commonly query characteristics and choose output sizes before opening a
 device; capture requests must then be valid for the device that CameraService

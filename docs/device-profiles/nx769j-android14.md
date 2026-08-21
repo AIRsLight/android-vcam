@@ -610,3 +610,35 @@ filtering, Parcel observation, trampoline allowlisting and arm64 router linking
 pass the Android 14 r23 host gates with `-Werror`. A new guarded cold-boot test is
 still required; the recovered device remains on stock with both modules disabled
 until that candidate is packaged and checked.
+
+The rebuilt dev.26 candidate then completed that guarded cold-boot gate. The
+physical-route ZIP SHA-256 was
+`B7CA305FC33C8573FDBE1EAF9F80E0555DF7152725833B4725B2220BBD160696`,
+and its arm64 router SHA-256 was
+`D81F8A51DFF9F688DBED563657132A78FD77C6654C7F299500CB65D898B92A84`.
+Both the KernelSU update tree and meta-overlay contained the packaged
+`physical-route` mode before reboot. CameraService reached boot completion with
+the router, AIDL provider and manager-independent backend running; SystemUI
+registered through two filtered listener wrappers without another `-38` error.
+The `system_app_crash` count remained seven, and both modules armed their
+next-boot disable markers automatically.
+
+After Wi-Fi became available, `rtsp-time` published changing 1280x720 frames.
+An ordinary root-free test client opening public ID 0 was connected by
+CameraService to internal 1000, and public ID 1 was connected to internal 1001.
+Both showed the live, readable RTSP clock. Across the two targets and a later
+soak reopen, all seven public-to-internal rewrite attempts succeeded, three
+device-user wrappers repaired three repeating requests, and no request batch was
+skipped. Directly asking the framework for 1000 produced no CameraService client,
+because listener enumeration had already hidden that ID. The unscoped Nubia
+camera remained on physical ID 0 and displayed a normal preview, confirming that
+the package route did not affect it.
+
+A 45-second live-source soak kept cameraserver PID 2224, provider PID 1385 and
+streamer PID 20067 unchanged while the frame hash changed. There was no new
+SystemUI crash, fatal signal or tombstone. One delivery issue remains outside the
+Binder route: this boot completed before Wi-Fi associated, and the backend's
+single post-boot network retry timed out. Manually restarting only the media
+provider after WLAN association recovered the stream without touching
+CameraService. The backend should use a bounded repeated network-source retry or
+connectivity notification before this boot path is considered unattended.

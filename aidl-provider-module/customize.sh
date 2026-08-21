@@ -6,6 +6,8 @@ sdk="$(getprop ro.build.version.sdk)"
 abi="$(getprop ro.product.cpu.abi)"
 fingerprint="$(getprop ro.build.fingerprint)"
 expected_fingerprint='nubia/NX769J/NX769J:14/UKQ1.230917.001/20240417.145608:user/release-keys'
+expected_cameraservice_hash='a26f8ee10002769428871e042c7993e87ad769703897dd75a2fb93a725c64438'
+expected_camera_client_hash='1cf518e86a2e5461e585d8dbd7a1dbc93e7ba2bcc95c3e254ebdcc72ee0433c5'
 vendor_sku="$(getprop ro.boot.product.vendor.sku)"
 vendor_manifest=/vendor/etc/vintf/manifest.xml
 
@@ -20,6 +22,12 @@ target_fcm="$(sed -n 's/.*target-level="\([0-9][0-9]*\)".*/\1/p' \
 [ "$abi" = "arm64-v8a" ] || abort "! This probe requires arm64-v8a"
 [ "$fingerprint" = "$expected_fingerprint" ] || \
     abort "! This development probe is restricted to the qualified NX769J build"
+cameraservice_hash="$(sha256sum /system/lib64/libcameraservice.so 2>/dev/null | awk '{print $1}')"
+camera_client_hash="$(sha256sum /system/lib64/libcamera_client.so 2>/dev/null | awk '{print $1}')"
+[ "$cameraservice_hash" = "$expected_cameraservice_hash" ] || \
+    abort "! CameraService ABI mismatch: $cameraservice_hash"
+[ "$camera_client_hash" = "$expected_camera_client_hash" ] || \
+    abort "! libcamera_client ABI mismatch: $camera_client_hash"
 [ "$target_fcm" = "8" ] || \
     abort "! This probe requires target FCM 8; found '${target_fcm:-unknown}'"
 [ -d /data/adb/modules/meta-overlayfs ] || \

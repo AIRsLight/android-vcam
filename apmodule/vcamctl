@@ -803,6 +803,9 @@ print_status() {
         router_profile=$(sed -n 's/^profile=//p' /dev/vcam/router.stats | head -n 1)
         [ -n "$router_state" ] || router_state=unknown
         [ -n "$router_profile" ] || router_profile=none
+    elif [ "${MODDIR##*/}" = android_vcam ] && [ -e "$STATE_DIR/mount.ok" ]; then
+        router_state=oem_proxy_ready
+        router_profile=oneplus7pro-p202303230244
     fi
     echo "router_state=$router_state"
     echo "router_profile=$router_profile"
@@ -821,7 +824,7 @@ print_status() {
 
 print_capabilities() {
     profile_schema=$(sed -n 's/^schema_version=//p' "$PROFILE_FILE" 2>/dev/null | head -n 1)
-    if { [ ! -r "$PROFILE_FILE" ] || [ "$profile_schema" != 4 ]; } && \
+    if { [ ! -r "$PROFILE_FILE" ] || [ "$profile_schema" != 5 ]; } && \
        [ -x "$MODDIR/device-probe.sh" ]; then
         "$MODDIR/device-probe.sh" "$PROFILE_FILE" >/dev/null 2>&1 || true
     fi

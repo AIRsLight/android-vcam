@@ -6,6 +6,7 @@
 
 OUTPUT="$1"
 TEMPORARY=""
+SCRIPT_DIR=${0%/*}
 
 clean_value() {
     printf '%s' "$1" | tr '\r\n\t' '   '
@@ -162,9 +163,19 @@ for candidate in \
     camera_client_hash="$(sha256sum "$candidate" 2>/dev/null | awk '{print $1}')"
     break
 done
+proxy_slot_path=/vendor/lib64/hw/local_time.default.so
+proxy_slot_hash=none
+if [ -r "$proxy_slot_path" ]; then
+    proxy_slot_hash="$(sha256sum "$proxy_slot_path" 2>/dev/null | awk '{print $1}')"
+fi
 legacy_module_hash=none
 if [ -n "$legacy_module" ]; then
     legacy_module_hash="$(sha256sum "$legacy_module" 2>/dev/null | awk '{print $1}')"
+fi
+oneplus_hal_path=/vendor/lib64/hw/camera.qcom.so
+oneplus_hal_hash=none
+if [ -r "$oneplus_hal_path" ]; then
+    oneplus_hal_hash="$(sha256sum "$oneplus_hal_path" 2>/dev/null | awk '{print $1}')"
 fi
 provider_service_hash=none
 if [ -n "$provider_service" ]; then
@@ -184,9 +195,56 @@ fingerprint="$(prop ro.build.fingerprint)"
 profile_id=none
 profile_status=unsupported
 profile_reason=no_qualified_recipe
+profile_adapter=none
+profile_route_scope=unavailable
+profile_virtual_camera_ids=none
+
+hash_matches_file() {
+    actual="$1"
+    candidate="$2"
+    [ -r "$candidate" ] || return 1
+    [ "$actual" = "$(sha256sum "$candidate" 2>/dev/null | awk '{print $1}')" ]
+}
+
+oneplus_payload_matches=false
+if hash_matches_file "$oneplus_hal_hash" "$SCRIPT_DIR/vendor/lib64/hw/camera.qcom.so" &&
+   hash_matches_file "$proxy_slot_hash" "$SCRIPT_DIR/vendor/lib64/libvcam_proxy.so" &&
+   hash_matches_file "$cameraservice_hash" "$SCRIPT_DIR/system/lib64/libcameraservice.so"; then
+    oneplus_payload_matches=true
+fi
+
 case "$fingerprint" in
+    OnePlus/OnePlus7Pro_CH/OnePlus7Pro:12/SKQ1.211113.001/P.202303230244:user/release-keys)
+        profile_id=oneplus7pro-p202303230244
+        profile_adapter=oneplus7pro-oem-hal
+        profile_route_scope=per_app
+        if { { [ "$oneplus_hal_hash" = \
+                    dab50dfd0bde9f710c92097442d6451695f7ef82cb9e836b0af2b9369751daa6 ] ||
+                [ "$oneplus_hal_hash" = \
+                    66d5f38e8a6f5a287a661a06e1224fef477bb41574ca61f7091b5682b9b587d5 ]; } &&
+              [ "$proxy_slot_hash" = \
+                    6ac900f7c1b17fb5551a673ded1fc11469c53dac329bcbbb17b97dd57d2cc992 ] &&
+              [ "$cameraservice_hash" = \
+                    2108be5d63b385282d844f689e9f34740026072b8ef6daca2ed59b23612870af ]; } ||
+           [ "$oneplus_payload_matches" = true ]; then
+            profile_status=qualified
+            profile_reason=exact_fingerprint_and_oem_camera_abi
+        else
+            profile_status=abi_mismatch
+            profile_reason=qualified_fingerprint_with_unexpected_camera_abi
+        fi
+        ;;
+    OnePlus/OnePlus7Pro_CH/OnePlus7Pro:12/*)
+        profile_id=oneplus7pro-android12-candidate
+        profile_status=build_mismatch
+        profile_reason=oneplus7pro_android12_build_not_qualified
+        profile_adapter=oneplus7pro-oem-hal
+        ;;
     nubia/NX769J/NX769J:14/UKQ1.230917.001/20240417.145608:user/release-keys)
         profile_id=nx769j-ukq1-20240417
+        profile_adapter=nx769j-aidl-router
+        profile_route_scope=per_app
+        profile_virtual_camera_ids=1000,1001
         if [ "$cameraservice_hash" = \
                 a26f8ee10002769428871e042c7993e87ad769703897dd75a2fb93a725c64438 ] && \
            [ "$camera_client_hash" = \
@@ -202,11 +260,12 @@ case "$fingerprint" in
         profile_id=nx769j-android14-candidate
         profile_status=build_mismatch
         profile_reason=nx769j_android14_build_not_qualified
+        profile_adapter=nx769j-aidl-router
         ;;
 esac
 
 emit_profile() {
-    field schema_version 4
+    field schema_version 5
     field sdk "$(prop ro.build.version.sdk)"
     field release "$(prop ro.build.version.release)"
     field abi "$(prop ro.product.cpu.abi)"
@@ -228,14 +287,19 @@ emit_profile() {
     field adapter_hint "$adapter_hint"
     field legacy_module "${legacy_module:-none}"
     field legacy_module_hash "$legacy_module_hash"
+    field profile_camera_module_path "$([ "$profile_adapter" = oneplus7pro-oem-hal ] && printf '%s' "$oneplus_hal_path" || printf '%s' "${legacy_module:-none}")"
+    field profile_camera_module_hash "$([ "$profile_adapter" = oneplus7pro-oem-hal ] && printf '%s' "$oneplus_hal_hash" || printf '%s' "$legacy_module_hash")"
+    field proxy_slot_path "$proxy_slot_path"
+    field proxy_slot_hash "$proxy_slot_hash"
     field cameraservice_hash "$cameraservice_hash"
     field camera_client_path "$camera_client_path"
     field camera_client_hash "$camera_client_hash"
     field profile_id "$profile_id"
     field profile_status "$profile_status"
     field profile_reason "$profile_reason"
-    field route_scope "$([ "$profile_status" = qualified ] && printf per_app || printf unavailable)"
-    field virtual_camera_ids "$([ "$profile_status" = qualified ] && printf 1000,1001 || printf none)"
+    field profile_adapter "$profile_adapter"
+    field route_scope "$([ "$profile_status" = qualified ] && printf '%s' "$profile_route_scope" || printf unavailable)"
+    field virtual_camera_ids "$([ "$profile_status" = qualified ] && printf '%s' "$profile_virtual_camera_ids" || printf none)"
     field camera_count "$camera_count"
     field camera_ids "$camera_ids"
     field api1_camera_ids "$api1_camera_ids"

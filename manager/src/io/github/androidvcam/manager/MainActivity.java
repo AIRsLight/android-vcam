@@ -384,22 +384,28 @@ public final class MainActivity extends Activity {
         boolean exact = deviceProfile.qualified && deviceProfile.id.equals(backendProfile) &&
                 "qualified".equals(backendQualification);
         if (exact) {
-            compatibilityText.setText("NX769J Android 14 · 配方与 Camera ABI 已验证");
+            compatibilityText.setText(deviceProfile.title.replace("已认证", "配方与 Camera ABI 已验证"));
             compatibilityText.setTextColor(0xff047857);
         } else if (deviceProfile.qualified) {
-            compatibilityText.setText("NX769J Android 14 · 后端配方校验不完整");
+            compatibilityText.setText(deviceProfile.title.replace("已认证", "后端配方校验不完整"));
             compatibilityText.setTextColor(0xffb45309);
         }
         String router = status.getOrDefault("router_state", "unknown");
-        String provider = "true".equals(status.get("virtual_provider_active"))
-                ? "虚拟 Provider 运行中" : "虚拟 Provider 未运行";
-        String rollback = "true".equals(status.get("rollback_armed"))
-                ? "下次启动已自动回退" : "未检测到双模块回退标记";
+        boolean onePlus = DeviceCompatibility.ONEPLUS7PRO_PROFILE.equals(backendProfile);
+        String provider = onePlus
+                ? ("true".equals(status.get("mount_active")) ? "OEM HAL 代理已挂载" : "OEM HAL 代理未挂载")
+                : ("true".equals(status.get("virtual_provider_active"))
+                    ? "虚拟 Provider 运行中" : "虚拟 Provider 未运行");
+        String rollback = onePlus
+                ? "精确固件与 Camera ABI 保护"
+                : ("true".equals(status.get("rollback_armed"))
+                    ? "下次启动已自动回退" : "未检测到双模块回退标记");
         runtimeText.setText("路由：" + routeStateName(router) + "  ·  " + provider +
                 "\n保护：" + rollback + "  ·  配方：" + backendProfile);
     }
 
     private String routeStateName(String state) {
+        if ("oem_proxy_ready".equals(state)) return "OEM 按应用替换已就绪";
         if ("physical_route_ready".equals(state)) return "按应用替换已就绪";
         if ("pass_through_ready".equals(state)) return "仅透传";
         if ("preflight_ready".equals(state)) return "只读预检";

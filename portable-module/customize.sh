@@ -4,8 +4,21 @@ ui_print "- Validating portable cameraserver bootstrap"
 
 sdk="$(getprop ro.build.version.sdk)"
 abi="$(getprop ro.product.cpu.abi)"
+fingerprint="$(getprop ro.build.fingerprint)"
+expected_fingerprint='nubia/NX769J/NX769J:14/UKQ1.230917.001/20240417.145608:user/release-keys'
+expected_cameraservice_hash='a26f8ee10002769428871e042c7993e87ad769703897dd75a2fb93a725c64438'
+expected_camera_client_hash='1cf518e86a2e5461e585d8dbd7a1dbc93e7ba2bcc95c3e254ebdcc72ee0433c5'
 [ "$sdk" = "34" ] || abort "! This prototype package is restricted to Android 14"
 [ "$abi" = "arm64-v8a" ] || abort "! This prototype package requires arm64-v8a"
+[ "$fingerprint" = "$expected_fingerprint" ] || \
+    abort "! This router is restricted to the qualified NX769J build"
+
+cameraservice_hash="$(sha256sum /system/lib64/libcameraservice.so 2>/dev/null | awk '{print $1}')"
+camera_client_hash="$(sha256sum /system/lib64/libcamera_client.so 2>/dev/null | awk '{print $1}')"
+[ "$cameraservice_hash" = "$expected_cameraservice_hash" ] || \
+    abort "! CameraService ABI mismatch: $cameraservice_hash"
+[ "$camera_client_hash" = "$expected_camera_client_hash" ] || \
+    abort "! libcamera_client ABI mismatch: $camera_client_hash"
 
 live_cameraserver="/system/bin/cameraserver"
 launcher="$MODPATH/system/bin/cameraserver"

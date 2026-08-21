@@ -337,12 +337,27 @@ def main() -> None:
     controller = (ROOT / "apmodule" / "vcamctl").read_text(encoding="utf-8")
     if 'start_error=$(start_provider "$id" 2>&1)' not in controller:
         fail("provider update must pass the provider ID when restarting a source")
+    for slow_read_path in (
+        'list_providers() {\n    prepare_dirs',
+        'list_routes() {\n    prepare_dirs',
+        'provider_count=$(list_providers | wc -l)',
+    ):
+        if slow_read_path in controller:
+            fail(f"read-only controller path still performs expensive work: {slow_read_path}")
+    provider_list = controller.split("list_providers() {", 1)[1].split(
+        "\n}\n\nadd_provider()", 1
+    )[0]
+    if 'type=$(meta_value type "$meta")' in provider_list or \
+            "while IFS= read -r line" not in provider_list:
+        fail("provider listing must parse each metadata file in one shell pass")
     manager = (ROOT / "manager" / "src" / "io" / "github" / "androidvcam" /
                "manager" / "MainActivity.java").read_text(encoding="utf-8")
     for required_symbol in (
         "provider.withRunning(running)",
         "providers.removeIf(provider -> provider.id.equals(id))",
         "refreshProviders(true)",
+        "READ_CACHE_MS = 30_000L",
+        "refreshStatus(false)",
     ):
         if required_symbol not in manager:
             fail(f"provider actions lack immediate UI reconciliation: {required_symbol}")

@@ -158,49 +158,63 @@ write_runtime_config() {
 }
 
 print_provider() {
-    id="$1"
-    type="$2"
-    name="$3"
-    source="$4"
-    removable="$5"
-    running="$6"
-    meta="$7"
-    fps=$(config_value fps "$meta" 15)
-    max_width=$(config_value max_width "$meta" 1280)
-    max_height=$(config_value max_height "$meta" 720)
-    view0=$(config_value view0 "$meta" '0,1000,500,500')
-    view1=$(config_value view1 "$meta" '0,1000,500,500')
     printf 'PROVIDER\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$id" "$type" "$name" "$source" "$removable" "$running" \
-        "$fps" "$max_width" "$max_height" "$view0" "$view1"
+        "$1" "$2" "$3" "$4" "$5" "$6" \
+        "$7" "$8" "$9" "${10}" "${11}"
 }
 
 list_providers() {
-    prepare_dirs || return 1
-    print_provider physical-0 physical \
-        "$(printf 'Physical camera 0' | base64 | tr -d '\n')" '' false true /dev/null
-    print_provider physical-1 physical \
-        "$(printf 'Physical camera 1' | base64 | tr -d '\n')" '' false true /dev/null
+    if [ ! -d "$PROVIDER_STATE_DIR" ] || [ ! -d "$PROVIDER_FRAME_DIR" ]; then
+        prepare_dirs || return 1
+    fi
+    print_provider physical-0 physical UGh5c2ljYWwgY2FtZXJhIDA= '' false true \
+        15 1280 720 '0,1000,500,500' '0,1000,500,500'
+    print_provider physical-1 physical UGh5c2ljYWwgY2FtZXJhIDE= '' false true \
+        15 1280 720 '0,1000,500,500' '0,1000,500,500'
     for directory in "$PROVIDER_STATE_DIR"/*; do
         [ -d "$directory" ] || continue
         meta="$directory/meta"
         [ -f "$meta" ] || continue
         id=${directory##*/}
-        type=$(meta_value type "$meta")
-        name=$(meta_value name_b64 "$meta")
-        source=$(meta_value source_b64 "$meta")
+        type=
+        name=
+        source=
+        fps=15
+        max_width=1280
+        max_height=720
+        view0='0,1000,500,500'
+        view1='0,1000,500,500'
+        while IFS= read -r line || [ -n "$line" ]; do
+            key=${line%%=*}
+            value=${line#*=}
+            case "$key" in
+                type) type=$value ;;
+                name_b64) name=$value ;;
+                source_b64) source=$value ;;
+                fps) [ -n "$value" ] && fps=$value ;;
+                max_width) [ -n "$value" ] && max_width=$value ;;
+                max_height) [ -n "$value" ] && max_height=$value ;;
+                view0) [ -n "$value" ] && view0=$value ;;
+                view1) [ -n "$value" ] && view1=$value ;;
+            esac
+        done < "$meta"
         if [ ! -e "$PROVIDER_FRAME_DIR/$id/enabled" ]; then
             running=false
-        elif [ -f "$directory/stream.pid" ] && \
-            kill -0 "$(cat "$directory/stream.pid" 2>/dev/null)" 2>/dev/null; then
-            running=true
         elif [ "$type" = pattern ] || \
             { [ "$type" = image ] && [ -f "$PROVIDER_FRAME_DIR/$id/frame.rgb" ]; }; then
             running=true
+        elif [ -f "$directory/stream.pid" ]; then
+            pid=
+            IFS= read -r pid < "$directory/stream.pid"
+            case "$pid" in
+                ''|*[!0-9]*) running=false ;;
+                *) kill -0 "$pid" 2>/dev/null && running=true || running=false ;;
+            esac
         else
             running=false
         fi
-        print_provider "$id" "$type" "$name" "$source" true "$running" "$meta"
+        print_provider "$id" "$type" "$name" "$source" true "$running" \
+            "$fps" "$max_width" "$max_height" "$view0" "$view1"
     done
 }
 
@@ -770,11 +784,33 @@ remove_route() {
 }
 
 list_routes() {
-    prepare_dirs || return 1
+    [ -r "$ROUTES_FILE" ] || { prepare_dirs || return 1; }
     while IFS="$(printf '\t')" read -r package target provider; do
         [ -n "$package" ] && [ -n "$target" ] && [ -n "$provider" ] || continue
         printf 'ROUTE\t%s\t%s\t%s\n' "$package" "$target" "$provider"
     done < "$ROUTES_FILE"
+}
+
+provider_count() {
+    count=2
+    if [ -d "$PROVIDER_STATE_DIR" ]; then
+        for directory in "$PROVIDER_STATE_DIR"/*; do
+            [ -f "$directory/meta" ] || continue
+            count=$((count + 1))
+        done
+    fi
+    printf '%s\n' "$count"
+}
+
+route_count() {
+    count=0
+    if [ -r "$ROUTES_FILE" ]; then
+        while IFS="$(printf '\t')" read -r package target provider; do
+            [ -n "$package" ] && [ -n "$target" ] && [ -n "$provider" ] || continue
+            count=$((count + 1))
+        done < "$ROUTES_FILE"
+    fi
+    printf '%s\n' "$count"
 }
 
 print_status() {
@@ -789,10 +825,8 @@ print_status() {
         sed -n 's/.*Number of camera devices: //p' | head -n 1)
     [ -n "$camera_devices" ] || camera_devices=unavailable
     echo "camera_devices=$camera_devices"
-    provider_count=$(list_providers | wc -l)
-    route_count=$(list_routes | wc -l)
-    echo "provider_count=$provider_count"
-    echo "route_count=$route_count"
+    echo "provider_count=$(provider_count)"
+    echo "route_count=$(route_count)"
     if [ -r /vendor/lib64/hw/camera.qcom.so ]; then
         echo "hal_hash=$(sha256sum /vendor/lib64/hw/camera.qcom.so | awk '{print $1}')"
     fi

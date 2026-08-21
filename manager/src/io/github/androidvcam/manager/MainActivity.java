@@ -81,6 +81,7 @@ public final class MainActivity extends Activity {
     private static final int MAX_SOURCE_DIMENSION = 4096;
     private static final long MAX_SOURCE_PIXELS = 4096L * 3072L;
     private static final long MAX_SOURCE_PIXEL_RATE = 1920L * 1080L * 60L;
+    private static final long READ_CACHE_MS = 30_000L;
     private static final String[] TYPE_LABELS = {
             "内置彩条", "静态图片", "设备本地视频", "HTTPS 视频文件",
             "HTTP 视频 / 流", "HLS（HTTP）", "RTSP"
@@ -120,10 +121,13 @@ public final class MainActivity extends Activity {
     private boolean providerRefreshPending;
     private boolean routeRefreshInFlight;
     private boolean routeRefreshPending;
+    private boolean statusRefreshInFlight;
+    private boolean statusRefreshPending;
     private boolean appsDirty = true;
     private long lastProviderRefresh;
     private long lastAppRefresh;
     private long lastRouteRefresh;
+    private long lastStatusRefresh;
     private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
             appsDirty = true;
@@ -164,7 +168,7 @@ public final class MainActivity extends Activity {
             registerReceiver(packageReceiver, packageFilter);
         }
         showPage(statusPage);
-        refreshStatus();
+        refreshStatus(true);
     }
 
     private View buildRoot() {
@@ -211,7 +215,7 @@ public final class MainActivity extends Activity {
         navigation.addView(appsTab, weightedMargins(3, 0, 3, 0));
         root.addView(navigation, matchWrap());
 
-        statusTab.setOnClickListener(view -> { showPage(statusPage); refreshStatus(); });
+        statusTab.setOnClickListener(view -> { showPage(statusPage); refreshStatus(false); });
         sourcesTab.setOnClickListener(view -> { showPage(sourcesPage); refreshProviders(false); });
         appsTab.setOnClickListener(view -> { showPage(appsPage); refreshRoutes(false); });
         return root;
@@ -224,7 +228,7 @@ public final class MainActivity extends Activity {
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
         titleRow.addView(pageTitle("概览", ""), weighted());
         TextView refresh = compactSecondaryButton("刷新");
-        refresh.setOnClickListener(view -> refreshStatus());
+        refresh.setOnClickListener(view -> refreshStatus(true));
         titleRow.addView(refresh);
         body.addView(titleRow, matchWrap());
 
@@ -328,7 +332,14 @@ public final class MainActivity extends Activity {
         return scroll;
     }
 
-    private void refreshStatus() {
+    private void refreshStatus(boolean force) {
+        long age = SystemClock.elapsedRealtime() - lastStatusRefresh;
+        if (!force && lastStatusRefresh > 0 && age < READ_CACHE_MS) return;
+        if (statusRefreshInFlight) {
+            statusRefreshPending |= force;
+            return;
+        }
+        statusRefreshInFlight = true;
         statusText.setText("正在检查服务…");
         statusDetail.setText("正在读取状态");
         lastStatusError = "";
@@ -342,6 +353,8 @@ public final class MainActivity extends Activity {
                     capabilities.code == 0 ? capabilities.output : "");
         }, result -> {
             StatusResult latest = (StatusResult) result;
+            lastStatusRefresh = SystemClock.elapsedRealtime();
+            statusRefreshInFlight = false;
             Map<String, String> values = parseProperties(latest.statusOutput);
             Map<String, String> capabilities = parseProperties(latest.capabilitiesOutput);
             boolean healthy = "true".equals(values.get("module_enabled")) &&
@@ -354,7 +367,12 @@ public final class MainActivity extends Activity {
             routeCountText.setText(values.getOrDefault("route_count", "0"));
             halText.setText(values.getOrDefault("hal_hash", "未知"));
             updateCompatibilityStatus(values, capabilities);
+            if (statusRefreshPending) {
+                statusRefreshPending = false;
+                refreshStatus(true);
+            }
         }, error -> {
+            statusRefreshInFlight = false;
             statusText.setText(deviceProfile.qualified ? "设备已认证 · 后端未连接" : "后端未运行");
             statusDetail.setText("后端未连接");
             providerCountText.setText("—");
@@ -362,6 +380,7 @@ public final class MainActivity extends Activity {
             halText.setText("后端未连接");
             lastStatusError = friendlyError(error);
             runtimeText.setText("路由未知  ·  后端不可达");
+            statusRefreshPending = false;
         });
     }
 
@@ -427,7 +446,7 @@ public final class MainActivity extends Activity {
     private void refreshProviders(boolean force) {
         if (!providers.isEmpty()) renderProviders();
         long age = SystemClock.elapsedRealtime() - lastProviderRefresh;
-        if (!force && !providers.isEmpty() && age < 5_000) return;
+        if (!force && !providers.isEmpty() && age < READ_CACHE_MS) return;
         if (providerRefreshInFlight) {
             providerRefreshPending |= force;
             return;
@@ -987,7 +1006,11 @@ public final class MainActivity extends Activity {
                 BackendClient.controller("provider-remove", pending.id);
                 throw error;
             }
-        }, result -> { toast("图片提供器已添加"); refreshProviders(); });
+        }, result -> {
+            lastStatusRefresh = 0;
+            toast("图片提供器已添加");
+            refreshProviders();
+        });
     }
 
     private void importVideo(PendingProvider pending) {
@@ -1021,7 +1044,11 @@ public final class MainActivity extends Activity {
             } finally {
                 if (!temporary.delete()) temporary.deleteOnExit();
             }
-        }, result -> { toast("本地视频提供器已添加"); refreshProviders(); });
+        }, result -> {
+            lastStatusRefresh = 0;
+            toast("本地视频提供器已添加");
+            refreshProviders();
+        });
     }
 
     private void addRemoteProvider(PendingProvider pending) {
@@ -1036,7 +1063,11 @@ public final class MainActivity extends Activity {
             } catch (Exception error) {
                 BackendClient.controller("provider-remove", pending.id); throw error;
             }
-        }, result -> { toast("提供器已添加"); refreshProviders(); });
+        }, result -> {
+            lastStatusRefresh = 0;
+            toast("提供器已添加");
+            refreshProviders();
+        });
     }
 
     private void configureProvider(PendingProvider pending) throws IOException {
@@ -1107,6 +1138,7 @@ public final class MainActivity extends Activity {
             if ("provider-remove".equals(command)) {
                 providers.removeIf(provider -> provider.id.equals(id));
                 lastRouteRefresh = 0;
+                lastStatusRefresh = 0;
             } else if ("provider-start".equals(command) || "provider-stop".equals(command)) {
                 boolean running = "provider-start".equals(command);
                 for (int index = 0; index < providers.size(); ++index) {
@@ -1180,7 +1212,7 @@ public final class MainActivity extends Activity {
     private void refreshRoutes(boolean force) {
         if (!routes.isEmpty()) renderRoutes();
         long age = SystemClock.elapsedRealtime() - lastRouteRefresh;
-        if (!force && lastRouteRefresh > 0 && age < 5_000) return;
+        if (!force && lastRouteRefresh > 0 && age < READ_CACHE_MS) return;
         if (routeRefreshInFlight) {
             routeRefreshPending |= force;
             return;
@@ -1195,7 +1227,8 @@ public final class MainActivity extends Activity {
             BackendClient.Result routeResult = BackendClient.controller("routes");
             routeResult.requireSuccess();
             List<Provider> latestProviders = null;
-            if (providers.isEmpty() || SystemClock.elapsedRealtime() - lastProviderRefresh > 5_000) {
+            if (providers.isEmpty() ||
+                    SystemClock.elapsedRealtime() - lastProviderRefresh > READ_CACHE_MS) {
                 BackendClient.Result providerResult = BackendClient.controller("providers");
                 providerResult.requireSuccess();
                 latestProviders = parseProviders(providerResult.output);
@@ -1422,6 +1455,7 @@ public final class MainActivity extends Activity {
             if (!provider0.isEmpty()) routes.put(packageName + "\t0", provider0);
             if (!provider1.isEmpty()) routes.put(packageName + "\t1", provider1);
             lastRouteRefresh = SystemClock.elapsedRealtime();
+            lastStatusRefresh = 0;
             renderRoutes();
             toast("应用路由已保存，新相机会话开始时生效");
         });
@@ -1437,6 +1471,7 @@ public final class MainActivity extends Activity {
                             routes.remove(app.packageName + "\t0");
                             routes.remove(app.packageName + "\t1");
                             lastRouteRefresh = SystemClock.elapsedRealtime();
+                            lastStatusRefresh = 0;
                             renderRoutes();
                             toast("应用路由已删除");
                         })).show();

@@ -34,10 +34,11 @@ HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
   temporarily unavailable, and reinstalling the same package restores it automatically.
 - A module-owned `vcamd` daemon persists configuration independently of the
   manager and exposes only an authenticated, fixed-command local protocol.
-  The NX769J AIDL dev.29 package reuses this backend and includes the static
+  The NX769J AIDL package reuses this backend and includes the static
   media decoder, publisher, bounded late-network retry and provider autostart lifecycle.
-- The root-free Manager recognizes the exact qualified NX769J build locally,
-  cross-checks the backend CameraService/libcamera_client hashes when active,
+- The root-free Manager recognizes both exact qualified builds locally:
+  OnePlus 7 Pro Android 12 and NX769J Android 14. It cross-checks the backend
+  device profile and Camera ABI hashes when active,
   reports router/provider/rollback state, and launches the ordinary test APK
   against public cameras 0 or 1. Unknown builds remain configuration-only.
 - A transport-neutral route resolver is shared by the OEM compatibility proxy
@@ -97,7 +98,7 @@ The tested toolchain is under `D:\AndroidSdk`: NDK `27.2.12479018`, CMake
 
 ```powershell
 pwsh -File tools/fetch-platform-deps.ps1
-pwsh -File tools/package-release.ps1
+pwsh -File tools/package-supported-release.ps1
 ```
 
 Build the pinned static FFmpeg SDK once on Linux (the CI builder uses NDK
@@ -111,13 +112,18 @@ tools/build-ffmpeg-android.sh --ndk-root /path/to/android-ndk-r27d
 Outputs:
 
 ```text
-dist/android-vcam-apm-v0.4.0-dev.zip
-dist/android-vcam-manager-v0.4.0-dev-debug.apk
-dist/android-vcam-camera2-test-v0.4.0-dev-debug.apk
+dist/android-vcam-manager-v0.5.0-dev.30-debug.apk
+dist/android-vcam-camera2-test-v0.5.0-dev.30-debug.apk
+dist/android-vcam-oneplus7pro-apm-v0.5.0-dev.30.zip
+dist/android-vcam-aidl-provider-v0.5.0-dev.30.zip
+dist/android-vcam-portable-bootstrap-v0.5.0-dev.30-physical-route.zip
+dist/android-vcam-supported-v0.5.0-dev.30.json
 ```
 
-The NX769J delivery is built separately because it uses the stable-AIDL v2
-Provider and guarded cameraserver router:
+The unified release command still creates device-specific module files because
+the two qualified devices use different camera transports and root delivery
+mechanisms. The JSON manifest maps an automatically detected profile to the
+correct module set. NX769J artifacts can also be repackaged separately with:
 
 ```powershell
 pwsh -File tools/package-aosp14-aidl-provider.ps1

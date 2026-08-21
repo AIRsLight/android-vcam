@@ -2,7 +2,8 @@
 param(
     [string]$ArtifactRoot = "out/android14-provider-probe",
     [string]$NativeArtifactRoot = "out/native/arm64-v8a",
-    [string]$Output = "dist/android-vcam-aidl-provider-v0.5.0-dev.29.zip"
+    [string]$Output = "dist/android-vcam-aidl-provider-v0.5.0-dev.30.zip",
+    [string]$Python = "python"
 )
 
 $ErrorActionPreference = "Stop"
@@ -105,8 +106,8 @@ New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
 if (Test-Path -LiteralPath $outputPath) {
     Remove-Item -LiteralPath $outputPath -Force
 }
-Compress-Archive -Path (Join-Path $stagingRoot "*") -DestinationPath $outputPath `
-    -CompressionLevel Optimal
+& $Python (Join-Path $PSScriptRoot "create-module-zip.py") $stagingRoot $outputPath
+if ($LASTEXITCODE -ne 0) { throw "AIDL provider ZIP creation failed" }
 
 $archive = Get-Item -LiteralPath $outputPath
 $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $outputPath

@@ -388,8 +388,9 @@ def main() -> None:
     for required_symbol in (
         "provider_transport", "provider_version", "provider_instance", "adapter_hint",
         "aidl_service_line", "provider_service_hash", "legacy_module_hash",
-        "cameraservice_hash", "camera_client_hash", "profile_status",
-        "nx769j-ukq1-20240417", "root_manager",
+        "cameraservice_hash", "camera_client_hash", "proxy_slot_hash",
+        "profile_status", "profile_adapter", "profile_camera_module_hash", "schema_version 5",
+        "nx769j-ukq1-20240417", "oneplus7pro-p202303230244", "root_manager",
     ):
         if required_symbol not in probe:
             fail(f"device probe is missing field: {required_symbol}")
@@ -513,7 +514,8 @@ def main() -> None:
     for required_symbol in (
         "source-preview", "loadBackendNetworkPreview", "showProviderPreview",
         "provider-frame", "刷新帧", "MAX_SOURCE_PIXEL_RATE", "12 MP",
-        "DeviceCompatibility", "NX769J Android 14", "测试公共相机 0",
+        "DeviceCompatibility", "NX769J Android 14", "OnePlus 7 Pro Android 12",
+        "ONEPLUS7PRO_PROFILE", "测试公共相机 0",
         "router_state", "profile_status", "openCameraTest",
     ):
         if required_symbol not in manager_sources:
@@ -538,10 +540,42 @@ def main() -> None:
     for required_symbol in (
         "provider_manifest", "provider_init_service", "provider_service_context",
         "provider_process_context", "camera_ids", "api1_camera_ids",
-        "under_screen_camera", "route_scope", "virtual_camera_ids",
+        "under_screen_camera", "route_scope", "virtual_camera_ids", "profile_adapter",
     ):
         if required_symbol not in device_probe:
             fail(f"device compatibility probe is missing: {required_symbol}")
+
+    for installer in (
+        ROOT / "aidl-provider-module" / "customize.sh",
+        ROOT / "portable-module" / "customize.sh",
+    ):
+        installer_text = installer.read_text(encoding="utf-8")
+        for required_symbol in (
+            "expected_fingerprint", "expected_cameraservice_hash",
+            "expected_camera_client_hash",
+        ):
+            if required_symbol not in installer_text:
+                fail(f"NX769J installer lacks exact ABI guard: {installer.name}: {required_symbol}")
+
+    supported_release = (
+        ROOT / "tools" / "package-supported-release.ps1"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "write-supported-release-manifest.ps1", "package-aosp14-aidl-provider.ps1",
+        "package-release.ps1", "package-portable-bootstrap.ps1",
+    ):
+        if required_symbol not in supported_release:
+            fail(f"dual-device release packager is missing: {required_symbol}")
+
+    release_manifest = (
+        ROOT / "tools" / "write-supported-release-manifest.ps1"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "oneplus7pro-p202303230244", "nx769j-ukq1-20240417",
+        "android-vcam-supported-v$Version.json", "Get-FileHash",
+    ):
+        if required_symbol not in release_manifest:
+            fail(f"dual-device release manifest lacks: {required_symbol}")
 
     test_app = (ROOT / "testapp" / "src" / "io" / "github" / "androidvcam" /
                 "test" / "CameraPreviewActivity.java").read_text(encoding="utf-8")

@@ -642,3 +642,15 @@ single post-boot network retry timed out. Manually restarting only the media
 provider after WLAN association recovered the stream without touching
 CameraService. The backend should use a bounded repeated network-source retry or
 connectivity notification before this boot path is considered unattended.
+
+dev.27 closes that boot-network race with an 18-round, ten-second-delay retry
+loop limited to autostart RTSP/HTTP/HLS providers. Its ZIP SHA-256 was
+`DF2AA09A7A05AE87A96859A4E76FFDD95EF9E68B11C38C924EFC35904B87FB61`.
+For the device gate, Wi-Fi remained disabled through boot completion. The
+initial start failed with `Network is unreachable`; retry round 1 then timed out
+and round 2 began while WLAN was still absent. Wi-Fi was enabled without issuing
+any VCAM control command. Round 2 timed out during association, round 3 published
+the first frame, and the worker logged `network-provider retry complete
+round=3`. The streamer remained active, the frame hash changed over ten seconds,
+and public camera 0 again opened internal 1000 with a readable live preview. No
+new `system_app_crash` entry was created.

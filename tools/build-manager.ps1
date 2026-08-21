@@ -51,7 +51,7 @@ if ($LASTEXITCODE -ne 0) { throw "aapt2 compile failed" }
 & $aapt2 link -o $unsigned -I $androidJar `
     --manifest (Join-Path $appRoot "AndroidManifest.xml") `
     --java $gen --min-sdk-version 31 --target-sdk-version 35 `
-    --version-code 17 --version-name "0.5.0-dev.33" $compiled
+    --version-code 19 --version-name "0.5.0-dev.35" $compiled
 if ($LASTEXITCODE -ne 0) { throw "aapt2 link failed" }
 
 $sources = @(

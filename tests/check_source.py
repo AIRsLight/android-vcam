@@ -317,13 +317,23 @@ def main() -> None:
 
     proxy = (ROOT / "native" / "proxy_bootstrap.cpp").read_text(encoding="utf-8")
     for required_symbol in (
-        "RouteResolver", "packageFrom",
-        "providerForPackage", "gProxyModuleMethods",
+        "RouteResolver", "packageFrom", "ProviderSelection",
+        "resolveProviderForPackage", "selection.configured",
+        "selection.available", "state->cameraId", "gProxyModuleMethods",
     ):
         if required_symbol not in proxy:
             fail(f"OEM proxy is missing expected feature: {required_symbol}")
     if "state->cameraId, 2" not in proxy:
         fail("OEM proxy must preserve the physical camera's two-part result contract")
+    unified_service = (ROOT / "unified-module" / "service.sh").read_text(
+        encoding="utf-8"
+    )
+    for required_symbol in (
+        "ro.build.fingerprint", "oneplus7pro-p202303230244",
+        "nx769j-ukq1-20240417", "recovered profile from exact fingerprint",
+    ):
+        if required_symbol not in unified_service:
+            fail(f"unified service lacks profile race recovery: {required_symbol}")
     route_resolver = (ROOT / "hal" / "src" / "RouteResolver.cpp").read_text(
         encoding="utf-8"
     )

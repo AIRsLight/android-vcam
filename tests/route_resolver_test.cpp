@@ -58,6 +58,12 @@ int main() {
     assert(missing.configured);
     assert(missing.available);
     assert(missing.match == vcam::RouteMatchKind::Global);
+    const auto auxiliary = vcam::RouteResolver::resolveProviderForPackage(
+            "com.unknown", 5, routes, providers);
+    assert(!auxiliary.configured);
+    assert(auxiliary.available);
+    assert(auxiliary.providerId == "physical-5");
+    assert(auxiliary.match == vcam::RouteMatchKind::None);
     assert(vcam::RouteResolver::physicalIdFromProvider("physical-1") == 1);
     assert(vcam::RouteResolver::physicalIdFromProvider("demo") == -1);
     assert(vcam::RouteResolver::framePath("demo", providers) ==

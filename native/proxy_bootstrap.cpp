@@ -361,11 +361,17 @@ int proxyConfigure(const camera3_device_t* device,
     ProxyDevice* state = findDevice(device);
     if (state == nullptr || config == nullptr) return -EINVAL;
     const std::string packageName = packageFrom(config->session_parameters);
-    const std::string provider = vcam::RouteResolver::providerForPackage(
-            packageName, state->cameraId);
-    const int physicalSource =
-            vcam::RouteResolver::physicalIdFromProvider(provider);
-    const bool useVirtual = physicalSource < 0;
+    const vcam::ProviderSelection selection =
+            vcam::RouteResolver::resolveProviderForPackage(
+                    packageName, state->cameraId);
+    const std::string& provider = selection.providerId;
+    const int routedPhysicalSource = selection.configured && selection.available
+            ? vcam::RouteResolver::physicalIdFromProvider(provider)
+            : state->cameraId;
+    const bool useVirtual = selection.configured && selection.available &&
+            routedPhysicalSource < 0;
+    const int physicalSource = useVirtual
+            ? -1 : routedPhysicalSource;
     if (useVirtual) {
         state->virtualCamera->setSourcePath(
                 vcam::RouteResolver::framePath(provider));

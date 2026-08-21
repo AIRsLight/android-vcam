@@ -814,8 +814,11 @@ print_status() {
     else
         echo "virtual_provider_active=false"
     fi
-    if [ -e /data/adb/modules/android_vcam_portable/disable ] && \
-       [ -e /data/adb/modules/android_vcam_aidl_provider/disable ]; then
+    installed_profile="$(cat "$MODDIR/profile.id" 2>/dev/null)"
+    if { [ "$installed_profile" = nx769j-ukq1-20240417 ] && \
+         [ -e "$MODDIR/disable" ]; } || \
+       { [ -e /data/adb/modules/android_vcam_portable/disable ] && \
+         [ -e /data/adb/modules/android_vcam_aidl_provider/disable ]; }; then
         echo "rollback_armed=true"
     else
         echo "rollback_armed=false"

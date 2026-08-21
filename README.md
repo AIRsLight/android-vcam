@@ -112,18 +112,17 @@ tools/build-ffmpeg-android.sh --ndk-root /path/to/android-ndk-r27d
 Outputs:
 
 ```text
-dist/android-vcam-manager-v0.5.0-dev.31-debug.apk
-dist/android-vcam-camera2-test-v0.5.0-dev.31-debug.apk
-dist/android-vcam-oneplus7pro-apm-v0.5.0-dev.31.zip
-dist/android-vcam-aidl-provider-v0.5.0-dev.31.zip
-dist/android-vcam-portable-bootstrap-v0.5.0-dev.31-physical-route.zip
-dist/android-vcam-supported-v0.5.0-dev.31.json
+dist/android-vcam-manager-v0.5.0-dev.32-debug.apk
+dist/android-vcam-camera2-test-v0.5.0-dev.32-debug.apk
+dist/android-vcam-module-v0.5.0-dev.32.zip
+dist/android-vcam-supported-v0.5.0-dev.32.json
 ```
 
-The unified release command still creates device-specific module files because
-the two qualified devices use different camera transports and root delivery
-mechanisms. The JSON manifest maps an automatically detected profile to the
-correct module set. NX769J artifacts can also be repackaged separately with:
+The release contains one `android_vcam` root module. Its installer requires the
+active MetaModule recommended by KernelSU or APatch, validates the exact device
+fingerprint and camera ABI, then installs only the matching OnePlus 7 Pro or
+NX769J runtime profile. Unknown builds fail closed. Device-specific packages
+can still be produced for engineering diagnostics, but are not release files:
 
 ```powershell
 pwsh -File tools/package-aosp14-aidl-provider.ps1
@@ -132,16 +131,17 @@ pwsh -File tools/build-manager.ps1
 pwsh -File tools/build-testapp.ps1
 ```
 
-The current dual-device artifact hashes and installation map are listed in
+The current single-module artifact hashes and installation map are listed in
+[the dev.32 release snapshot](docs/releases/supported-dev32.md). The earlier
+multi-module packaging remains documented in
 [the dev.31 release snapshot](docs/releases/supported-dev31.md). The original
 NX769J qualification boundary remains preserved in
 [the dev.29 integration snapshot](docs/releases/nx769j-dev29.md).
 
-The APatch ZIP contains a patched copy of the pinned OEM HAL, the dependency
-proxy, the CameraService package-tag patch, native publisher/stream decoder,
-controller daemon/scripts and the legacy WebUI. It never contains or modifies the device's
-partition-resident files in place. It declares `skip_mount` and performs three
-guarded bind mounts, so an APatch metamodule is not required.
+The unified ZIP contains both qualified payload profiles before installation.
+The installer removes the unused profile and leaves one module tree. System
+files are mounted by the active SU-manager MetaModule; VCAM does not implement
+or bundle its own mount engine and never writes partition-resident files.
 
 ## Repository
 
@@ -151,6 +151,7 @@ native/     OEM proxy, FFmpeg decoder, publisher, control daemon and NDK build
 manager/    Root-free management APK with status, providers and per-app routes
 testapp/    Ordinary root-free Camera2 test APK
 apmodule/   APatch lifecycle, provider controller and WebUI
+unified-module/  Single published root-module installer and lifecycle dispatcher
 tools/      Inspection, patching, build and packaging scripts
 tests/      Host-side source/frame tests
 docs/       Architecture, frame format and recovery notes

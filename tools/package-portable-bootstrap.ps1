@@ -63,7 +63,7 @@ $modeDestination = Join-Path $staging "system\etc\android_vcam\bootstrap.mode"
 Get-ChildItem -LiteralPath $staging -Recurse -Filter .gitkeep | Remove-Item -Force
 
 $modeSuffix = if ($BootstrapMode -eq "stock") { "" } else { "-$BootstrapMode" }
-$zip = Join-Path $dist "android-vcam-portable-bootstrap-v0.5.0-dev.31$modeSuffix.zip"
+$zip = Join-Path $dist "android-vcam-portable-bootstrap-v0.5.0-dev.32$modeSuffix.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 & $Python (Join-Path $PSScriptRoot "create-module-zip.py") $staging $zip
 if ($LASTEXITCODE -ne 0) { throw "Portable module ZIP creation failed" }

@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "0.5.0-dev.31",
+    [string]$Version = "0.5.0-dev.32",
     [string]$OutputDirectory = "dist"
 )
 
@@ -10,9 +10,7 @@ $dist = Join-Path $repoRoot $OutputDirectory
 $artifactNames = @(
     "android-vcam-manager-v$Version-debug.apk",
     "android-vcam-camera2-test-v$Version-debug.apk",
-    "android-vcam-oneplus7pro-apm-v$Version.zip",
-    "android-vcam-aidl-provider-v$Version.zip",
-    "android-vcam-portable-bootstrap-v$Version-physical-route.zip"
+    "android-vcam-module-v$Version.zip"
 )
 
 $artifacts = foreach ($name in $artifactNames) {
@@ -29,9 +27,9 @@ $artifacts = foreach ($name in $artifactNames) {
 }
 
 $manifest = [ordered]@{
-    schema = 1
+    schema = 2
     release = $Version
-    selection = "exact fingerprint plus camera ABI; unknown builds fail closed"
+    selection = "one root module auto-selects an exact fingerprint and camera ABI; unknown builds fail closed"
     common = [ordered]@{
         manager = "android-vcam-manager-v$Version-debug.apk"
         test_app = "android-vcam-camera2-test-v$Version-debug.apk"
@@ -40,17 +38,14 @@ $manifest = [ordered]@{
         [ordered]@{
             id = "oneplus7pro-p202303230244"
             fingerprint = "OnePlus/OnePlus7Pro_CH/OnePlus7Pro:12/SKQ1.211113.001/P.202303230244:user/release-keys"
-            root_delivery = "APatch guarded bind mounts"
-            modules = @("android-vcam-oneplus7pro-apm-v$Version.zip")
+            root_delivery = "APatch with an active supported MetaModule"
+            modules = @("android-vcam-module-v$Version.zip")
         },
         [ordered]@{
             id = "nx769j-ukq1-20240417"
             fingerprint = "nubia/NX769J/NX769J:14/UKQ1.230917.001/20240417.145608:user/release-keys"
-            root_delivery = "KernelSU plus OverlayFS MetaModule"
-            modules = @(
-                "android-vcam-aidl-provider-v$Version.zip",
-                "android-vcam-portable-bootstrap-v$Version-physical-route.zip"
-            )
+            root_delivery = "KernelSU with an active supported MetaModule"
+            modules = @("android-vcam-module-v$Version.zip")
         }
     )
     artifacts = @($artifacts)

@@ -1,11 +1,18 @@
 #!/system/bin/sh
 
 MODDIR=${0%/*}
-STATE_DIR=/data/adb/android_vcam_aidl_provider
+if [ "$(cat "$MODDIR/profile.id" 2>/dev/null)" = nx769j-ukq1-20240417 ]; then
+    STATE_DIR=/data/adb/android_vcam/runtime/aidl
+    ROUTER_STATE_DIR=/data/adb/android_vcam/runtime/router
+else
+    STATE_DIR=/data/adb/android_vcam_aidl_provider
+    ROUTER_STATE_DIR=/data/adb/android_vcam_portable
+fi
 WATCHDOG_LOG=$STATE_DIR/watchdog.log
 BOOT_LOG=$STATE_DIR/bootstrap.log
 MOUNTED_FRAGMENT=/vendor/etc/vintf/manifest/android.hardware.camera.provider-service-vcam-v2.xml
 NEXT_BOOT_MODE_FILE=$STATE_DIR/next-boot.mode
+ROUTER_READY_FILE=$ROUTER_STATE_DIR/post-mount.boot-id
 
 mkdir -p "$STATE_DIR"
 chmod 0700 "$STATE_DIR"
@@ -15,7 +22,7 @@ case "$boot_mode" in
     two|route) ;;
     *) boot_mode=zero ;;
 esac
-echo "bootstrap 0.5.0-dev.31 started mode=$boot_mode" >> "$BOOT_LOG"
+echo "bootstrap 0.5.0-dev.32 started mode=$boot_mode" >> "$BOOT_LOG"
 
 disable_next_boot() {
     touch "$MODDIR/disable"
@@ -66,6 +73,29 @@ bootstrap_provider() {
         request_recovery_reboot \
             "VINTF overlay was not visible during early boot; requesting disabled recovery reboot"
         return 1
+    fi
+
+    # In the unified module, Provider and CameraService routing share one
+    # disable marker. Wait until post-mount has verified the router before
+    # arming next-boot rollback, otherwise KernelSU could skip that hook.
+    if [ "$(cat "$MODDIR/profile.id" 2>/dev/null)" = nx769j-ukq1-20240417 ]; then
+        current_boot_id="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"
+        router_ready=0
+        attempt=0
+        while [ "$attempt" -lt 50 ]; do
+            if [ -n "$current_boot_id" ] && \
+               [ "$(cat "$ROUTER_READY_FILE" 2>/dev/null)" = "$current_boot_id" ]; then
+                router_ready=1
+                break
+            fi
+            sleep 0.1
+            attempt=$((attempt + 1))
+        done
+        if [ "$router_ready" != "1" ]; then
+            request_recovery_reboot \
+                "CameraService router was not verified before rollback arming"
+            return 1
+        fi
     fi
 
     # The current overlay stays mounted after this point. A manual reboot or

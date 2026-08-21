@@ -2,7 +2,11 @@
 
 MODDIR=$1
 COMMAND=$2
-STATE_DIR=/data/adb/android_vcam_aidl_provider
+if [ "$(cat "$MODDIR/profile.id" 2>/dev/null)" = nx769j-ukq1-20240417 ]; then
+    STATE_DIR=/data/adb/android_vcam/runtime/aidl
+else
+    STATE_DIR=/data/adb/android_vcam_aidl_provider
+fi
 PID_FILE=$STATE_DIR/provider.pid
 MODE_FILE=$STATE_DIR/provider.mode
 NEXT_BOOT_MODE_FILE=$STATE_DIR/next-boot.mode

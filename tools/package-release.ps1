@@ -3,7 +3,9 @@ param(
     [string]$OriginalCameraHal = "out\device\camera.qcom.original.so",
     [string]$PatchedCameraHal = "out\device\camera.qcom.vcam-proxy.so",
     [string]$ManagerApk = "out\manager\android-vcam-manager-debug.apk",
-    [string]$TestApk = "out\testapp\android-vcam-camera2-test-debug.apk"
+    [string]$TestApk = "out\testapp\android-vcam-camera2-test-debug.apk",
+    [string]$Version = "0.5.0-dev.32",
+    [switch]$SkipDeviceModule
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,17 +26,19 @@ python (Join-Path $PSScriptRoot "patch-original-hal.py") `
     --library /vendor/lib64/hw/local_time.default.so $original $patched
 if ($LASTEXITCODE -ne 0) { throw "OEM HAL patch failed" }
 
-& (Join-Path $PSScriptRoot "package-apmodule.ps1") -CameraHal $patched
-if ($LASTEXITCODE -ne 0) { throw "APatch module packaging failed" }
+if (-not $SkipDeviceModule) {
+    & (Join-Path $PSScriptRoot "package-apmodule.ps1") -CameraHal $patched
+    if ($LASTEXITCODE -ne 0) { throw "APatch module packaging failed" }
+}
 
-$releaseManager = Join-Path $dist "android-vcam-manager-v0.5.0-dev.31-debug.apk"
+$releaseManager = Join-Path $dist "android-vcam-manager-v$Version-debug.apk"
 Copy-Item -LiteralPath $managerPath -Destination $releaseManager -Force
 $managerHash = Get-FileHash -Algorithm SHA256 -LiteralPath $releaseManager
 Set-Content -LiteralPath "$releaseManager.sha256" `
     -Value ($managerHash.Hash.ToLowerInvariant() + "  " + (Split-Path -Leaf $releaseManager)) `
     -Encoding ascii
 
-$releaseApk = Join-Path $dist "android-vcam-camera2-test-v0.5.0-dev.31-debug.apk"
+$releaseApk = Join-Path $dist "android-vcam-camera2-test-v$Version-debug.apk"
 Copy-Item -LiteralPath $apkPath -Destination $releaseApk -Force
 $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $releaseApk
 Set-Content -LiteralPath "$releaseApk.sha256" `

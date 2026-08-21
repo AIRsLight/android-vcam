@@ -52,6 +52,7 @@ def main() -> None:
         ROOT / "aosp" / "cameraservice" / "android-14" / "frameworks-av-boundary.patch",
         ROOT / "aosp" / "cameraservice" / "android-12" / "frameworks-base-license.bp",
         ROOT / "tools" / "create-module-zip.py",
+        ROOT / "tests" / "check_unified_module.py",
         ROOT / "tools" / "apply-aosp-cameraservice-patch.ps1",
         ROOT / "tools" / "verify-aosp-build.ps1",
         ROOT / "tools" / "verify-aosp14-build.sh",
@@ -65,6 +66,10 @@ def main() -> None:
         ROOT / "tools" / "package-portable-bootstrap.ps1",
         ROOT / "tools" / "package-aosp14-hidl-provider.ps1",
         ROOT / "tools" / "package-aosp14-aidl-provider.ps1",
+        ROOT / "tools" / "package-unified-module.ps1",
+        ROOT / "unified-module" / "module.prop",
+        ROOT / "unified-module" / "customize.sh",
+        ROOT / "unified-module" / "service.sh",
         ROOT / "portable-module" / "module.prop",
         ROOT / "portable-module" / "customize.sh",
         ROOT / "portable-module" / "post-mount.sh",
@@ -568,11 +573,48 @@ def main() -> None:
         ROOT / "tools" / "package-supported-release.ps1"
     ).read_text(encoding="utf-8")
     for required_symbol in (
-        "write-supported-release-manifest.ps1", "package-aosp14-aidl-provider.ps1",
-        "package-release.ps1", "package-portable-bootstrap.ps1",
+        "write-supported-release-manifest.ps1", "package-unified-module.ps1",
+        "package-release.ps1", "-SkipDeviceModule",
     ):
         if required_symbol not in supported_release:
-            fail(f"dual-device release packager is missing: {required_symbol}")
+            fail(f"unified release packager is missing: {required_symbol}")
+
+    unified_installer = (
+        ROOT / "unified-module" / "customize.sh"
+    ).read_text(encoding="utf-8")
+    unified_service = (
+        ROOT / "unified-module" / "service.sh"
+    ).read_text(encoding="utf-8")
+    unified_packager = (
+        ROOT / "tools" / "package-unified-module.ps1"
+    ).read_text(encoding="utf-8")
+    unified_prop = (
+        ROOT / "unified-module" / "module.prop"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "id=android_vcam", "name=Android Virtual Camera",
+    ):
+        if required_symbol not in unified_prop:
+            fail(f"unified module identity lacks: {required_symbol}")
+    for required_symbol in (
+        "ONEPLUS_FINGERPRINT", "NX769J_FINGERPRINT", "/data/adb/metamodule",
+        "payload/profiles", "mark_disabled_legacy_module_for_removal",
+        "Unsupported device build", "profile.id",
+    ):
+        if required_symbol not in unified_installer:
+            fail(f"unified installer lacks: {required_symbol}")
+    for required_symbol in (
+        "profile-service.sh", "provider-service.sh", "router-service.sh",
+    ):
+        if required_symbol not in unified_service:
+            fail(f"unified lifecycle dispatcher lacks: {required_symbol}")
+    for required_symbol in (
+        "package-apmodule.ps1", "package-aosp14-aidl-provider.ps1",
+        "package-portable-bootstrap.ps1", "android-vcam-module-v$Version.zip",
+        "local_time.default.so", "Remove-ProfileMetadata",
+    ):
+        if required_symbol not in unified_packager:
+            fail(f"unified module packager lacks: {required_symbol}")
 
     release_manifest = (
         ROOT / "tools" / "write-supported-release-manifest.ps1"
@@ -580,9 +622,17 @@ def main() -> None:
     for required_symbol in (
         "oneplus7pro-p202303230244", "nx769j-ukq1-20240417",
         "android-vcam-supported-v$Version.json", "Get-FileHash",
+        "android-vcam-module-v$Version.zip", "schema = 2",
     ):
         if required_symbol not in release_manifest:
-            fail(f"dual-device release manifest lacks: {required_symbol}")
+            fail(f"single-module release manifest lacks: {required_symbol}")
+    for forbidden_symbol in (
+        "android-vcam-oneplus7pro-apm-v$Version.zip",
+        "android-vcam-aidl-provider-v$Version.zip",
+        "android-vcam-portable-bootstrap-v$Version-physical-route.zip",
+    ):
+        if forbidden_symbol in release_manifest:
+            fail(f"release manifest still publishes a device module: {forbidden_symbol}")
 
     test_app = (ROOT / "testapp" / "src" / "io" / "github" / "androidvcam" /
                 "test" / "CameraPreviewActivity.java").read_text(encoding="utf-8")

@@ -19,4 +19,8 @@ if [ -s "$daemon_pid_file" ]; then
     esac
 fi
 rm -f "$daemon_pid_file"
-rm -rf /data/adb/android_vcam_aidl_provider
+if [ "$(cat "$MODDIR/profile.id" 2>/dev/null)" = nx769j-ukq1-20240417 ]; then
+    rm -rf /data/adb/android_vcam/runtime/aidl /data/adb/android_vcam/runtime/router
+else
+    rm -rf /data/adb/android_vcam_aidl_provider
+fi

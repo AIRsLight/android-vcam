@@ -30,10 +30,15 @@ camera_client_hash="$(sha256sum /system/lib64/libcamera_client.so 2>/dev/null | 
     abort "! libcamera_client ABI mismatch: $camera_client_hash"
 [ "$target_fcm" = "8" ] || \
     abort "! This probe requires target FCM 8; found '${target_fcm:-unknown}'"
-[ -d /data/adb/modules/meta-overlayfs ] || \
-    abort "! The OverlayFS MetaModule must be installed first"
-[ ! -e /data/adb/modules/meta-overlayfs/disable ] || \
-    abort "! The OverlayFS MetaModule is disabled"
+[ -d /data/adb/metamodule ] || \
+    abort "! An active MetaModule must be installed first"
+[ ! -e /data/adb/metamodule/disable ] || \
+    abort "! The active MetaModule is disabled"
+meta_flag="$(sed -n 's/^metamodule=//p' /data/adb/metamodule/module.prop 2>/dev/null | head -n 1)"
+case "$meta_flag" in
+    1|true) ;;
+    *) abort "! /data/adb/metamodule is not a valid MetaModule" ;;
+esac
 if [ -d /data/adb/modules/android_vcam_hidl_provider ] && \
    [ ! -e /data/adb/modules/android_vcam_hidl_provider/disable ]; then
     abort "! Disable the HIDL provider probe before installing the AIDL probe"

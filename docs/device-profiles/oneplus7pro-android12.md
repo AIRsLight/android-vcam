@@ -13,7 +13,7 @@ Other OxygenOS/HydrogenOS builds are separate camera ABIs and fail closed.
 | Accepted legacy HAL SHA-256 | `66d5f38e8a6f5a287a661a06e1224fef477bb41574ca61f7091b5682b9b587d5` |
 | Proxy slot SHA-256 | `6ac900f7c1b17fb5551a673ded1fc11469c53dac329bcbbb17b97dd57d2cc992` |
 | CameraService SHA-256 | `2108be5d63b385282d844f689e9f34740026072b8ef6daca2ed59b23612870af` |
-| Delivery | APatch guarded bind mounts; no MetaModule required |
+| Delivery | APatch with an active supported MetaModule |
 
 The qualified adapter provides per-application routing for public camera 0/1.
 Physical cameras 0/1, images, color bars, local video and supported network
@@ -28,4 +28,4 @@ either the pinned stock hashes or payload hashes from the currently installed
 The universal Manager performs a root-free fingerprint match and then requires
 the backend to return the same profile ID with `profile_status=qualified` before
 showing the Camera ABI as verified. The device-specific release artifact is
-`android-vcam-oneplus7pro-apm-v0.5.0-dev.31.zip`.
+`android-vcam-module-v0.5.0-dev.32.zip`, which selects this profile during installation.

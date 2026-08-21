@@ -1,5 +1,6 @@
 [CmdletBinding()]
 param(
+    [string]$Version = "0.5.0-dev.32",
     [string]$OriginalCameraHal = "out\device\camera.qcom.original.so",
     [string]$PatchedCameraHal = "out\device\camera.qcom.vcam-proxy.so",
     [string]$AidlArtifactRoot = "out/android14-provider-probe",
@@ -12,19 +13,19 @@ $ErrorActionPreference = "Stop"
 
 & (Join-Path $PSScriptRoot "package-release.ps1") `
     -OriginalCameraHal $OriginalCameraHal `
-    -PatchedCameraHal $PatchedCameraHal
-if ($LASTEXITCODE -ne 0) { throw "OnePlus 7 Pro release packaging failed" }
+    -PatchedCameraHal $PatchedCameraHal `
+    -Version $Version `
+    -SkipDeviceModule
+if ($LASTEXITCODE -ne 0) { throw "Common release packaging failed" }
 
-& (Join-Path $PSScriptRoot "package-aosp14-aidl-provider.ps1") `
-    -ArtifactRoot $AidlArtifactRoot `
-    -NativeArtifactRoot $NativeArtifactRoot
-if ($LASTEXITCODE -ne 0) { throw "NX769J AIDL provider packaging failed" }
+& (Join-Path $PSScriptRoot "package-unified-module.ps1") `
+    -Version $Version `
+    -CameraHal $PatchedCameraHal `
+    -AidlArtifactRoot $AidlArtifactRoot `
+    -NativeArtifactRoot $NativeArtifactRoot `
+    -RouterLauncher $RouterLauncher `
+    -RouterLibrary $RouterLibrary
+if ($LASTEXITCODE -ne 0) { throw "Unified root module packaging failed" }
 
-& (Join-Path $PSScriptRoot "package-portable-bootstrap.ps1") `
-    -Launcher $RouterLauncher `
-    -Router $RouterLibrary `
-    -BootstrapMode physical-route
-if ($LASTEXITCODE -ne 0) { throw "NX769J router packaging failed" }
-
-& (Join-Path $PSScriptRoot "write-supported-release-manifest.ps1")
+& (Join-Path $PSScriptRoot "write-supported-release-manifest.ps1") -Version $Version
 if ($LASTEXITCODE -ne 0) { throw "Release manifest generation failed" }

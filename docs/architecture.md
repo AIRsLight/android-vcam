@@ -112,8 +112,8 @@ runtime. `provider-start` removes stale output and waits up to 15 seconds for a
 new first frame, so a missing protocol, route or decoder is returned as an
 error instead of leaving a false "running" provider.
 
-The module declares `skip_mount`, so it does not depend on an APatch
-metamodule. Guarded `post-mount.sh` binds the proxy over the pinned, otherwise
+The unified module uses the active MetaModule supported by APatch or KernelSU.
+Guarded `post-mount.sh` verifies the proxy over the pinned, otherwise
 unused `/vendor/lib64/hw/local_time.default.so` slot, then binds CameraService
 and the OEM HAL copies. Every source/target hash is checked and the module is
 disabled on any mismatch.

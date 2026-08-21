@@ -1,12 +1,17 @@
 #!/system/bin/sh
 
 MODDIR=${0%/*}
-LOG_DIR=/data/adb/android_vcam_portable
+if [ "$(cat "$MODDIR/profile.id" 2>/dev/null)" = nx769j-ukq1-20240417 ]; then
+    LOG_DIR=/data/adb/android_vcam/runtime/router
+else
+    LOG_DIR=/data/adb/android_vcam_portable
+fi
 LOG_FILE=$LOG_DIR/bootstrap.log
 mkdir -p "$LOG_DIR"
 chmod 0700 "$LOG_DIR"
 
-if [ -e "$MODDIR/disable" ]; then
+if [ -e "$MODDIR/disable" ] && \
+   [ "${ANDROID_VCAM_CURRENT_BOOT_ACTIVE:-0}" != "1" ]; then
     echo "service: module disabled" >> "$LOG_FILE"
     exit 0
 fi

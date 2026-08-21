@@ -1,7 +1,11 @@
 #!/system/bin/sh
 
 MODDIR=${0%/*}
-PROBE_STATE_DIR=/data/adb/android_vcam_aidl_provider
+if [ "$(cat "$MODDIR/profile.id" 2>/dev/null)" = nx769j-ukq1-20240417 ]; then
+    PROBE_STATE_DIR=/data/adb/android_vcam/runtime/aidl
+else
+    PROBE_STATE_DIR=/data/adb/android_vcam_aidl_provider
+fi
 BACKEND_STATE_DIR=/data/adb/android_vcam
 BOOT_LOG=$PROBE_STATE_DIR/bootstrap.log
 BACKEND_LOG=$BACKEND_STATE_DIR/module.log

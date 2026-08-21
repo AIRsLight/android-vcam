@@ -1,13 +1,18 @@
 #!/system/bin/sh
 
 MODDIR=${0%/*}
-LOG_DIR=/data/adb/android_vcam_portable
+if [ "$(cat "$MODDIR/profile.id" 2>/dev/null)" = nx769j-ukq1-20240417 ]; then
+    LOG_DIR=/data/adb/android_vcam/runtime/router
+else
+    LOG_DIR=/data/adb/android_vcam_portable
+fi
 LOG_FILE=$LOG_DIR/bootstrap.log
 LIVE=/system/bin/cameraserver
 STOCK=/system/bin/vcam/cameraserver
 ROUTER=/system/lib64/libvcam_cameraserver_router.so
 MODE=/system/etc/android_vcam/bootstrap.mode
 RUNTIME_DIR=/dev/vcam
+READY_FILE=$LOG_DIR/post-mount.boot-id
 
 mkdir -p "$LOG_DIR"
 chmod 0700 "$LOG_DIR"
@@ -61,3 +66,6 @@ chcon u:object_r:cameraserver_tmpfs:s0 "$RUNTIME_DIR" || \
     echo "stock=$actual_stock"
     echo "mode=$configured_mode"
 } >> "$LOG_FILE"
+cat /proc/sys/kernel/random/boot_id > "$READY_FILE" 2>/dev/null || \
+    fail_bootstrap "unable to record verified post-mount boot"
+chmod 0600 "$READY_FILE"

@@ -32,3 +32,19 @@ Selection is fail-closed at three boundaries:
 The NX769J dev.29 qualification evidence remains valid and is preserved in
 `nx769j-dev29.md`. dev.30 adds dual-device discovery and strengthens the
 NX769J router installer guard; it does not broaden either firmware boundary.
+
+## Device validation
+
+NX769J dev.30 was installed from the frozen artifacts on the qualified UKQ1
+device. Both installers accepted the exact fingerprint and Camera ABI. The
+first safe boot registered the provider in zero-camera mode; an explicitly
+armed route boot then redirected public camera 0 to internal 1000 and public
+camera 1 to internal 1001 for `io.github.androidvcam.test`. Both targets
+delivered the configured RTSP time stream. Wi-Fi was deliberately unavailable
+at boot; after Wi-Fi was enabled, the bounded backend retry restored the source
+without recreating its configuration. The following ordinary reboot returned
+to five stock cameras with no VCAM process and both one-shot modules disabled.
+
+The OnePlus 7 Pro artifact has passed installer/source/build checks but still
+requires a post-dev.30 boot and camera-route regression run on the physical
+device before this release can claim dual-device runtime qualification.

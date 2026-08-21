@@ -227,6 +227,8 @@ def main() -> None:
         "intentionally read-only", "ANDROID_VCAM_CURRENT_BOOT_ACTIVE",
         "provider-start", "vcamd", "retry_unpublished_providers_after_boot",
         "sys.boot_completed", "retry-provider=", "backend.boot-id",
+        "NETWORK_RETRY_ROUNDS=18", "NETWORK_RETRY_DELAY_SECONDS=10",
+        "network-provider retry exhausted", "rtsp|http|https|hls",
     ):
         if required_symbol not in aidl_probe_scripts:
             fail(f"AIDL provider probe safety contract is missing: {required_symbol}")

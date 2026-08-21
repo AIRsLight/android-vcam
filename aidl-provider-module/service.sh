@@ -8,6 +8,8 @@ BACKEND_LOG=$BACKEND_STATE_DIR/module.log
 DAEMON=$MODDIR/system/bin/vcamd
 DAEMON_PID=$BACKEND_STATE_DIR/vcamd.pid
 BACKEND_BOOT_ID_FILE=$PROBE_STATE_DIR/backend.boot-id
+NETWORK_RETRY_ROUNDS=18
+NETWORK_RETRY_DELAY_SECONDS=10
 
 mkdir -p "$PROBE_STATE_DIR" "$BACKEND_STATE_DIR"
 chmod 0700 "$PROBE_STATE_DIR" "$BACKEND_STATE_DIR"
@@ -72,14 +74,36 @@ retry_unpublished_providers_after_boot() {
     # Give Android's network validation and route selection a short settling
     # interval after boot_completed before retrying failed remote providers.
     sleep 5
-    for provider in "$BACKEND_STATE_DIR"/providers/*; do
-        [ -f "$provider/meta" ] || continue
-        [ -e "$provider/autostart" ] || continue
-        id=${provider##*/}
-        [ -e "/data/vendor/camera/vcam/providers/$id/enabled" ] && continue
-        echo "service: retry-provider=$id" >> "$BACKEND_LOG"
-        "$MODDIR/vcamctl" provider-start "$id" >> "$BACKEND_LOG" 2>&1
+    round=1
+    while [ "$round" -le "$NETWORK_RETRY_ROUNDS" ]; do
+        pending=0
+        for provider in "$BACKEND_STATE_DIR"/providers/*; do
+            [ -f "$provider/meta" ] || continue
+            [ -e "$provider/autostart" ] || continue
+            source_type=$(sed -n 's/^type=//p' "$provider/meta")
+            case "$source_type" in
+                rtsp|http|https|hls) ;;
+                *) continue ;;
+            esac
+            id=${provider##*/}
+            enabled="/data/vendor/camera/vcam/providers/$id/enabled"
+            [ -e "$enabled" ] && continue
+            echo "service: retry-provider=$id round=$round/$NETWORK_RETRY_ROUNDS" \
+                >> "$BACKEND_LOG"
+            "$MODDIR/vcamctl" provider-start "$id" >> "$BACKEND_LOG" 2>&1
+            [ -e "$enabled" ] || pending=1
+        done
+        if [ "$pending" -eq 0 ]; then
+            echo "service: network-provider retry complete round=$round" \
+                >> "$BACKEND_LOG"
+            return 0
+        fi
+        [ "$round" -ge "$NETWORK_RETRY_ROUNDS" ] && break
+        sleep "$NETWORK_RETRY_DELAY_SECONDS"
+        round=$((round + 1))
     done
+    echo "service: network-provider retry exhausted rounds=$NETWORK_RETRY_ROUNDS" \
+        >> "$BACKEND_LOG"
 }
 
 retry_unpublished_providers_after_boot &

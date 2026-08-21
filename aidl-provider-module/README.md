@@ -5,7 +5,7 @@ of a declared stable-AIDL v2 `vcam/0` provider on the NX769J Android 14 build.
 It is not a production release. It advertises zero cameras by default and can
 advertise the two test cameras for one explicitly armed boot.
 
-dev.25 packages the shared manager-independent backend: `vcamd`,
+dev.27 packages the shared manager-independent backend: `vcamd`,
 `vcamctl`, `provider-runner.sh`, `vcam-publisher` and the statically linked
 arm64 `vcam-streamer`. Provider metadata remains under
 `/data/adb/android_vcam/providers`, while frames remain under
@@ -13,6 +13,11 @@ arm64 `vcam-streamer`. Provider metadata remains under
 does not stop configured providers or remove their state. The installer checks
 the complete backend payload against `payload/backend.sha256` before enabling
 the module.
+
+Network-backed autostart providers retry for at most 18 rounds after
+`boot_completed`, with ten seconds between unsuccessful rounds, and stop as soon
+as every pending RTSP/HTTP/HLS source has published its first frame. This covers
+late Wi-Fi association without creating an unbounded boot worker.
 
 The module mounts one VINTF fragment through OverlayFS MetaModule. The fragment
 was checked together with a complete VINTF/APEX snapshot from the target using

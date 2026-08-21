@@ -55,6 +55,9 @@ if [ -z "$pid" ]; then
     setprop sys.powerctl reboot,vcam-bootstrap-recovery
 else
     echo "service: CameraService stable for 10 seconds" >> "$LOG_FILE"
+    touch "$MODDIR/disable"
+    sync
+    echo "service: armed automatic disable for the next boot" >> "$LOG_FILE"
 fi
 
 {

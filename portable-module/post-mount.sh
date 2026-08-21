@@ -59,5 +59,5 @@ chcon u:object_r:cameraserver_tmpfs:s0 "$RUNTIME_DIR" || \
     echo "post-mount $(date '+%Y-%m-%dT%H:%M:%S%z')"
     echo "launcher=$actual_launcher"
     echo "stock=$actual_stock"
-    echo "mode=stock-default"
+    echo "mode=$configured_mode"
 } >> "$LOG_FILE"

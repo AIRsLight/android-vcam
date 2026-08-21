@@ -62,4 +62,4 @@ chcon u:object_r:system_file:s0 "$router" "$mode_file" || \
     abort "! Unable to label router configuration"
 
 ui_print "- Captured stock cameraserver: $stock_hash"
-ui_print "- Bootstrap defaults to stock mode; no Binder routing is enabled"
+ui_print "- Packaged bootstrap mode: $(sed -n '1p' "$mode_file")"

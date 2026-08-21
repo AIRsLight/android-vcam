@@ -3,6 +3,8 @@ param(
     [string]$Launcher = "out\aosp14-router\vcam_cameraserver_launcher",
     [string]$Router = "out\aosp14-router\libvcam_cameraserver_router.so",
     [string]$OutputDirectory = "dist",
+    [ValidateSet("stock", "preflight", "passthrough", "physical-route")]
+    [string]$BootstrapMode = "stock",
     [string]$Python = "python"
 )
 
@@ -55,9 +57,13 @@ $launcherDestination = Join-Path $staging "system\bin\cameraserver"
 $routerDestination = Join-Path $staging "system\lib64\libvcam_cameraserver_router.so"
 Copy-Item -LiteralPath $launcherInput -Destination $launcherDestination -Force
 Copy-Item -LiteralPath $routerInput -Destination $routerDestination -Force
+$modeDestination = Join-Path $staging "system\etc\android_vcam\bootstrap.mode"
+[System.IO.File]::WriteAllText(
+    $modeDestination, "$BootstrapMode`n", [System.Text.UTF8Encoding]::new($false))
 Get-ChildItem -LiteralPath $staging -Recurse -Filter .gitkeep | Remove-Item -Force
 
-$zip = Join-Path $dist "android-vcam-portable-bootstrap-v0.5.0-dev.10.zip"
+$modeSuffix = if ($BootstrapMode -eq "stock") { "" } else { "-$BootstrapMode" }
+$zip = Join-Path $dist "android-vcam-portable-bootstrap-v0.5.0-dev.26$modeSuffix.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 & $Python (Join-Path $PSScriptRoot "create-module-zip.py") $staging $zip
 if ($LASTEXITCODE -ne 0) { throw "Portable module ZIP creation failed" }

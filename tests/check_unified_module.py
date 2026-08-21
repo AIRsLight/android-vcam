@@ -7,7 +7,7 @@ import zipfile
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-DEFAULT_ZIP = ROOT / "dist" / "android-vcam-module-v0.5.0-dev.36.zip"
+DEFAULT_ZIP = ROOT / "dist" / "android-vcam-module-v0.5.0-dev.37.zip"
 PROFILES = {
     "oneplus7pro-p202303230244": {
         "install-profile.sh",

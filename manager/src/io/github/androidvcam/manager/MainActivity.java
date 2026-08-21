@@ -1104,8 +1104,21 @@ public final class MainActivity extends Activity {
     private void runProviderAction(String command, String id) {
         runAsync(() -> BackendClient.controller(command, id), result -> {
             result.requireSuccess();
-            if ("provider-remove".equals(command)) lastRouteRefresh = 0;
-            refreshProviders();
+            if ("provider-remove".equals(command)) {
+                providers.removeIf(provider -> provider.id.equals(id));
+                lastRouteRefresh = 0;
+            } else if ("provider-start".equals(command) || "provider-stop".equals(command)) {
+                boolean running = "provider-start".equals(command);
+                for (int index = 0; index < providers.size(); ++index) {
+                    Provider provider = providers.get(index);
+                    if (provider.id.equals(id)) {
+                        providers.set(index, provider.withRunning(running));
+                        break;
+                    }
+                }
+            }
+            renderProviders();
+            refreshProviders(true);
         });
     }
 
@@ -1757,6 +1770,11 @@ public final class MainActivity extends Activity {
             this.removable = removable; this.running = running;
             this.fps = fps; this.maxWidth = maxWidth; this.maxHeight = maxHeight;
             this.view0 = view0; this.view1 = view1;
+        }
+
+        Provider withRunning(boolean value) {
+            return new Provider(id, type, name, source, removable, value,
+                    fps, maxWidth, maxHeight, view0, view1);
         }
     }
     private static final class PendingProvider {

@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "0.5.0-dev.36",
+    [string]$Version = "0.5.0-dev.37",
     [string]$OutputDirectory = "dist"
 )
 

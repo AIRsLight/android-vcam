@@ -5,7 +5,7 @@ of a declared stable-AIDL v2 `vcam/0` provider on the NX769J Android 14 build.
 It is not a production release. It advertises zero cameras by default and can
 advertise the two test cameras for one explicitly armed boot.
 
-dev.36 packages the shared manager-independent backend: `vcamd`,
+dev.37 packages the shared manager-independent backend: `vcamd`,
 `vcamctl`, `provider-runner.sh`, `vcam-publisher` and the statically linked
 arm64 `vcam-streamer`. Provider metadata remains under
 `/data/adb/android_vcam/providers`, while frames remain under

@@ -337,6 +337,15 @@ def main() -> None:
     controller = (ROOT / "apmodule" / "vcamctl").read_text(encoding="utf-8")
     if 'start_error=$(start_provider "$id" 2>&1)' not in controller:
         fail("provider update must pass the provider ID when restarting a source")
+    manager = (ROOT / "manager" / "src" / "io" / "github" / "androidvcam" /
+               "manager" / "MainActivity.java").read_text(encoding="utf-8")
+    for required_symbol in (
+        "provider.withRunning(running)",
+        "providers.removeIf(provider -> provider.id.equals(id))",
+        "refreshProviders(true)",
+    ):
+        if required_symbol not in manager:
+            fail(f"provider actions lack immediate UI reconciliation: {required_symbol}")
     route_resolver = (ROOT / "hal" / "src" / "RouteResolver.cpp").read_text(
         encoding="utf-8"
     )

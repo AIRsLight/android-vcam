@@ -107,6 +107,7 @@ are in [the device profile](docs/device-profiles/nx769j-android14.md).
 | ABI | `arm64-v8a` |
 | Build | `P.202303230244` |
 | OEM HAL SHA-256 | `dab50dfd0bde9f710c92097442d6451695f7ef82cb9e836b0af2b9369751daa6` |
+| Root delivery | APatch + active supported MetaModule |
 
 Do not install either pinned delivery on another device or ROM build. Unknown
 fingerprints and camera-library hashes must fail closed.

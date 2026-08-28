@@ -1,16 +1,36 @@
 # android-vcam
 
-System-level, app-scoped virtual camera project. The compatibility adapter is
-pinned to a OnePlus 7 Pro Android 12 ROM, while the Android 14 AIDL provider and
-public-ID CameraService router are qualified on the exact NX769J UKQ1 build. The repository also
-contains the transport-neutral frame core and AOSP HIDL/AIDL Provider
-frontends. Target applications are not hooked: Camera1, Camera2 and CameraX
-keep using the normal framework and CameraService path.
+System-level virtual camera research for Android 10-14. Target applications are
+not hooked: Camera1, Camera2 and CameraX continue through the normal framework
+and CameraService path. The repository contains a transport-neutral frame
+engine, a root-free manager, HIDL/AIDL virtual Camera Providers, exact-device
+compatibility adapters and version-pinned AOSP CameraService integrations.
 
-The module injects a small proxy into the original Qualcomm Camera HAL. Every
-`(application package, target camera)` pair can route to physical camera 0,
-physical camera 1, a static image, built-in color bars, a local video, or an
-HTTP/HTTPS/HLS/RTSP source. Applications without a route remain physical.
+The currently qualified app-scoped delivery is pinned to a OnePlus 7 Pro
+Android 12 ROM and an NX769J Android 14 UKQ1 build. A route can select physical
+camera 0/1, a static image, built-in color bars, a local video, or an
+HTTP/HTTPS/HLS/RTSP source. Unmatched applications remain on the physical
+camera. OnePlus uses a guarded Qualcomm Camera HAL proxy; NX769J uses a
+same-process CameraService Binder router and a standalone stable-AIDL v2
+Provider.
+
+## Project status
+
+| Area | Status |
+| --- | --- |
+| OnePlus 7 Pro Android 12 scoped routing | Qualified on one exact firmware |
+| NX769J Android 14 scoped public 0/1 routing | Qualified on one exact firmware |
+| Root-free manager and manager-independent backend | Implemented |
+| Image, local video, HTTP/HTTPS/HLS and RTSP sources | Implemented |
+| Unified APatch/KernelSU module with automatic exact-profile selection | Implemented |
+| Android 12 AOSP HIDL source integration | Build-validated, runtime qualification incomplete |
+| Android 13 AOSP HIDL/AIDL coexistence | Partial build integration |
+| Android 14 AOSP stable-AIDL v2 integration | Build-validated; provider path qualified on NX769J |
+| Manufacturer-neutral global replacement mode | Planned; not yet enabled in release builds |
+| General Android 10 and Android 11 integration | Planned |
+
+This is pre-release system software. Release modules accept only qualified
+fingerprints and camera-library identities and fail closed on unknown builds.
 
 ## Implemented
 
@@ -90,6 +110,64 @@ are in [the device profile](docs/device-profiles/nx769j-android14.md).
 
 Do not install either pinned delivery on another device or ROM build. Unknown
 fingerprints and camera-library hashes must fail closed.
+
+## Roadmap
+
+### 1. Manufacturer-neutral global mode
+
+Add a compatibility tier that replaces every ordinary application's public
+camera targets without identifying the caller. The OEM provider remains
+registered, while a same-process `media.camera` Binder router maps public IDs
+to collision-free virtual Provider IDs. This removes package lookup, shared-UID
+ambiguity, per-app route state and OEM session-package tags from the generic
+path. Physical-camera sources are excluded from the first global-mode contract
+to avoid recursive capture.
+
+Compatibility is selected by Android protocol family and live capabilities,
+not by manufacturer or model. Device-side probing will not disassemble system
+libraries. Android 10-14 Binder/Parcel templates are generated offline from
+pinned AOSP tags; runtime qualification uses service descriptors, HIDL/AIDL
+version/hash queries, VINTF, Camera2 tests and staged pass-through observation.
+An unknown or ambiguous interface remains stock.
+
+Activation is staged and reversible:
+
+1. validate the stock cameraserver launcher, linker and SELinux environment;
+2. load the router in read-only/pass-through mode;
+3. run deterministic Camera1/Camera2 tests against the physical and virtual
+   Provider paths;
+4. enable one-shot global mapping with automatic next-boot rollback;
+5. persist activation only after the health gate succeeds.
+
+Results are classified as `certified`, `probe-compatible` or `unsupported`.
+Exact hashes remain certification and OTA-invalidation keys, not the sole
+generic compatibility rule.
+
+### 2. Android 10-14 protocol matrix
+
+- Android 10-12: HIDL Provider 2.4 / Camera Device 3.4 and version-pinned
+  CameraService protocol templates.
+- Android 13: runtime HIDL/stable-AIDL transport selection and mixed-provider
+  discovery tests.
+- Android 14: stable-AIDL v2, initial-release and QPR protocol templates, plus
+  broader OEM validation beyond NX769J.
+
+AVD and AOSP userdebug images provide platform-version gates. They verify the
+framework, Provider, manager and source pipeline but do not replace real-device
+qualification for OEM SELinux, linker, gralloc, lifecycle and camera metadata.
+
+### 3. Specification and privacy completion
+
+- Derive each virtual camera contract from the selected public target's
+  standard metadata and the Provider's actual capabilities.
+- Filter unsupported RAW, depth, high-speed, HDR, reprocess, logical-camera and
+  vendor-tag capabilities instead of advertising an unimplementable superset.
+- Complete listener, concurrency, Camera1, Camera2, CameraX and delegated-system-
+  camera coverage for the global boundary.
+- Keep unknown camera-scoped transactions and unsupported Provider states
+  fail-closed in privacy-labelled modes.
+- Retain exact-device app-scoped routing as an enhanced capability after a
+  device profile is explicitly qualified.
 
 ## Build
 

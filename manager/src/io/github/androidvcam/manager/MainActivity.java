@@ -50,6 +50,7 @@ import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Spinner;
+import android.widget.Switch;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -82,10 +83,6 @@ public final class MainActivity extends Activity {
     private static final long MAX_SOURCE_PIXELS = 4096L * 3072L;
     private static final long MAX_SOURCE_PIXEL_RATE = 1920L * 1080L * 60L;
     private static final long READ_CACHE_MS = 30_000L;
-    private static final String[] TYPE_LABELS = {
-            "内置彩条", "静态图片", "设备本地视频", "HTTPS 视频文件",
-            "HTTP 视频 / 流", "HLS（HTTP）", "RTSP"
-    };
     private static final String[] TYPE_CODES = {
             "pattern", "image", "video", "https", "http", "hls", "rtsp"
     };
@@ -95,7 +92,8 @@ public final class MainActivity extends Activity {
     private final List<Provider> providers = new ArrayList<>();
     private final List<AppEntry> allApps = new ArrayList<>();
     private final Map<String, String> routes = new HashMap<>();
-    private final DeviceCompatibility.Profile deviceProfile = DeviceCompatibility.detect();
+    private DeviceCompatibility.Profile deviceProfile;
+    private String[] typeLabels;
 
     private FrameLayout content;
     private View statusPage;
@@ -114,6 +112,10 @@ public final class MainActivity extends Activity {
     private LinearLayout routeList;
     private TextView providerRefreshText;
     private TextView routeRefreshText;
+    private Switch routingEnabledSwitch;
+    private TextView routingEnabledSummary;
+    private boolean routingEnabled = true;
+    private boolean updatingRoutingSwitch;
     private final List<TextView> navigationItems = new ArrayList<>();
     private final Map<String, Drawable> appIcons = new HashMap<>();
     private AddProviderSession activeAddSession;
@@ -155,6 +157,8 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        typeLabels = getResources().getStringArray(R.array.provider_type_labels);
+        deviceProfile = DeviceCompatibility.detect(this);
         loadTargetCameraSpecs();
         setContentView(buildRoot());
         IntentFilter packageFilter = new IntentFilter();
@@ -207,9 +211,9 @@ public final class MainActivity extends Activity {
         navigation.setPadding(dp(10), dp(7), dp(10), dp(8));
         navigation.setBackgroundColor(Color.WHITE);
         navigation.setElevation(dp(12));
-        TextView statusTab = navigationItem("概览", "●");
-        TextView sourcesTab = navigationItem("视频源", "◆");
-        TextView appsTab = navigationItem("路由", "■");
+        TextView statusTab = navigationItem(getString(R.string.nav_overview), "●");
+        TextView sourcesTab = navigationItem(getString(R.string.nav_sources), "◆");
+        TextView appsTab = navigationItem(getString(R.string.nav_routes), "■");
         navigation.addView(statusTab, weightedMargins(3, 0, 3, 0));
         navigation.addView(sourcesTab, weightedMargins(3, 0, 3, 0));
         navigation.addView(appsTab, weightedMargins(3, 0, 3, 0));
@@ -226,8 +230,8 @@ public final class MainActivity extends Activity {
         LinearLayout body = pageBody();
         LinearLayout titleRow = horizontal();
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
-        titleRow.addView(pageTitle("概览", ""), weighted());
-        TextView refresh = compactSecondaryButton("刷新");
+        titleRow.addView(pageTitle(getString(R.string.nav_overview), ""), weighted());
+        TextView refresh = compactSecondaryButton(getString(R.string.action_refresh));
         refresh.setOnClickListener(view -> refreshStatus(true));
         titleRow.addView(refresh);
         body.addView(titleRow, matchWrap());
@@ -236,42 +240,42 @@ public final class MainActivity extends Activity {
         hero.setPadding(dp(20), dp(18), dp(20), dp(18));
         hero.setBackground(roundGradient(0xff1d4ed8, 0xff4f46e5, 22));
         hero.setElevation(dp(3));
-        TextView overline = text("服务", 11, 0xffbfdbfe);
+        TextView overline = text(getString(R.string.overview_service), 11, 0xffbfdbfe);
         overline.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         hero.addView(overline);
-        statusText = text("正在连接后端…", 23, Color.WHITE);
+        statusText = text(getString(R.string.overview_connecting), 23, Color.WHITE);
         statusText.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         hero.addView(statusText, matchWrapMargins(0, 5, 0, 0));
-        statusDetail = text("正在读取状态", 13, 0xffdbeafe);
+        statusDetail = text(getString(R.string.overview_reading_status), 13, 0xffdbeafe);
         hero.addView(statusDetail, matchWrapMargins(0, 7, 0, 0));
         body.addView(hero, matchWrapMargins(0, 18, 0, 0));
 
         LinearLayout metrics = horizontal();
-        providerCountText = metricCard("视频源", "—", 0xffeff6ff, 0xff2563eb);
-        routeCountText = metricCard("路由", "—", 0xfff5f3ff, 0xff7c3aed);
+        providerCountText = metricCard(getString(R.string.nav_sources), "—", 0xffeff6ff, 0xff2563eb);
+        routeCountText = metricCard(getString(R.string.nav_routes), "—", 0xfff5f3ff, 0xff7c3aed);
         metrics.addView((View) providerCountText.getTag(), weightedMargins(0, 0, 7, 0));
         metrics.addView((View) routeCountText.getTag(), weightedMargins(7, 0, 0, 0));
         body.addView(metrics, matchWrapMargins(0, 14, 0, 0));
 
-        halText = text("读取中…", 12, 0xff475569);
+        halText = text(getString(R.string.overview_reading), 12, 0xff475569);
         halText.setTextIsSelectable(true);
         halText.setTypeface(Typeface.MONOSPACE);
 
         LinearLayout compatibility = card();
-        compatibility.addView(cardHeading("设备", ""));
+        compatibility.addView(cardHeading(getString(R.string.overview_device), ""));
         compatibilityText = text(deviceProfile.title, 16,
                 deviceProfile.qualified ? 0xff047857 : 0xffb45309);
         compatibilityText.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         compatibility.addView(compatibilityText, matchWrapMargins(0, 10, 0, 0));
         compatibilityDetail = text(deviceProfile.detail, 12, 0xff64748b);
-        runtimeText = text("路由状态未知", 12, 0xff475569);
+        runtimeText = text(getString(R.string.overview_route_unknown), 12, 0xff475569);
         runtimeText.setBackground(roundRect(0xfff8fafc, 12));
         runtimeText.setPadding(dp(12), dp(10), dp(12), dp(10));
         compatibility.addView(runtimeText, matchWrapMargins(0, 10, 0, 0));
         LinearLayout tests = horizontal();
-        TextView details = compactSecondaryButton("详情");
-        TextView test0 = compactSecondaryButton("相机 0");
-        TextView test1 = compactSecondaryButton("相机 1");
+        TextView details = compactSecondaryButton(getString(R.string.overview_details));
+        TextView test0 = compactSecondaryButton(getString(R.string.camera_label, "0"));
+        TextView test1 = compactSecondaryButton(getString(R.string.camera_label, "1"));
         details.setOnClickListener(view -> showSystemDetails());
         test0.setOnClickListener(view -> openCameraTest("0"));
         test1.setOnClickListener(view -> openCameraTest("1"));
@@ -289,16 +293,16 @@ public final class MainActivity extends Activity {
         LinearLayout body = pageBody();
         LinearLayout titleRow = horizontal();
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
-        titleRow.addView(pageTitle("视频源", ""), weighted());
-        TextView add = compactPrimaryButton("＋ 添加");
+        titleRow.addView(pageTitle(getString(R.string.nav_sources), ""), weighted());
+        TextView add = compactPrimaryButton(getString(R.string.action_add));
         add.setOnClickListener(view -> showAddProviderDialog());
         titleRow.addView(add);
         body.addView(titleRow, matchWrap());
         LinearLayout refreshRow = horizontal();
         refreshRow.setGravity(Gravity.CENTER_VERTICAL);
-        providerRefreshText = text("尚未读取", 11, 0xff64748b);
+        providerRefreshText = text(getString(R.string.state_not_loaded), 11, 0xff64748b);
         refreshRow.addView(providerRefreshText, weighted());
-        TextView refresh = compactSecondaryButton("刷新");
+        TextView refresh = compactSecondaryButton(getString(R.string.action_refresh));
         refresh.setOnClickListener(view -> refreshProviders(true));
         refreshRow.addView(refresh);
         body.addView(refreshRow, matchWrapMargins(0, 10, 0, 10));
@@ -313,16 +317,35 @@ public final class MainActivity extends Activity {
         LinearLayout body = pageBody();
         LinearLayout titleRow = horizontal();
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
-        titleRow.addView(pageTitle("路由", ""), weighted());
-        TextView add = compactPrimaryButton("＋ 新增");
+        titleRow.addView(pageTitle(getString(R.string.nav_routes), ""), weighted());
+        TextView add = compactPrimaryButton(getString(R.string.action_new));
         add.setOnClickListener(view -> showAddRouteDialog());
         titleRow.addView(add);
         body.addView(titleRow, matchWrap());
+        LinearLayout routingCard = card();
+        LinearLayout routingRow = horizontal();
+        routingRow.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout routingLabels = vertical();
+        TextView routingTitle = text(getString(R.string.routing_master_title), 15, 0xff111827);
+        routingTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        routingLabels.addView(routingTitle);
+        routingEnabledSummary = text(getString(R.string.routing_master_on), 12, 0xff64748b);
+        routingLabels.addView(routingEnabledSummary, matchWrapMargins(0, 4, 0, 0));
+        routingRow.addView(routingLabels, weighted());
+        routingEnabledSwitch = new Switch(this);
+        routingEnabledSwitch.setEnabled(false);
+        routingEnabledSwitch.setChecked(true);
+        routingEnabledSwitch.setOnCheckedChangeListener((button, enabled) -> {
+            if (!updatingRoutingSwitch) setRoutingEnabled(enabled);
+        });
+        routingRow.addView(routingEnabledSwitch);
+        routingCard.addView(routingRow);
+        body.addView(routingCard, matchWrapMargins(0, 14, 0, 4));
         LinearLayout refreshRow = horizontal();
         refreshRow.setGravity(Gravity.CENTER_VERTICAL);
-        routeRefreshText = text("尚未读取路由", 11, 0xff64748b);
+        routeRefreshText = text(getString(R.string.routes_not_loaded), 11, 0xff64748b);
         refreshRow.addView(routeRefreshText, weighted());
-        TextView refresh = compactSecondaryButton("刷新");
+        TextView refresh = compactSecondaryButton(getString(R.string.action_refresh));
         refresh.setOnClickListener(view -> refreshRoutes(true));
         refreshRow.addView(refresh);
         body.addView(refreshRow, matchWrapMargins(0, 10, 0, 10));
@@ -340,8 +363,8 @@ public final class MainActivity extends Activity {
             return;
         }
         statusRefreshInFlight = true;
-        statusText.setText("正在检查服务…");
-        statusDetail.setText("正在读取状态");
+        statusText.setText(R.string.status_checking);
+        statusDetail.setText(R.string.overview_reading_status);
         lastStatusError = "";
         compatibilityText.setText(deviceProfile.title);
         compatibilityDetail.setText(deviceProfile.detail);
@@ -359,13 +382,14 @@ public final class MainActivity extends Activity {
             Map<String, String> capabilities = parseProperties(latest.capabilitiesOutput);
             boolean healthy = "true".equals(values.get("module_enabled")) &&
                     "true".equals(values.get("mount_active"));
-            statusText.setText(healthy ? "服务运行正常" : "服务需要检查");
-            statusDetail.setText("模块" + yesNo(values.get("module_enabled")) +
-                    "  ·  挂载" + yesNo(values.get("mount_active")) +
-                    "  ·  相机设备 " + friendlyCount(values.get("camera_devices")));
+            statusText.setText(healthy ? R.string.status_healthy : R.string.status_needs_attention);
+            statusDetail.setText(getString(R.string.status_module) + yesNo(values.get("module_enabled")) +
+                    getString(R.string.status_mount) + yesNo(values.get("mount_active")) +
+                    getString(R.string.status_camera_devices,
+                            friendlyCount(values.get("camera_devices"))));
             providerCountText.setText(values.getOrDefault("provider_count", "0"));
             routeCountText.setText(values.getOrDefault("route_count", "0"));
-            halText.setText(values.getOrDefault("hal_hash", "未知"));
+            halText.setText(values.getOrDefault("hal_hash", getString(R.string.status_unknown)));
             updateCompatibilityStatus(values, capabilities);
             if (statusRefreshPending) {
                 statusRefreshPending = false;
@@ -373,13 +397,14 @@ public final class MainActivity extends Activity {
             }
         }, error -> {
             statusRefreshInFlight = false;
-            statusText.setText(deviceProfile.qualified ? "设备已认证 · 后端未连接" : "后端未运行");
-            statusDetail.setText("后端未连接");
+            statusText.setText(deviceProfile.qualified ? R.string.status_qualified_backend_missing
+                    : R.string.status_backend_not_running);
+            statusDetail.setText(R.string.status_backend_disconnected);
             providerCountText.setText("—");
             routeCountText.setText("—");
-            halText.setText("后端未连接");
+            halText.setText(R.string.status_backend_disconnected);
             lastStatusError = friendlyError(error);
-            runtimeText.setText("路由未知  ·  后端不可达");
+            runtimeText.setText(R.string.status_route_backend_unavailable);
             statusRefreshPending = false;
         });
     }
@@ -391,26 +416,30 @@ public final class MainActivity extends Activity {
         boolean exact = deviceProfile.qualified && deviceProfile.id.equals(backendProfile) &&
                 "qualified".equals(backendQualification);
         if (exact) {
-            compatibilityText.setText(deviceProfile.title.replace("已认证", "配方与 Camera ABI 已验证"));
+            compatibilityText.setText(deviceProfile.title + " · " +
+                    getString(R.string.status_recipe_verified));
             compatibilityText.setTextColor(0xff047857);
         } else if (deviceProfile.qualified) {
-            compatibilityText.setText(deviceProfile.title.replace("已认证", "后端配方校验不完整"));
+            compatibilityText.setText(deviceProfile.title + " · " +
+                    getString(R.string.status_recipe_incomplete));
             compatibilityText.setTextColor(0xffb45309);
         }
         String router = status.getOrDefault("router_state", "unknown");
         boolean onePlus = DeviceCompatibility.ONEPLUS7PRO_PROFILE.equals(backendProfile);
         String provider = onePlus
-                ? ("true".equals(status.get("mount_active")) ? "OEM HAL 代理已挂载" : "OEM HAL 代理未挂载")
+                ? getString("true".equals(status.get("mount_active"))
+                        ? R.string.status_oem_proxy_mounted : R.string.status_oem_proxy_unmounted)
                 : ("true".equals(status.get("virtual_provider_active"))
-                    ? "虚拟 Provider 运行中" : "虚拟 Provider 未运行");
+                    ? getString(R.string.status_virtual_provider_running)
+                    : getString(R.string.status_virtual_provider_stopped));
         runtimeText.setText(routeStateName(router) + "  ·  " + provider);
     }
 
     private String routeStateName(String state) {
-        if ("oem_proxy_ready".equals(state)) return "OEM 按应用替换已就绪";
-        if ("physical_route_ready".equals(state)) return "按应用替换已就绪";
-        if ("pass_through_ready".equals(state)) return "仅透传";
-        if ("preflight_ready".equals(state)) return "只读预检";
+        if ("oem_proxy_ready".equals(state)) return getString(R.string.status_oem_routing_ready);
+        if ("physical_route_ready".equals(state)) return getString(R.string.status_routing_ready);
+        if ("pass_through_ready".equals(state)) return getString(R.string.status_passthrough);
+        if ("preflight_ready".equals(state)) return getString(R.string.status_preflight);
         if ("stock".equals(state)) return "stock";
         return state;
     }
@@ -418,14 +447,14 @@ public final class MainActivity extends Activity {
     private void showSystemDetails() {
         StringBuilder details = new StringBuilder();
         details.append(deviceProfile.detail)
-                .append("\n\n服务：").append(statusDetail.getText())
-                .append("\n路由：").append(runtimeText.getText())
+                .append("\n\n").append(getString(R.string.status_service_line, statusDetail.getText()))
+                .append("\n").append(getString(R.string.status_route_line, runtimeText.getText()))
                 .append("\nHAL：").append(halText.getText());
         if (!lastStatusError.isEmpty()) details.append("\n\n").append(lastStatusError);
         new AlertDialog.Builder(this)
-                .setTitle("系统详情")
+                .setTitle(R.string.status_system_details)
                 .setMessage(details.toString())
-                .setPositiveButton("完成", null)
+                .setPositiveButton(R.string.action_done, null)
                 .show();
     }
 
@@ -437,7 +466,7 @@ public final class MainActivity extends Activity {
         try {
             startActivity(intent);
         } catch (Exception error) {
-            toast("未安装 VCAM 测试应用，无法打开公共相机 " + cameraId);
+            toast(getString(R.string.test_app_missing, cameraId));
         }
     }
 
@@ -452,10 +481,11 @@ public final class MainActivity extends Activity {
             return;
         }
         providerRefreshInFlight = true;
-        providerRefreshText.setText(providers.isEmpty() ? "正在读取视频源…" : "正在后台更新…");
+        providerRefreshText.setText(providers.isEmpty() ? R.string.sources_reading
+                : R.string.sources_background_refresh);
         if (providers.isEmpty()) {
             providerList.removeAllViews();
-            providerList.addView(text("正在读取提供器…", 14, 0xff667383));
+            providerList.addView(text(getString(R.string.sources_reading_providers), 14, 0xff667383));
         }
         runAsync(() -> BackendClient.controller("providers"), result -> {
             result.requireSuccess();
@@ -463,7 +493,7 @@ public final class MainActivity extends Activity {
             providers.addAll(parseProviders(result.output));
             lastProviderRefresh = SystemClock.elapsedRealtime();
             providerRefreshInFlight = false;
-            providerRefreshText.setText("刚刚更新 · " + providers.size() + " 个来源");
+            providerRefreshText.setText(getString(R.string.sources_updated, providers.size()));
             renderProviders();
             if (providerRefreshPending) {
                 providerRefreshPending = false;
@@ -475,7 +505,7 @@ public final class MainActivity extends Activity {
             if (providers.isEmpty()) {
                 providerList.removeAllViews();
                 LinearLayout empty = card();
-                empty.addView(cardHeading("后端未连接", ""));
+                empty.addView(cardHeading(getString(R.string.state_backend_disconnected), ""));
                 providerList.addView(empty, matchWrap());
             }
             showError(error);
@@ -501,7 +531,7 @@ public final class MainActivity extends Activity {
             identity.addView(text(typeName(provider.type) + "  ·  " + provider.id,
                     11, 0xff64748b));
             top.addView(identity, weightedMargins(12, 0, 8, 0));
-            top.addView(pill(provider.running ? "运行中" : "已停止",
+            top.addView(pill(getString(provider.running ? R.string.state_running : R.string.state_stopped),
                     provider.running ? 0xffecfdf5 : 0xfff1f5f9,
                     provider.running ? 0xff059669 : 0xff64748b));
             providerCard.addView(top);
@@ -514,19 +544,20 @@ public final class MainActivity extends Activity {
             }
             if (provider.removable) {
                 LinearLayout primaryActions = horizontal();
-                TextView preview = secondaryButton("预览");
+                TextView preview = secondaryButton(getString(R.string.action_preview));
                 preview.setOnClickListener(view -> showProviderPreview(provider));
-                TextView edit = secondaryButton("编辑");
+                TextView edit = secondaryButton(getString(R.string.action_edit));
                 edit.setOnClickListener(view -> showProviderDialog(provider));
                 primaryActions.addView(preview, weighted());
                 primaryActions.addView(edit, weightedMargins(8, 0, 0, 0));
                 providerCard.addView(primaryActions, matchWrapMargins(0, 12, 0, 0));
 
                 LinearLayout actions = horizontal();
-                TextView toggle = secondaryButton(provider.running ? "停止" : "启动");
+                TextView toggle = secondaryButton(getString(provider.running
+                        ? R.string.action_stop : R.string.action_start));
                 toggle.setOnClickListener(view -> runProviderAction(
                         provider.running ? "provider-stop" : "provider-start", provider.id));
-                TextView remove = dangerButton("删除");
+                TextView remove = dangerButton(getString(R.string.action_delete));
                 remove.setOnClickListener(view -> confirmRemove(provider));
                 actions.addView(toggle, weighted());
                 actions.addView(remove, weightedMargins(8, 0, 0, 0));
@@ -542,31 +573,31 @@ public final class MainActivity extends Activity {
 
     private void showProviderDialog(Provider existing) {
         LinearLayout form = dialogForm();
-        EditText name = input("名称，例如：会议背景");
+        EditText name = input(getString(R.string.provider_name_hint));
         Spinner type = new Spinner(this);
         type.setAdapter(new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, TYPE_LABELS));
-        EditText source = input("网络地址");
+                android.R.layout.simple_spinner_dropdown_item, typeLabels));
+        EditText source = input(getString(R.string.provider_network_address));
         EditText fps = numericInput("1–60", existing == null ? "30" : Integer.toString(existing.fps));
         EditText maxWidth = numericInput("160–4096", existing == null ? "1280" : Integer.toString(existing.maxWidth));
         EditText maxHeight = numericInput("120–4096", existing == null ? "720" : Integer.toString(existing.maxHeight));
-        form.addView(label("名称")); form.addView(name);
-        form.addView(label("类型")); form.addView(type);
+        form.addView(label(getString(R.string.provider_name))); form.addView(name);
+        form.addView(label(getString(R.string.provider_type))); form.addView(type);
         LinearLayout sourceBlock = vertical();
-        TextView sourceLabel = label("网络地址");
+        TextView sourceLabel = label(getString(R.string.provider_network_address));
         sourceBlock.addView(sourceLabel); sourceBlock.addView(source);
         form.addView(sourceBlock);
         LinearLayout fileBlock = vertical();
-        fileBlock.addView(label("本地文件"));
-        Button choose = secondaryButton("立即选择文件");
-        TextView selectedFile = text("尚未选择文件", 12, 0xff64748b);
+        fileBlock.addView(label(getString(R.string.provider_local_file)));
+        Button choose = secondaryButton(getString(R.string.provider_choose_now));
+        TextView selectedFile = text(getString(R.string.provider_no_file), 12, 0xff64748b);
         fileBlock.addView(choose);
         fileBlock.addView(selectedFile, matchWrapMargins(0, 7, 0, 0));
         form.addView(fileBlock);
-        form.addView(label("源解码帧率（fps）")); form.addView(fps);
+        form.addView(label(getString(R.string.provider_decode_fps))); form.addView(fps);
         LinearLayout dimensions = horizontal();
         dimensions.addView(maxWidth, weighted()); dimensions.addView(maxHeight, weighted());
-        form.addView(label("源解码上限（宽 × 高，保持原始比例）")); form.addView(dimensions);
+        form.addView(label(getString(R.string.provider_decode_limit))); form.addView(dimensions);
         LinearLayout resolutionPresets = horizontal();
         Button fullHd = secondaryButton("1080p");
         Button ultraHd = secondaryButton("4K");
@@ -581,7 +612,7 @@ public final class MainActivity extends Activity {
         progressRow.setGravity(Gravity.CENTER_VERTICAL);
         ProgressBar progress = new ProgressBar(this);
         progressRow.addView(progress, new LinearLayout.LayoutParams(dp(28), dp(28)));
-        TextView progressText = text("正在连接并读取预览…", 12, 0xff2563eb);
+        TextView progressText = text(getString(R.string.provider_connecting_preview), 12, 0xff2563eb);
         progressRow.addView(progressText, weightedMargins(10, 0, 0, 0));
         progressRow.setVisibility(View.GONE);
         form.addView(progressRow, matchWrapMargins(0, 14, 0, 0));
@@ -609,10 +640,11 @@ public final class MainActivity extends Activity {
             session.urls.put(existing.type, existing.source);
         }
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(existing == null ? "添加视频源" : "编辑视频源")
+                .setTitle(existing == null ? R.string.provider_add_title : R.string.provider_edit_title)
                 .setView(scroll)
-                .setNegativeButton("取消", null)
-                .setPositiveButton(existing == null ? "继续" : "测试并继续", null)
+                .setNegativeButton(R.string.action_cancel, null)
+                .setPositiveButton(existing == null ? R.string.action_continue
+                        : R.string.action_test_continue, null)
                 .create();
         session.dialog = dialog;
         type.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -654,16 +686,18 @@ public final class MainActivity extends Activity {
             if (value == null || value.isEmpty()) value = protocolPrefix(code);
             session.source.setText(value);
             session.source.setSelection(session.source.length());
-            session.sourceLabel.setText("网络地址（" + protocolPrefix(code) + "…）");
+            session.sourceLabel.setText(getString(R.string.provider_network_address_protocol,
+                    protocolPrefix(code) + "…"));
         }
         if (local) {
             if (session.existing != null) {
                 session.chooseFile.setVisibility(View.GONE);
-                session.selectedFile.setText("沿用已导入的本地媒体；名称和取景参数仍可编辑");
+                session.selectedFile.setText(R.string.provider_keep_imported);
             } else {
                 session.chooseFile.setVisibility(View.VISIBLE);
                 Uri chosen = session.files.get(code);
-                session.selectedFile.setText(chosen == null ? "尚未选择文件" : displayName(chosen));
+                session.selectedFile.setText(chosen == null
+                        ? getString(R.string.provider_no_file) : displayName(chosen));
             }
         }
         session.errorText.setVisibility(View.GONE);
@@ -673,16 +707,16 @@ public final class MainActivity extends Activity {
         if (session.busy) return;
         String code = TYPE_CODES[session.type.getSelectedItemPosition()];
         String displayName = session.name.getText().toString().trim();
-        if (displayName.isEmpty()) displayName = TYPE_LABELS[session.type.getSelectedItemPosition()];
+        if (displayName.isEmpty()) displayName = typeLabels[session.type.getSelectedItemPosition()];
         String source = isNetworkType(code) ? session.source.getText().toString().trim()
                 : session.existing == null ? "" : session.existing.source;
         if (isNetworkType(code) && !source.startsWith(protocolPrefix(code))) {
-            showFormError(session, "地址必须以 " + protocolPrefix(code) + " 开头");
+            showFormError(session, getString(R.string.provider_prefix_error, protocolPrefix(code)));
             return;
         }
         Uri uri = session.files.get(code);
         if (session.existing == null && ("image".equals(code) || "video".equals(code)) && uri == null) {
-            showFormError(session, "请先选择本地文件，再继续");
+            showFormError(session, getString(R.string.provider_choose_file_first));
             return;
         }
         int configuredFps = parseBounded(session.fps, 1, 60, 30);
@@ -690,13 +724,12 @@ public final class MainActivity extends Activity {
         int configuredHeight = parseBounded(session.maxHeight, 120, MAX_SOURCE_DIMENSION, 720);
         long configuredPixels = (long) configuredWidth * configuredHeight;
         if (configuredPixels > MAX_SOURCE_PIXELS) {
-            showFormError(session, "源解码上限不能超过 12.6 MP（例如 4096×3072）");
+            showFormError(session, getString(R.string.provider_pixel_limit));
             return;
         }
         int allowedFps = maxFpsForResolution(configuredWidth, configuredHeight);
         if (configuredFps > allowedFps) {
-            showFormError(session, configuredWidth + "×" + configuredHeight +
-                    " 的最高帧率为 " + allowedFps + " fps，请降低帧率后重试");
+            showFormError(session, getString(R.string.provider_fps_limit, allowedFps));
             return;
         }
         PendingProvider pending = new PendingProvider(
@@ -711,7 +744,8 @@ public final class MainActivity extends Activity {
             pending.view1 = session.existing.view1;
         }
         setProviderFormBusy(session, true,
-                isNetworkType(code) ? "正在连接并读取预览，慢速源可能需要 15–30 秒…" : "正在读取源预览…");
+                getString(isNetworkType(code) ? R.string.provider_slow_preview
+                        : R.string.provider_reading_preview));
         runAsync(() -> new PreviewResult(loadPreview(pending)), result -> {
             if (!session.dialog.isShowing()) return;
             session.dialog.dismiss();
@@ -774,7 +808,7 @@ public final class MainActivity extends Activity {
             if (pending.editing && pending.uri == null) return loadBackendProviderPreview(pending.id);
             try (InputStream input = getContentResolver().openInputStream(pending.uri)) {
                 Bitmap bitmap = BitmapFactory.decodeStream(input);
-                if (bitmap == null) throw new IOException("无法解码所选图片");
+                if (bitmap == null) throw new IOException(getString(R.string.provider_image_decode_failed));
                 return bitmap;
             }
         }
@@ -787,10 +821,10 @@ public final class MainActivity extends Activity {
             if (pending.uri != null) retriever.setDataSource(this, pending.uri);
             else retriever.setDataSource(pending.source, new HashMap<>());
             Bitmap bitmap = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
-            if (bitmap == null) throw new IOException("视频源没有可读取的预览帧");
+            if (bitmap == null) throw new IOException(getString(R.string.provider_video_preview_empty));
             return bitmap;
         } catch (RuntimeException error) {
-            throw new IOException("无法读取视频源预览，请检查地址或媒体格式", error);
+            throw new IOException(getString(R.string.provider_preview_failed), error);
         } finally { retriever.release(); }
     }
 
@@ -834,20 +868,20 @@ public final class MainActivity extends Activity {
         body.addView(frame, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(320)));
 
-        TextView status = text("正在读取当前帧…", 12, 0xff2563eb);
+        TextView status = text(getString(R.string.provider_current_frame_reading), 12, 0xff2563eb);
         status.setGravity(Gravity.CENTER_HORIZONTAL);
         body.addView(status, matchWrapMargins(0, 10, 0, 0));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(provider.name + " · 来源预览")
+                .setTitle(provider.name + getString(R.string.provider_preview_suffix))
                 .setView(body)
-                .setNegativeButton("关闭", null)
-                .setNeutralButton("刷新帧", null)
+                .setNegativeButton(R.string.action_close, null)
+                .setNeutralButton(R.string.action_refresh_frame, null)
                 .create();
         Runnable refresh = () -> {
             if (!dialog.isShowing()) return;
             progress.setVisibility(View.VISIBLE);
-            status.setText("正在读取当前帧…");
+            status.setText(R.string.provider_current_frame_reading);
             status.setTextColor(0xff2563eb);
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setEnabled(false);
             runAsync(() -> new PreviewResult("pattern".equals(provider.type)
@@ -857,7 +891,8 @@ public final class MainActivity extends Activity {
                         Bitmap bitmap = ((PreviewResult) result).bitmap;
                         image.setImageBitmap(bitmap);
                         progress.setVisibility(View.GONE);
-                        status.setText("当前帧 · " + bitmap.getWidth() + "×" + bitmap.getHeight());
+                        status.setText(getString(R.string.provider_current_frame,
+                                bitmap.getWidth() + "×" + bitmap.getHeight()));
                         status.setTextColor(0xff059669);
                         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setEnabled(true);
                     }, error -> {
@@ -880,12 +915,14 @@ public final class MainActivity extends Activity {
         try {
             frame = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT);
         } catch (IllegalArgumentException error) {
-            throw new IOException("后端返回的预览帧无效", error);
+            throw new IOException(getString(R.string.provider_frame_invalid), error);
         }
-        if (frame.length < 24) throw new IOException("后端返回的预览帧不完整");
+        if (frame.length < 24) throw new IOException(getString(R.string.provider_frame_incomplete));
         byte[] magic = {'V', 'C', 'A', 'M', 'R', 'G', 'B', '1'};
         for (int index = 0; index < magic.length; ++index) {
-            if (frame[index] != magic[index]) throw new IOException("后端返回的预览帧格式无效");
+            if (frame[index] != magic[index]) {
+                throw new IOException(getString(R.string.provider_frame_format_invalid));
+            }
         }
         ByteBuffer header = ByteBuffer.wrap(frame).order(ByteOrder.LITTLE_ENDIAN);
         int width = header.getInt(8);
@@ -894,7 +931,7 @@ public final class MainActivity extends Activity {
         long expected = (long) width * height * 3;
         if (width < 2 || width > 1920 || height < 2 || height > 1920 ||
                 payload != expected || frame.length != 24L + expected) {
-            throw new IOException("后端返回的预览帧尺寸无效");
+            throw new IOException(getString(R.string.provider_frame_size_invalid));
         }
         int[] pixels = new int[width * height];
         int offset = 24;
@@ -919,17 +956,17 @@ public final class MainActivity extends Activity {
         LinearLayout body = vertical();
         TextView cameraLabel = text("", 13, 0xff526171);
         LinearLayout targets = horizontal();
-        Button camera0 = secondaryButton("目标相机 0");
-        Button camera1 = secondaryButton("目标相机 1");
+        Button camera0 = secondaryButton(getString(R.string.provider_target_camera, "0"));
+        Button camera1 = secondaryButton(getString(R.string.provider_target_camera, "1"));
         targets.addView(camera0, weighted()); targets.addView(camera1, weighted());
         body.addView(targets, matchWrap()); body.addView(cameraLabel, matchWrap());
         body.addView(editor, matchWrapMargins(0, 8, 0, 0));
-        TextView scaleLabel = text("缩放 1.00×", 13, 0xff526171);
+        TextView scaleLabel = text(getString(R.string.provider_scale, 1.0f), 13, 0xff526171);
         SeekBar zoom = new SeekBar(this); zoom.setMax(790);
-        Button rotate = secondaryButton("顺时针旋转 90°");
+        Button rotate = secondaryButton(getString(R.string.provider_rotate, 90));
         body.addView(scaleLabel, matchWrapMargins(0, 8, 0, 0));
         body.addView(zoom, matchWrap()); body.addView(rotate, matchWrap());
-        body.addView(text("白色取景框保持不变；单指拖动源画面，双指或滑杆无级缩放。配置分别保存到两个目标相机。",
+        body.addView(text(getString(R.string.provider_framing_help),
                 12, 0xff667383), matchWrapMargins(0, 6, 0, 0));
 
         Runnable refresh = () -> {
@@ -937,8 +974,8 @@ public final class MainActivity extends Activity {
             editor.setTargetAspect(spec.width, spec.height);
             editor.setSetting(settings[active[0]]);
             zoom.setProgress(Math.round((settings[active[0]].scale - .1f) * 100f));
-            cameraLabel.setText(spec.description());
-            scaleLabel.setText(String.format(Locale.US, "缩放 %.2f× · 旋转 %d°",
+            cameraLabel.setText(targetCameraDescription(spec));
+            scaleLabel.setText(getString(R.string.provider_scale_rotate,
                     settings[active[0]].scale, settings[active[0]].rotation));
         };
         View.OnClickListener switcher = view -> {
@@ -951,7 +988,7 @@ public final class MainActivity extends Activity {
             @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
                 float value = .1f + progress / 100f;
                 editor.setScale(value); settings[active[0]].scale = value;
-                scaleLabel.setText(String.format(Locale.US, "缩放 %.2f× · 旋转 %d°",
+                scaleLabel.setText(getString(R.string.provider_scale_rotate,
                         value, editor.getSetting().rotation));
             }
             @Override public void onStartTrackingTouch(SeekBar bar) { }
@@ -962,9 +999,11 @@ public final class MainActivity extends Activity {
         });
         refresh.run();
         ScrollView scroll = new ScrollView(this); scroll.addView(body);
-        new AlertDialog.Builder(this).setTitle(pending.editing ? "更新双相机取景" : "设置双相机取景")
-                .setView(scroll).setNegativeButton("取消", null)
-                .setPositiveButton(pending.editing ? "保存修改" : "添加源", (dialog, which) -> {
+        new AlertDialog.Builder(this).setTitle(pending.editing
+                ? R.string.provider_update_framing : R.string.provider_set_framing)
+                .setView(scroll).setNegativeButton(R.string.action_cancel, null)
+                .setPositiveButton(pending.editing ? R.string.action_save_changes
+                        : R.string.action_add_source, (dialog, which) -> {
                     settings[active[0]] = editor.getSetting();
                     pending.view0 = settings[0].encode(); pending.view1 = settings[1].encode();
                     if (pending.editing) updateProvider(pending);
@@ -975,7 +1014,7 @@ public final class MainActivity extends Activity {
     }
 
     private void updateProvider(PendingProvider pending) {
-        toast("正在保存并验证修改…");
+        toast(getString(R.string.provider_saving_changes));
         runAsync(() -> {
             BackendClient.Result updated = BackendClient.controller("provider-update",
                     pending.id, BackendClient.encode(pending.name), BackendClient.encode(pending.source),
@@ -984,13 +1023,13 @@ public final class MainActivity extends Activity {
             updated.requireSuccess();
             return updated;
         }, result -> {
-            toast("视频源已更新");
+            toast(getString(R.string.provider_updated));
             refreshProviders(true);
         });
     }
 
     private void importImage(PendingProvider pending) {
-        toast("正在转换并导入图片…");
+        toast(getString(R.string.provider_importing_image));
         runAsync(() -> {
             byte[] frame = buildFrame(pending.uri, pending.maxWidth, pending.maxHeight);
             BackendClient.Result added = BackendClient.controller("provider-add", pending.id, "image",
@@ -1008,13 +1047,13 @@ public final class MainActivity extends Activity {
             }
         }, result -> {
             lastStatusRefresh = 0;
-            toast("图片提供器已添加");
+            toast(getString(R.string.provider_image_added));
             refreshProviders();
         });
     }
 
     private void importVideo(PendingProvider pending) {
-        toast("正在导入本地视频…");
+        toast(getString(R.string.provider_importing_video));
         runAsync(() -> {
             String modulePath = "/data/vendor/camera/vcam/providers/" + pending.id + "/source.media";
             BackendClient.Result added = BackendClient.controller("provider-add", pending.id, "video",
@@ -1025,7 +1064,7 @@ public final class MainActivity extends Activity {
                 configureProvider(pending);
                 try (InputStream input = getContentResolver().openInputStream(pending.uri);
                      FileOutputStream output = new FileOutputStream(temporary)) {
-                    if (input == null) throw new IOException("无法读取所选视频");
+                    if (input == null) throw new IOException(getString(R.string.provider_video_read_failed));
                     byte[] buffer = new byte[64 * 1024];
                     int count;
                     while ((count = input.read(buffer)) >= 0) output.write(buffer, 0, count);
@@ -1046,7 +1085,7 @@ public final class MainActivity extends Activity {
             }
         }, result -> {
             lastStatusRefresh = 0;
-            toast("本地视频提供器已添加");
+            toast(getString(R.string.provider_video_added));
             refreshProviders();
         });
     }
@@ -1065,7 +1104,7 @@ public final class MainActivity extends Activity {
             }
         }, result -> {
             lastStatusRefresh = 0;
-            toast("提供器已添加");
+            toast(getString(R.string.provider_added));
             refreshProviders();
         });
     }
@@ -1091,7 +1130,7 @@ public final class MainActivity extends Activity {
         try (InputStream input = getContentResolver().openInputStream(uri)) {
             source = BitmapFactory.decodeStream(input, null, options);
         }
-        if (source == null) throw new IOException("无法解码所选图片");
+        if (source == null) throw new IOException(getString(R.string.provider_image_decode_failed));
         float scale = Math.min(1f, Math.min((float) maxWidth / source.getWidth(),
                 (float) maxHeight / source.getHeight()));
         int frameWidth = Math.max(2, Math.round(source.getWidth() * scale)) & ~1;
@@ -1202,10 +1241,10 @@ public final class MainActivity extends Activity {
     }
 
     private void confirmRemove(Provider provider) {
-        new AlertDialog.Builder(this).setTitle("删除提供器")
-                .setMessage("删除“" + provider.name + "”及引用它的路由？")
-                .setNegativeButton("取消", null)
-                .setPositiveButton("删除", (dialog, which) ->
+        new AlertDialog.Builder(this).setTitle(R.string.provider_remove_title)
+                .setMessage(getString(R.string.provider_remove_message, provider.name))
+                .setNegativeButton(R.string.action_cancel, null)
+                .setPositiveButton(R.string.action_delete, (dialog, which) ->
                         runProviderAction("provider-remove", provider.id)).show();
     }
 
@@ -1218,10 +1257,11 @@ public final class MainActivity extends Activity {
             return;
         }
         routeRefreshInFlight = true;
-        routeRefreshText.setText(routes.isEmpty() ? "正在读取路由…" : "正在后台更新…");
+        routeRefreshText.setText(routes.isEmpty() ? R.string.routes_reading
+                : R.string.routes_background_refresh);
         if (routes.isEmpty()) {
             routeList.removeAllViews();
-            routeList.addView(text("正在读取已配置路由…", 14, 0xff667383));
+            routeList.addView(text(getString(R.string.routes_reading_configured), 14, 0xff667383));
         }
         runAsync(() -> {
             BackendClient.Result routeResult = BackendClient.controller("routes");
@@ -1233,17 +1273,19 @@ public final class MainActivity extends Activity {
                 providerResult.requireSuccess();
                 latestProviders = parseProviders(providerResult.output);
             }
-            return new RoutesResult(parseRoutes(routeResult.output), latestProviders);
+            return new RoutesResult(parseRoutes(routeResult.output), latestProviders,
+                    parseRoutingEnabled(routeResult.output));
         }, result -> {
             RoutesResult latest = (RoutesResult) result;
             routes.clear(); routes.putAll(latest.routes);
+            updateRoutingSwitch(latest.routingEnabled, true);
             if (latest.providers != null) {
                 providers.clear(); providers.addAll(latest.providers);
                 lastProviderRefresh = SystemClock.elapsedRealtime();
             }
             lastRouteRefresh = SystemClock.elapsedRealtime();
             routeRefreshInFlight = false;
-            routeRefreshText.setText("刚刚更新 · " + routePackages().size() + " 个应用路由");
+            routeRefreshText.setText(getString(R.string.routes_updated, routePackages().size()));
             renderRoutes();
             if (routeRefreshPending) {
                 routeRefreshPending = false;
@@ -1255,11 +1297,41 @@ public final class MainActivity extends Activity {
             if (routes.isEmpty()) {
                 routeList.removeAllViews();
                 LinearLayout empty = card();
-                empty.addView(cardHeading("后端未连接", ""));
+                empty.addView(cardHeading(getString(R.string.state_backend_disconnected), ""));
                 routeList.addView(empty, matchWrap());
             }
             showError(error);
         });
+    }
+
+    private void setRoutingEnabled(boolean enabled) {
+        if (routingEnabledSwitch == null) return;
+        final boolean previous = routingEnabled;
+        routingEnabledSwitch.setEnabled(false);
+        routingEnabledSummary.setText(enabled ? R.string.routing_master_on
+                : R.string.routing_master_off);
+        runAsync(() -> BackendClient.controller(enabled ? "routing-enable" : "routing-disable"),
+                result -> {
+                    result.requireSuccess();
+                    updateRoutingSwitch(enabled, true);
+                    lastStatusRefresh = 0;
+                    toast(getString(enabled ? R.string.routing_master_enabled
+                            : R.string.routing_master_disabled));
+                }, error -> {
+                    updateRoutingSwitch(previous, true);
+                    showError(error);
+                });
+    }
+
+    private void updateRoutingSwitch(boolean enabled, boolean available) {
+        routingEnabled = enabled;
+        if (routingEnabledSwitch == null) return;
+        updatingRoutingSwitch = true;
+        routingEnabledSwitch.setChecked(enabled);
+        routingEnabledSwitch.setEnabled(available);
+        updatingRoutingSwitch = false;
+        routingEnabledSummary.setText(enabled ? R.string.routing_master_on
+                : R.string.routing_master_off);
     }
 
     private void renderRoutes() {
@@ -1268,7 +1340,7 @@ public final class MainActivity extends Activity {
         Set<String> packages = routePackages();
         if (packages.isEmpty()) {
             LinearLayout empty = card();
-            empty.addView(cardHeading("暂无路由", ""));
+            empty.addView(cardHeading(getString(R.string.routes_empty), ""));
             routeList.addView(empty, matchWrap());
             return;
         }
@@ -1295,22 +1367,25 @@ public final class MainActivity extends Activity {
             identity.addView(name);
             if (app.installed) identity.addView(text(packageName, 11, 0xff64748b));
             top.addView(identity, weightedMargins(12, 0, 8, 0));
-            top.addView(pill(app.installed ? "可用" : "暂不可用",
+            top.addView(pill(getString(app.installed ? R.string.state_available
+                            : R.string.state_unavailable),
                     app.installed ? 0xffecfdf5 : 0xfffff7ed,
                     app.installed ? 0xff059669 : 0xffc2410c));
             routeCard.addView(top);
             LinearLayout mapping = vertical();
             mapping.setPadding(dp(12), dp(9), dp(12), dp(9));
             mapping.setBackground(roundRect(0xfff8fafc, 10));
-            mapping.addView(text("相机 0  →  " + routeProviderName("0", routes.get(packageName + "\t0")),
+            mapping.addView(text(getString(R.string.route_mapping, "0",
+                            routeProviderName("0", routes.get(packageName + "\t0"))),
                     12, 0xff475569));
-            mapping.addView(text("相机 1  →  " + routeProviderName("1", routes.get(packageName + "\t1")),
+            mapping.addView(text(getString(R.string.route_mapping, "1",
+                            routeProviderName("1", routes.get(packageName + "\t1"))),
                     12, 0xff475569), matchWrapMargins(0, 5, 0, 0));
             routeCard.addView(mapping, matchWrapMargins(0, 12, 0, 0));
             LinearLayout actions = horizontal();
-            Button edit = secondaryButton("修改");
+            Button edit = secondaryButton(getString(R.string.action_edit));
             edit.setOnClickListener(view -> showRouteEditor(app));
-            Button remove = dangerButton("删除");
+            Button remove = dangerButton(getString(R.string.action_delete));
             remove.setOnClickListener(view -> confirmRemoveRoute(app));
             actions.addView(edit, weighted());
             actions.addView(remove, weightedMargins(8, 0, 0, 0));
@@ -1324,10 +1399,10 @@ public final class MainActivity extends Activity {
         loadingBody.setGravity(Gravity.CENTER_VERTICAL);
         loadingBody.setPadding(dp(24), dp(16), dp(24), dp(16));
         loadingBody.addView(new ProgressBar(this), new LinearLayout.LayoutParams(dp(30), dp(30)));
-        loadingBody.addView(text("正在读取未配置的应用…", 13, 0xff475569),
+        loadingBody.addView(text(getString(R.string.routes_loading_apps), 13, 0xff475569),
                 weightedMargins(12, 0, 0, 0));
-        AlertDialog loading = new AlertDialog.Builder(this).setTitle("新增应用路由")
-                .setView(loadingBody).setNegativeButton("取消", null).create();
+        AlertDialog loading = new AlertDialog.Builder(this).setTitle(R.string.route_add_title)
+                .setView(loadingBody).setNegativeButton(R.string.action_cancel, null).create();
         loading.show();
         final boolean scanApps = appsDirty || allApps.isEmpty() ||
                 SystemClock.elapsedRealtime() - lastAppRefresh > 30_000;
@@ -1364,13 +1439,13 @@ public final class MainActivity extends Activity {
             if (!configured.contains(app.packageName)) candidates.add(app);
         }
         if (candidates.isEmpty()) {
-            new AlertDialog.Builder(this).setTitle("没有可添加的应用")
-                    .setMessage("所有可见应用都已经配置了路由。")
-                    .setPositiveButton("知道了", null).show();
+            new AlertDialog.Builder(this).setTitle(R.string.route_none_available_title)
+                    .setMessage(R.string.route_none_available_message)
+                    .setPositiveButton(R.string.action_done, null).show();
             return;
         }
         LinearLayout body = dialogForm();
-        EditText search = input("搜索应用或包名");
+        EditText search = input(getString(R.string.route_search_hint));
         body.addView(search);
         ListView list = new ListView(this);
         list.setDivider(new ColorDrawable(Color.TRANSPARENT));
@@ -1380,8 +1455,8 @@ public final class MainActivity extends Activity {
         AppPickerAdapter adapter = new AppPickerAdapter(visible);
         list.setAdapter(adapter);
         body.addView(list, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(460)));
-        AlertDialog picker = new AlertDialog.Builder(this).setTitle("选择未配置的应用")
-                .setView(body).setNegativeButton("取消", null).create();
+        AlertDialog picker = new AlertDialog.Builder(this).setTitle(R.string.route_choose_app)
+                .setView(body).setNegativeButton(R.string.action_cancel, null).create();
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -1406,24 +1481,25 @@ public final class MainActivity extends Activity {
     private void showRouteEditor(AppEntry app) {
         List<String> ids = new ArrayList<>();
         List<String> labels = new ArrayList<>();
-        ids.add(""); labels.add("默认：使用目标物理相机");
+        ids.add(""); labels.add(getString(R.string.route_default_physical));
         for (Provider provider : providers) {
             ids.add(provider.id);
-            labels.add(provider.name + (provider.running ? "" : "（已停止）"));
+            labels.add(provider.name + (provider.running ? ""
+                    : getString(R.string.route_stopped_suffix)));
         }
         LinearLayout form = dialogForm();
         Spinner camera0 = routeSpinner(labels, ids, routes.get(app.packageName + "\t0"));
         Spinner camera1 = routeSpinner(labels, ids, routes.get(app.packageName + "\t1"));
         form.addView(text(app.installed ? app.label + "\n" + app.packageName
-                : app.packageName + "\n暂不可用（路由仍会保留）", 14, 0xff526171));
-        form.addView(label("目标相机 0")); form.addView(camera0);
-        form.addView(label("目标相机 1")); form.addView(camera1);
-        TextView error = text("请至少为一个目标相机选择替换来源", 12, 0xffdc2626);
+                : app.packageName + "\n" + getString(R.string.route_app_unavailable), 14, 0xff526171));
+        form.addView(label(getString(R.string.provider_target_camera, "0"))); form.addView(camera0);
+        form.addView(label(getString(R.string.provider_target_camera, "1"))); form.addView(camera1);
+        TextView error = text(getString(R.string.route_select_one), 12, 0xffdc2626);
         error.setVisibility(View.GONE);
         form.addView(error, matchWrapMargins(0, 8, 0, 0));
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("应用路由配置")
-                .setView(form).setNegativeButton("取消", null)
-                .setPositiveButton("保存", null).create();
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(R.string.route_config_title)
+                .setView(form).setNegativeButton(R.string.action_cancel, null)
+                .setPositiveButton(R.string.action_save, null).create();
         dialog.setOnShowListener(ignored ->
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
                     String provider0 = ids.get(camera0.getSelectedItemPosition());
@@ -1457,15 +1533,16 @@ public final class MainActivity extends Activity {
             lastRouteRefresh = SystemClock.elapsedRealtime();
             lastStatusRefresh = 0;
             renderRoutes();
-            toast("应用路由已保存，新相机会话开始时生效");
+            toast(getString(R.string.route_saved));
         });
     }
 
     private void confirmRemoveRoute(AppEntry app) {
-        new AlertDialog.Builder(this).setTitle("删除应用路由")
-                .setMessage("删除 “" + (app.installed ? app.label : app.packageName) + "” 的全部相机路由？")
-                .setNegativeButton("取消", null)
-                .setPositiveButton("删除", (dialog, which) ->
+        new AlertDialog.Builder(this).setTitle(R.string.route_remove_title)
+                .setMessage(getString(R.string.route_remove_message,
+                        app.installed ? app.label : app.packageName))
+                .setNegativeButton(R.string.action_cancel, null)
+                .setPositiveButton(R.string.action_delete, (dialog, which) ->
                         runAsync(() -> BackendClient.controller("route-save", app.packageName, "", ""), result -> {
                             result.requireSuccess();
                             routes.remove(app.packageName + "\t0");
@@ -1473,7 +1550,7 @@ public final class MainActivity extends Activity {
                             lastRouteRefresh = SystemClock.elapsedRealtime();
                             lastStatusRefresh = 0;
                             renderRoutes();
-                            toast("应用路由已删除");
+                            toast(getString(R.string.route_removed));
                         })).show();
     }
 
@@ -1487,13 +1564,16 @@ public final class MainActivity extends Activity {
     }
 
     private String routeProviderName(String target, String providerId) {
-        if (providerId == null || providerId.isEmpty()) return "目标物理相机 " + target + "（默认）";
+        if (providerId == null || providerId.isEmpty()) {
+            return getString(R.string.route_target_default, target);
+        }
         for (Provider provider : providers) {
             if (provider.id.equals(providerId)) {
-                return provider.name + (provider.running ? "" : "（已停止）");
+                return provider.name + (provider.running ? ""
+                        : getString(R.string.route_stopped_suffix));
             }
         }
-        return providerId + "（来源不可用）";
+        return providerId + getString(R.string.route_source_unavailable_suffix);
     }
 
     private AppEntry appEntryForPackage(String packageName) {
@@ -1561,6 +1641,16 @@ public final class MainActivity extends Activity {
         return values;
     }
 
+    private boolean parseRoutingEnabled(String output) {
+        for (String line : output.split("\\r?\\n")) {
+            String[] fields = line.split("\\t", -1);
+            if (fields.length == 2 && "ROUTING".equals(fields[0])) {
+                return "true".equals(fields[1]);
+            }
+        }
+        return true;
+    }
+
     private Map<String, String> parseProperties(String output) {
         Map<String, String> values = new HashMap<>();
         for (String line : output.split("\\r?\\n")) {
@@ -1595,6 +1685,19 @@ public final class MainActivity extends Activity {
     }
 
     private String friendlyError(Throwable error) {
+        if (error instanceof BackendClient.ClientException) {
+            BackendClient.ClientException clientError = (BackendClient.ClientException) error;
+            switch (clientError.failure) {
+                case OPERATION:
+                    return getString(R.string.error_backend_operation, clientError.operationCode);
+                case INVALID_MEDIA: return getString(R.string.error_invalid_media);
+                case MISSING_COMMAND: return getString(R.string.error_missing_command);
+                case CONNECT: return getString(R.string.error_connect_backend);
+                case MEDIA_ENDED: return getString(R.string.error_media_ended);
+                case INVALID_RESPONSE: return getString(R.string.error_invalid_response);
+                case RESPONSE_TOO_LARGE: return getString(R.string.error_response_too_large);
+            }
+        }
         String message = error.getMessage();
         return message == null || message.isEmpty() ? error.toString() : message;
     }
@@ -1630,7 +1733,8 @@ public final class MainActivity extends Activity {
                 if (value != null && !value.isEmpty()) return value;
             }
         } catch (Exception ignored) { }
-        return uri.getLastPathSegment() == null ? "已选择文件" : uri.getLastPathSegment();
+        return uri.getLastPathSegment() == null
+                ? getString(R.string.provider_file_selected) : uri.getLastPathSegment();
     }
 
     private void showPage(View page) {
@@ -1647,13 +1751,21 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private String yesNo(String value) { return "true".equals(value) ? "正常" : "异常"; }
+    private String yesNo(String value) { return getString("true".equals(value)
+            ? R.string.state_normal : R.string.state_error); }
     private String friendlyCount(String value) {
-        return value == null || value.isEmpty() || "unavailable".equals(value) ? "系统管理" : value;
+        return value == null || value.isEmpty() || "unavailable".equals(value)
+                ? getString(R.string.state_system_managed) : value;
     }
     private String typeName(String type) {
-        for (int i = 0; i < TYPE_CODES.length; ++i) if (TYPE_CODES[i].equals(type)) return TYPE_LABELS[i];
-        return "physical".equals(type) ? "物理相机" : type;
+        for (int i = 0; i < TYPE_CODES.length; ++i) {
+            if (TYPE_CODES[i].equals(type)) return typeLabels[i];
+        }
+        return "physical".equals(type) ? getString(R.string.provider_physical) : type;
+    }
+    private String targetCameraDescription(TargetCameraSpec spec) {
+        return getString(R.string.provider_target_description, spec.id, spec.width,
+                spec.height, spec.sensorOrientation);
     }
     private String providerSymbol(String type) {
         if ("physical".equals(type)) return "CAM";
@@ -1855,10 +1967,6 @@ public final class MainActivity extends Activity {
             this.id = id; this.width = width; this.height = height;
             this.sensorOrientation = sensorOrientation;
         }
-        String description() {
-            return "目标相机 " + id + " · 原相机取景 " + width + "×" + height +
-                    " · Sensor " + sensorOrientation + "°";
-        }
     }
     private static final class PreviewResult extends BackendClient.Result {
         final Bitmap bitmap;
@@ -1878,8 +1986,11 @@ public final class MainActivity extends Activity {
     private static final class RoutesResult extends BackendClient.Result {
         final Map<String, String> routes;
         final List<Provider> providers;
-        RoutesResult(Map<String, String> routes, List<Provider> providers) {
+        final boolean routingEnabled;
+        RoutesResult(Map<String, String> routes, List<Provider> providers,
+                     boolean routingEnabled) {
             super(0, "routes"); this.routes = routes; this.providers = providers;
+            this.routingEnabled = routingEnabled;
         }
     }
     private static final class RouteSetupResult extends BackendClient.Result {

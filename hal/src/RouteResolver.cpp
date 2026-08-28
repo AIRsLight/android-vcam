@@ -40,6 +40,9 @@ ProviderSelection RouteResolver::resolveProviderForPackage(
         const std::string& packageName, int cameraId,
         const std::string& routesPath, const std::string& providersPath) {
     const std::string fallback = defaultPhysicalProvider(cameraId);
+    if (std::ifstream(routesPath + ".disabled").good()) {
+        return {fallback, false, true, RouteMatchKind::None};
+    }
     std::ifstream input(routesPath);
     if (!input) return {fallback, false, true, RouteMatchKind::None};
     const auto selectionForProvider = [&](

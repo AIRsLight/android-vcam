@@ -6,6 +6,7 @@ PROVIDER_STATE_DIR="$STATE_DIR/providers"
 FRAME_DIR="/data/vendor/camera/vcam"
 PROVIDER_FRAME_DIR="$FRAME_DIR/providers"
 ROUTES_FILE="$FRAME_DIR/routes.tsv"
+ROUTING_DISABLED_FILE="$ROUTES_FILE.disabled"
 PROFILE_FILE="$STATE_DIR/device-profile.conf"
 
 find_publisher() {
@@ -785,10 +786,33 @@ remove_route() {
 
 list_routes() {
     [ -r "$ROUTES_FILE" ] || { prepare_dirs || return 1; }
+    if [ -e "$ROUTING_DISABLED_FILE" ]; then
+        printf 'ROUTING\tfalse\n'
+    else
+        printf 'ROUTING\ttrue\n'
+    fi
     while IFS="$(printf '\t')" read -r package target provider; do
         [ -n "$package" ] && [ -n "$target" ] && [ -n "$provider" ] || continue
         printf 'ROUTE\t%s\t%s\t%s\n' "$package" "$target" "$provider"
     done < "$ROUTES_FILE"
+}
+
+disable_routing() {
+    prepare_dirs || return 1
+    temporary="$ROUTING_DISABLED_FILE.new.$$"
+    : > "$temporary" || return 2
+    chown camera:camera "$temporary"
+    chmod 0640 "$temporary"
+    restorecon "$temporary" >/dev/null 2>&1
+    mv -f "$temporary" "$ROUTING_DISABLED_FILE" || return 3
+    restorecon "$ROUTING_DISABLED_FILE" >/dev/null 2>&1
+    echo "disabled"
+}
+
+enable_routing() {
+    prepare_dirs || return 1
+    rm -f "$ROUTING_DISABLED_FILE" || return 2
+    echo "enabled"
 }
 
 provider_count() {
@@ -827,6 +851,8 @@ print_status() {
     echo "camera_devices=$camera_devices"
     echo "provider_count=$(provider_count)"
     echo "route_count=$(route_count)"
+    [ -e "$ROUTING_DISABLED_FILE" ] && \
+        echo "routing_enabled=false" || echo "routing_enabled=true"
     if [ -r /vendor/lib64/hw/camera.qcom.so ]; then
         echo "hal_hash=$(sha256sum /vendor/lib64/hw/camera.qcom.so | awk '{print $1}')"
     fi
@@ -897,9 +923,11 @@ case "$1" in
     route-set) set_route "$2" "$3" "$4" ;;
     route-remove) remove_route "$2" "$3" ;;
     route-save) save_routes "$2" "$3" "$4" ;;
+    routing-enable) enable_routing ;;
+    routing-disable) disable_routing ;;
     apps) pm list packages 2>/dev/null | sed 's/^package://' | sort ;;
     *)
-        echo "usage: vcamctl {status|capabilities|providers|provider-add|provider-remove|provider-start|provider-stop|provider-suspend|source-preview|provider-frame|provider-update|provider-config|provider-config-set|provider-publish|provider-publish-stdin|provider-import-media|provider-publish-begin|provider-publish-chunk|provider-publish-commit|provider-publish-abort|routes|route-set|route-remove|route-save|apps}" >&2
+        echo "usage: vcamctl {status|capabilities|providers|provider-add|provider-remove|provider-start|provider-stop|provider-suspend|source-preview|provider-frame|provider-update|provider-config|provider-config-set|provider-publish|provider-publish-stdin|provider-import-media|provider-publish-begin|provider-publish-chunk|provider-publish-commit|provider-publish-abort|routes|route-set|route-remove|route-save|routing-enable|routing-disable|apps}" >&2
         exit 64
         ;;
 esac

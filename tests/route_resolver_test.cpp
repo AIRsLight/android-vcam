@@ -69,6 +69,16 @@ int main() {
     assert(vcam::RouteResolver::framePath("demo", providers) ==
             provider + "/frame.rgb");
 
+    std::ofstream routingDisabled(routes + ".disabled");
+    assert(routingDisabled.good());
+    routingDisabled.close();
+    const auto disabled = vcam::RouteResolver::resolveProviderForPackage(
+            "com.example.app", 0, routes, providers);
+    assert(!disabled.configured);
+    assert(disabled.available);
+    assert(disabled.providerId == "physical-0");
+    assert(disabled.match == vcam::RouteMatchKind::None);
+
     assert(std::filesystem::remove_all(rootPath) >= 5);
     return 0;
 }

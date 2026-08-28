@@ -89,6 +89,17 @@ int main() {
     assert(vcam::ScopedCameraRouter::visibleCameraId("1001") == "1");
     assert(vcam::ScopedCameraRouter::visibleCameraId("2") == "2");
 
+    std::ofstream routingDisabled(routes + ".disabled");
+    assert(routingDisabled.good());
+    routingDisabled.close();
+    const auto disabled = vcam::ScopedCameraRouter::resolve(
+            "com.example.virtual", "0", routes, providers);
+    assert(!disabled.configured);
+    assert(disabled.available);
+    assert(!disabled.redirected);
+    assert(disabled.effectiveCameraId == "0");
+    assert(disabled.providerId == "physical-0");
+
     assert(std::filesystem::remove_all(rootPath) >= 5);
     return 0;
 }

@@ -364,7 +364,7 @@ def main() -> None:
     route_resolver = (ROOT / "hal" / "src" / "RouteResolver.cpp").read_text(
         encoding="utf-8"
     )
-    for required_symbol in ("routesPath", "physical-", "enabled", "frame.rgb"):
+    for required_symbol in ("routesPath", "physical-", "enabled", "frame.rgb", ".disabled"):
         if required_symbol not in route_resolver:
             fail(f"route resolver is missing expected feature: {required_symbol}")
     scoped_router = "\n".join(path.read_text(encoding="utf-8") for path in (
@@ -392,7 +392,7 @@ def main() -> None:
         "capabilities", "provider-add", "provider-remove", "provider-start", "route-set",
         "provider-publish-stdin", "provider-import-media", "source-preview",
         "provider-frame", "provider-update",
-        "route-save",
+        "route-save", "routing-enable", "routing-disable",
         "provider-suspend", "ANDROID_VCAM_CURRENT_BOOT_ACTIVE",
     ):
         if command not in controller:
@@ -550,18 +550,25 @@ def main() -> None:
         path.read_text(encoding="utf-8")
         for path in (ROOT / "manager" / "src").rglob("*.java")
     )
+    manager_resources = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (ROOT / "manager" / "res").rglob("*.xml")
+    )
     for forbidden in ("ProcessBuilder", '"su"', "MANAGE_EXTERNAL_STORAGE"):
         if forbidden in manager_manifest or forbidden in manager_sources:
             fail(f"root-free manager contains forbidden capability: {forbidden}")
     for required_symbol in (
         "source-preview", "loadBackendNetworkPreview", "showProviderPreview",
-        "provider-frame", "刷新帧", "MAX_SOURCE_PIXEL_RATE", "12 MP",
+        "provider-frame", "action_refresh_frame", "MAX_SOURCE_PIXEL_RATE", "12 MP",
         "DeviceCompatibility", "NX769J Android 14", "OnePlus 7 Pro Android 12",
-        "ONEPLUS7PRO_PROFILE", 'compactSecondaryButton("相机 0")',
+        "ONEPLUS7PRO_PROFILE", "R.string.camera_label",
         "router_state", "profile_status", "openCameraTest",
+        "routing-enable", "routing-disable", "parseRoutingEnabled",
     ):
-        if required_symbol not in manager_sources:
+        if required_symbol not in manager_sources + manager_resources:
             fail(f"manager lacks source preview support: {required_symbol}")
+    if re.search(r'[\u4e00-\u9fff]', manager_sources):
+        fail("manager Java sources contain non-localized Chinese UI text")
     for verbose_home_copy in (
         "无需 Root 授权", "虚拟摄像头控制中心",
         "管理器不申请 root 权限，只连接模块内受鉴权的本地后端",

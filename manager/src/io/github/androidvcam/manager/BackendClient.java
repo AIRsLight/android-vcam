@@ -16,6 +16,24 @@ final class BackendClient {
     private static final byte[] RESPONSE_MAGIC = "VCAMR001".getBytes(StandardCharsets.US_ASCII);
     private static final int MAX_OUTPUT = 4 * 1024 * 1024;
 
+    enum Failure {
+        OPERATION, INVALID_MEDIA, MISSING_COMMAND, CONNECT,
+        MEDIA_ENDED, INVALID_RESPONSE, RESPONSE_TOO_LARGE
+    }
+
+    static final class ClientException extends IOException {
+        final Failure failure;
+        final int operationCode;
+
+        ClientException(Failure failure) { this(failure, 0, null); }
+        ClientException(Failure failure, Throwable cause) { this(failure, 0, cause); }
+        ClientException(Failure failure, int operationCode, Throwable cause) {
+            super(failure.name(), cause);
+            this.failure = failure;
+            this.operationCode = operationCode;
+        }
+    }
+
     static class Result {
         final int code;
         final String output;
@@ -26,7 +44,10 @@ final class BackendClient {
         }
 
         void requireSuccess() throws IOException {
-            if (code != 0) throw new IOException(output.isEmpty() ? "后端操作失败：" + code : output);
+            if (code != 0) {
+                if (!output.isEmpty()) throw new IOException(output);
+                throw new ClientException(Failure.OPERATION, code, null);
+            }
         }
     }
 
@@ -41,20 +62,20 @@ final class BackendClient {
     }
 
     static Result controller(InputStream input, long length, String... arguments) throws IOException {
-        if (input == null || length < 0) throw new IOException("无效的媒体输入");
+        if (input == null || length < 0) throw new ClientException(Failure.INVALID_MEDIA);
         return request(input, length, arguments);
     }
 
     private static Result request(InputStream payload, long payloadLength, String... values)
             throws IOException {
-        if (values.length == 0) throw new IOException("缺少后端命令");
+        if (values.length == 0) throw new ClientException(Failure.MISSING_COMMAND);
         byte[] command = values[0].getBytes(StandardCharsets.UTF_8);
         LocalSocket socket = new LocalSocket();
         try {
             try {
                 socket.connect(new LocalSocketAddress(SOCKET, LocalSocketAddress.Namespace.ABSTRACT));
             } catch (IOException error) {
-                throw new IOException("无法连接虚拟摄像头后端，请确认模块已启用", error);
+                throw new ClientException(Failure.CONNECT, error);
             }
             socket.setSoTimeout(45_000);
             DataOutputStream output = new DataOutputStream(socket.getOutputStream());
@@ -74,7 +95,7 @@ final class BackendClient {
                 while (remaining > 0) {
                     int wanted = (int)Math.min(buffer.length, remaining);
                     int count = payload.read(buffer, 0, wanted);
-                    if (count < 0) throw new IOException("媒体输入提前结束");
+                    if (count < 0) throw new ClientException(Failure.MEDIA_ENDED);
                     output.write(buffer, 0, count);
                     remaining -= count;
                 }
@@ -84,10 +105,14 @@ final class BackendClient {
             DataInputStream response = new DataInputStream(socket.getInputStream());
             byte[] magic = new byte[8];
             response.readFully(magic);
-            if (!java.util.Arrays.equals(magic, RESPONSE_MAGIC)) throw new IOException("后端响应无效");
+            if (!java.util.Arrays.equals(magic, RESPONSE_MAGIC)) {
+                throw new ClientException(Failure.INVALID_RESPONSE);
+            }
             int code = response.readInt();
             int length = response.readInt();
-            if (length < 0 || length > MAX_OUTPUT) throw new IOException("后端响应过大");
+            if (length < 0 || length > MAX_OUTPUT) {
+                throw new ClientException(Failure.RESPONSE_TOO_LARGE);
+            }
             byte[] bytes = new byte[length];
             response.readFully(bytes);
             return new Result(code, new String(bytes, StandardCharsets.UTF_8));

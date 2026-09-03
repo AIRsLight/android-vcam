@@ -617,6 +617,39 @@ def main() -> None:
     for required_symbol in ("OPEN_CAMERA_1000", "OPEN_CAMERA_1001", "camera_id"):
         if required_symbol not in test_activity:
             fail(f"Camera2 test app lacks deterministic camera selection: {required_symbol}")
+    protocol_probe = (
+        ROOT / "testapp" / "src" / "io" / "github" / "androidvcam" /
+        "test" / "ProtocolProbeActivity.java"
+    ).read_text(encoding="utf-8")
+    protocol_probe_native = (
+        ROOT / "testapp" / "jni" / "protocol_probe_jni.cpp"
+    ).read_text(encoding="utf-8")
+    protocol_manifest = (ROOT / "testapp" / "AndroidManifest.xml").read_text(
+        encoding="utf-8"
+    )
+    protocol_builder = (ROOT / "tools" / "build-testapp.ps1").read_text(
+        encoding="utf-8"
+    )
+    for required_symbol in (
+        "RUN_PROTOCOL_PROBE", "Camera.open", "openCamera(",
+        "getConcurrentCameraIds", "INVALID_CAMERA_ID",
+        "turnOnTorchWithStrengthLevel", "LENS_FACING_BACK",
+    ):
+        if required_symbol not in protocol_probe and required_symbol not in protocol_manifest:
+            fail(f"protocol test app coverage is missing: {required_symbol}")
+    for required_symbol in (
+        "ACameraManager_create", "ACameraManager_getCameraIdList",
+        "ACameraManager_getCameraCharacteristics", "ACameraManager_delete",
+    ):
+        if required_symbol not in protocol_probe_native:
+            fail(f"NDK protocol probe coverage is missing: {required_symbol}")
+    for required_symbol in (
+        "aarch64-linux-android29-clang++", "-static-libstdc++", "-MinSdk 29",
+        "NativeLibDirectory",
+    ):
+        if required_symbol not in protocol_builder and required_symbol not in (
+                ROOT / "tools" / "build-manager.ps1").read_text(encoding="utf-8"):
+            fail(f"protocol test APK packaging is missing: {required_symbol}")
 
     service_scripts = controller + \
         (ROOT / "apmodule" / "service.sh").read_text(encoding="utf-8") + \

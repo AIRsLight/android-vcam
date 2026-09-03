@@ -28,8 +28,9 @@ struct Android14ProtocolEvidenceSnapshot {
 // template. Zero means that the role is not part of the reviewed template.
 std::uint64_t android14ProtocolRoleBit(const std::string& role) noexcept;
 
-// All transaction roles whose Parcel prefix is understood by the current
-// observer. The nested concurrent-session payload remains outside this mask.
+// Baseline roles that an ordinary qualification app can deterministically
+// exercise. Legacy-only parameter lookup and the nested concurrent-session
+// payload remain optional evidence outside this mask.
 std::uint64_t android14ProtocolRequiredEvidenceMask() noexcept;
 
 const char* android14ProtocolEvidenceVerdictName(

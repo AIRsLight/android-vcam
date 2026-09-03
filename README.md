@@ -78,6 +78,10 @@ fingerprints and camera-library identities and fail closed on unknown builds.
   launch extras for single-stream high-resolution output tests. Explicit
   `OPEN_CAMERA_1000`/`OPEN_CAMERA_1001` actions provide an OEM-independent way
   to select internal qualification devices from ADB.
+- The test APK also exposes a protocol self-test that combines public Camera1,
+  Camera2 and NDK CameraManager calls. It selects only a back-facing camera,
+  submits torch checks against an intentionally invalid ID, and can be launched
+  with `io.github.androidvcam.test.RUN_PROTOCOL_PROBE`. Its minimum SDK is 29.
 - Module installation is systemless and pinned to the tested ROM hashes.
 - Unknown Android 14 builds can select the AOSP initial-release CameraService
   transaction template for aggregate read-only pass-through observation. This

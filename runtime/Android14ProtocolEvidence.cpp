@@ -27,7 +27,6 @@ constexpr std::uint64_t kRequiredMask =
         kConcurrentIds |
         kRemoveListener |
         kGetCharacteristics |
-        kGetLegacyParameters |
         kSupportsCameraApi |
         kSetTorchMode |
         kTurnOnTorchWithStrength |

@@ -2,6 +2,7 @@ package io.github.androidvcam.test;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.ImageFormat;
@@ -48,6 +49,7 @@ public final class CameraPreviewActivity extends Activity {
     private int previewWidth = 1280;
     private int previewHeight = 720;
     private Button switchCamera;
+    private Button protocolProbe;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -86,6 +88,16 @@ public final class CameraPreviewActivity extends Activity {
                 Gravity.BOTTOM | Gravity.END);
         switchParams.setMargins(dp(12), dp(12), dp(12), dp(22));
         root.addView(switchCamera, switchParams);
+
+        protocolProbe = new Button(this);
+        protocolProbe.setText("协议自检");
+        protocolProbe.setOnClickListener(view -> startActivity(
+                new Intent(this, ProtocolProbeActivity.class)));
+        FrameLayout.LayoutParams probeParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM | Gravity.START);
+        probeParams.setMargins(dp(12), dp(12), dp(12), dp(22));
+        root.addView(protocolProbe, probeParams);
         setContentView(root);
 
         preview.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {

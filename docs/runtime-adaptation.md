@@ -12,16 +12,28 @@ explicit pass-through mode. The observer records only stable role bit masks:
 roles seen, successfully decoded, rejected, and intentionally unsupported. It
 does not retain camera IDs, packages, UIDs, or PIDs. The evidence verdict is:
 
-- `pending` until the deterministic Camera1/Camera2 qualification sequence has
-  exercised every currently understood role;
+- `pending` until the deterministic Camera1/Camera2/NDK qualification sequence
+  has exercised every baseline role;
 - `rejected` if a required role is malformed or unsupported; or
 - `probe_compatible` when every required role has decoded successfully.
 
-The nested concurrent-session configuration is tracked as unsupported and is
-not currently part of the understood-role mask. A `probe_compatible` result is
-diagnostic evidence only: it cannot enable `physical-route`, create a trusted
-device recipe, or survive reboot as an authorization. Routing still requires a
-reviewed qualified profile.
+Legacy-parameter lookup is hardware-dependent and therefore remains optional
+evidence. The nested concurrent-session configuration is tracked as unsupported
+and is also outside the baseline mask. A `probe_compatible` result is diagnostic
+evidence only: it cannot enable `physical-route`, create a trusted device recipe,
+or survive reboot as an authorization. Routing still requires a reviewed
+qualified profile.
+
+The ordinary test APK drives the baseline with public APIs only. Its Java path
+opens and immediately closes one back-facing Camera1 and Camera2 device, queries
+concurrency on API 30+, and submits torch transactions using an intentionally
+invalid camera ID so no flashlight can be activated. A small NDK CameraManager
+probe supplies listener add/remove, characteristics, and Camera2-support calls.
+It can be launched without the Manager:
+
+```text
+adb shell am start -a io.github.androidvcam.test.RUN_PROTOCOL_PROBE
+```
 
 ## Fail-closed boundary
 

@@ -63,6 +63,12 @@
     <string name="status_preflight">Read-only preflight</string>
     <string name="status_service_line">Service: %1$s</string>
     <string name="status_route_line">Route: %1$s</string>
+    <string name="status_protocol_line">Protocol: %1$s</string>
+    <string name="status_protocol_compatible">Probe compatible</string>
+    <string name="status_protocol_rejected">Rejected</string>
+    <string name="status_protocol_pending">Pending</string>
+    <string name="status_protocol_unavailable">Unavailable</string>
+    <string name="status_hal_line">HAL: %1$s</string>
     <string name="status_system_details">System details</string>
     <string name="test_app_missing">VCAM test app is not installed; cannot open public camera %1$s</string>
     <string name="profile_oneplus_qualified_title">OnePlus 7 Pro Android 12 · Qualified</string>

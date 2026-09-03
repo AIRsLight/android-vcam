@@ -40,7 +40,6 @@ int main() {
             "get_concurrent_camera_ids",
             "remove_listener",
             "get_camera_characteristics",
-            "get_legacy_parameters",
             "supports_camera_api",
             "set_torch_mode",
             "turn_on_torch_with_strength",
@@ -54,6 +53,12 @@ int main() {
     assert(snapshot.invalidMask == 0);
     assert(snapshot.verdict ==
            Android14ProtocolEvidenceVerdict::kProbeCompatible);
+
+    // Legacy-parameter lookup is hardware-dependent. It is useful evidence
+    // when observed, but a modern Camera2-only device must not remain pending.
+    assert((snapshot.requiredMask &
+            vcam::runtime::android14ProtocolRoleBit(
+                    "get_legacy_parameters")) == 0);
     assert(std::strcmp(vcam::runtime::android14ProtocolEvidenceVerdictName(
                                snapshot.verdict),
                        "probe_compatible") == 0);

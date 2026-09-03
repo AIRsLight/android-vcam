@@ -108,6 +108,7 @@ public final class MainActivity extends Activity {
     private TextView compatibilityDetail;
     private TextView runtimeText;
     private String lastStatusError = "";
+    private String lastProtocolVerdict = "unavailable";
     private LinearLayout providerList;
     private LinearLayout routeList;
     private TextView providerRefreshText;
@@ -425,6 +426,8 @@ public final class MainActivity extends Activity {
             compatibilityText.setTextColor(0xffb45309);
         }
         String router = status.getOrDefault("router_state", "unknown");
+        lastProtocolVerdict = status.getOrDefault(
+                "router_protocol_verdict", "unavailable");
         boolean onePlus = DeviceCompatibility.ONEPLUS7PRO_PROFILE.equals(backendProfile);
         String provider = onePlus
                 ? getString("true".equals(status.get("mount_active"))
@@ -449,13 +452,30 @@ public final class MainActivity extends Activity {
         details.append(deviceProfile.detail)
                 .append("\n\n").append(getString(R.string.status_service_line, statusDetail.getText()))
                 .append("\n").append(getString(R.string.status_route_line, runtimeText.getText()))
-                .append("\nHAL：").append(halText.getText());
+                .append("\n").append(getString(
+                        R.string.status_protocol_line,
+                        protocolVerdictName(lastProtocolVerdict)))
+                .append("\n").append(getString(
+                        R.string.status_hal_line, halText.getText()));
         if (!lastStatusError.isEmpty()) details.append("\n\n").append(lastStatusError);
         new AlertDialog.Builder(this)
                 .setTitle(R.string.status_system_details)
                 .setMessage(details.toString())
                 .setPositiveButton(R.string.action_done, null)
                 .show();
+    }
+
+    private String protocolVerdictName(String verdict) {
+        if ("probe_compatible".equals(verdict)) {
+            return getString(R.string.status_protocol_compatible);
+        }
+        if ("rejected".equals(verdict)) {
+            return getString(R.string.status_protocol_rejected);
+        }
+        if ("pending".equals(verdict)) {
+            return getString(R.string.status_protocol_pending);
+        }
+        return getString(R.string.status_protocol_unavailable);
     }
 
     private void openCameraTest(String cameraId) {

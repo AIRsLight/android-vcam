@@ -3,10 +3,12 @@ param(
     [string]$AndroidSdk = "D:\AndroidSdk",
     [string]$BuildToolsVersion = "35.0.0",
     [int]$CompileSdk = 35,
+    [int]$MinSdk = 31,
     [string]$JdkHome = "$env:LOCALAPPDATA\Programs\Microsoft\jdk-17.0.10.7-hotspot",
     [string]$AppDirectory = "manager",
     [string]$BuildDirectory = "out\manager",
     [string]$OutputFile = "android-vcam-manager-debug.apk",
+    [string]$NativeLibDirectory = "",
     [string]$Version = "0.5.0-dev.39",
     [int]$VersionCode = 23
 )
@@ -52,7 +54,7 @@ if ($LASTEXITCODE -ne 0) { throw "aapt2 compile failed" }
 
 & $aapt2 link -o $unsigned -I $androidJar `
     --manifest (Join-Path $appRoot "AndroidManifest.xml") `
-    --java $gen --min-sdk-version 31 --target-sdk-version 35 `
+    --java $gen --min-sdk-version $MinSdk --target-sdk-version 35 `
     --version-code $VersionCode --version-name $Version $compiled
 if ($LASTEXITCODE -ne 0) { throw "aapt2 link failed" }
 
@@ -65,10 +67,18 @@ if ($LASTEXITCODE -ne 0) { throw "javac failed" }
 
 & $jar --create --file $classesJar -C $classes .
 if ($LASTEXITCODE -ne 0) { throw "jar failed" }
-& $d8 --lib $androidJar --min-api 31 --output $dex $classesJar
+& $d8 --lib $androidJar --min-api $MinSdk --output $dex $classesJar
 if ($LASTEXITCODE -ne 0) { throw "d8 failed" }
 & $jar --update --file $unsigned -C $dex classes.dex
 if ($LASTEXITCODE -ne 0) { throw "Unable to add classes.dex to APK" }
+if ($NativeLibDirectory) {
+    $nativeRoot = [IO.Path]::GetFullPath($NativeLibDirectory)
+    if (-not (Test-Path -LiteralPath (Join-Path $nativeRoot "lib") -PathType Container)) {
+        throw "Native APK directory must contain lib/: $nativeRoot"
+    }
+    & $jar --update --file $unsigned -C $nativeRoot .
+    if ($LASTEXITCODE -ne 0) { throw "Unable to add native libraries to APK" }
+}
 
 & $zipalign -f 4 $unsigned $aligned
 if ($LASTEXITCODE -ne 0) { throw "zipalign failed" }

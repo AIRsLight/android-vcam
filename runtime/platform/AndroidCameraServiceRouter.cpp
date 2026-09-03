@@ -73,6 +73,17 @@ std::string buildFingerprint() {
                       : std::string();
 }
 
+int buildSdk() {
+    char value[PROP_VALUE_MAX] {};
+    const int length = __system_property_get("ro.build.version.sdk", value);
+    if (length <= 0) return -1;
+    char* end = nullptr;
+    const long parsed = std::strtol(value, &end, 10);
+    return end != value && end != nullptr && *end == '\0' && parsed >= 0 &&
+                   parsed <= 1000
+            ? static_cast<int>(parsed) : -1;
+}
+
 void* statsPublisher(void*) {
     for (;;) {
         const Android14BinderShadowObserver* observer =
@@ -285,6 +296,11 @@ protected:
             }
             return writeStatus;
         }
+        if (!physicalRoutingEnabled_) {
+            // Pass-through observation ends here. In particular, a generic
+            // probe candidate never resolves caller packages or route files.
+            return target_->transact(code, data, reply, flags);
+        }
         const CameraCallerIdentityClassification identity =
                 classifyCameraCallerIdentity(
                         observation.transaction.cameraScoped,
@@ -485,22 +501,28 @@ void* routerMonitor(void*) {
         return nullptr;
     }
 
-    AbiRecipe observationRecipe;
     const std::string fingerprint = buildFingerprint();
-    if (matchesNx769jAndroid14CameraServiceProfile(fingerprint)) {
-        observationRecipe = makeNx769jAndroid14CameraServiceRecipe();
-        gObserverProfile.store(kNx769jAndroid14ProfileName,
-                               std::memory_order_release);
-        ALOGI("enabled read-only Binder observer profile=%s",
-              kNx769jAndroid14ProfileName);
+    Android14CameraServiceProtocolSelection protocol =
+            selectAndroid14CameraServiceProtocol(buildSdk(), fingerprint);
+    if (mode == CameraServiceRouterMode::kPhysicalRoute &&
+        !protocol.routingAllowed) {
+        setTerminalState(AndroidCameraServiceRouterState::kProtocolUnqualified,
+                         "camera Binder protocol is not qualified for routing");
+        return nullptr;
+    }
+    if (protocol.observationAllowed) {
+        gObserverProfile.store(protocol.profileName, std::memory_order_release);
+        ALOGI("enabled read-only Binder observer profile=%s confidence=%s",
+              protocol.profileName,
+              android14CameraServiceProtocolConfidenceName(protocol.confidence));
     } else {
-        ALOGW("no qualified read-only Binder observer for this build; "
+        ALOGW("no read-only Binder observation template for this platform; "
               "transactions remain unparsed");
     }
     android::sp<android::IBinder> router =
             android::sp<CameraServicePassThrough>::make(
                     original,
-                    std::move(observationRecipe),
+                    std::move(protocol.recipe),
                     mode == CameraServiceRouterMode::kPhysicalRoute);
     const android::status_t registration = manager->addService(
             serviceName,
@@ -557,6 +579,8 @@ const char* androidCameraServiceRouterStateName(
             return "passthrough_ready";
         case AndroidCameraServiceRouterState::kPhysicalRouteReady:
             return "physical_route_ready";
+        case AndroidCameraServiceRouterState::kProtocolUnqualified:
+            return "protocol_unqualified";
         case AndroidCameraServiceRouterState::kDisabled: return "disabled";
         case AndroidCameraServiceRouterState::kInvalidMode: return "invalid_mode";
         case AndroidCameraServiceRouterState::kThreadStartFailed:

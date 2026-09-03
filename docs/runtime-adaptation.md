@@ -347,12 +347,23 @@ comparison instead. Observed strings are length-bounded and ASCII-only, while
 the authoritative caller UID and PID come from `IPCThreadState`, never from
 client-supplied Parcel fields.
 
-The observer now has a tested adapter for the pass-through bridge, but the
-cameraserver agent does not instantiate or bind it and the planned entry patch
-is still never installed. It cannot select a route, replace a camera, mutate a
-request, bind a trampoline, or install a hook. Its current purpose is to
-establish and test the exact read-only parsing boundary before activation code
-exists.
+The same-process CameraService router now instantiates the observer after it
+has verified that `media.camera` resolves to a local Binder with the exact
+`android.hardware.ICameraService` descriptor. In pass-through mode it forwards
+every transaction to the original local Binder and publishes aggregate
+observation counters without logging camera IDs, UIDs, PIDs or package names.
+Pass-through returns immediately after observation, before package ownership
+lookups or route-table resolution, so a generic candidate cannot accidentally
+exercise scoped-routing behavior.
+
+Android 14 protocol selection has two confidence levels. The exact NX769J
+fingerprint selects the independently verified recipe and may enter routing.
+Other API 34 builds select the AOSP initial-release transaction template only
+as a `probe_candidate`: they may collect pass-through observations but are
+explicitly rejected if physical routing is requested. Non-API-34 builds do not
+receive this template. A candidate must still pass deterministic live Camera1,
+Camera2, metadata, listener and torch probes before a later activation stage
+can promote it; model or manufacturer names never authorize routing.
 
 ## Planned activation architecture
 

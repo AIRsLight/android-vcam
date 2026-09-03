@@ -405,3 +405,23 @@ cc_test {
     ],
     cpp_std: "c++17",
 }
+
+cc_test {
+    name: "vcam_android14_camera_service_profile_test",
+    host_supported: true,
+    device_supported: false,
+    srcs: ["tests/android14_camera_service_profile_test.cpp"],
+    local_include_dirs: ["runtime/include"],
+    static_libs: ["libvcam_android14_parcel_observer"],
+    shared_libs: [
+        "libbinder",
+        "libutils",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-UNDEBUG",
+    ],
+    cpp_std: "c++17",
+}

@@ -2,7 +2,7 @@
 
 namespace vcam::runtime {
 
-AbiRecipe makeNx769jAndroid14CameraServiceRecipe() {
+AbiRecipe makeAndroid14InitialCameraServiceRecipe() {
     AbiRecipe recipe;
     recipe.schema = 2;
     recipe.architecture = "arm64";
@@ -21,6 +21,43 @@ AbiRecipe makeNx769jAndroid14CameraServiceRecipe() {
             {"get_torch_strength", 18},
     };
     return recipe;
+}
+
+AbiRecipe makeNx769jAndroid14CameraServiceRecipe() {
+    return makeAndroid14InitialCameraServiceRecipe();
+}
+
+Android14CameraServiceProtocolSelection selectAndroid14CameraServiceProtocol(
+        int sdk,
+        const std::string& fingerprint) {
+    Android14CameraServiceProtocolSelection selection;
+    if (sdk != 34) return selection;
+
+    selection.recipe = makeAndroid14InitialCameraServiceRecipe();
+    selection.observationAllowed = true;
+    if (matchesNx769jAndroid14CameraServiceProfile(fingerprint)) {
+        selection.profileName = kNx769jAndroid14ProfileName;
+        selection.confidence = Android14CameraServiceProtocolConfidence::kQualified;
+        selection.routingAllowed = true;
+    } else {
+        selection.profileName = kAndroid14InitialCandidateProfileName;
+        selection.confidence =
+                Android14CameraServiceProtocolConfidence::kProbeCandidate;
+    }
+    return selection;
+}
+
+const char* android14CameraServiceProtocolConfidenceName(
+        Android14CameraServiceProtocolConfidence confidence) noexcept {
+    switch (confidence) {
+        case Android14CameraServiceProtocolConfidence::kUnsupported:
+            return "unsupported";
+        case Android14CameraServiceProtocolConfidence::kProbeCandidate:
+            return "probe_candidate";
+        case Android14CameraServiceProtocolConfidence::kQualified:
+            return "qualified";
+    }
+    return "unsupported";
 }
 
 bool matchesNx769jAndroid14CameraServiceProfile(

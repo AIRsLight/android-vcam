@@ -79,6 +79,10 @@ fingerprints and camera-library identities and fail closed on unknown builds.
   `OPEN_CAMERA_1000`/`OPEN_CAMERA_1001` actions provide an OEM-independent way
   to select internal qualification devices from ADB.
 - Module installation is systemless and pinned to the tested ROM hashes.
+- Unknown Android 14 builds can select the AOSP initial-release CameraService
+  transaction template for aggregate read-only pass-through observation. This
+  is only a probe candidate: actual routing remains restricted to qualified
+  device recipes and rejects an unqualified protocol before Binder takeover.
 
 ## Qualified targets
 

@@ -57,6 +57,15 @@ add_test(NAME scoped_camera_router_test COMMAND scoped_camera_router_test)
 if(UNIX)
     add_subdirectory(runtime)
 
+    add_executable(android14_camera_service_profile_test
+        tests/android14_camera_service_profile_test.cpp
+        runtime/platform/Android14CameraServiceProfile.cpp)
+    target_include_directories(android14_camera_service_profile_test
+        PRIVATE runtime/include)
+    target_compile_options(android14_camera_service_profile_test PRIVATE -UNDEBUG)
+    add_test(NAME android14_camera_service_profile_test
+        COMMAND android14_camera_service_profile_test)
+
     add_executable(camera_service_router_mode_test
         tests/camera_service_router_mode_test.cpp
         runtime/CameraServiceRouterMode.cpp)

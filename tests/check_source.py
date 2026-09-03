@@ -128,7 +128,8 @@ def main() -> None:
 
     host_cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
     if "-UNDEBUG" not in host_cmake or "route_resolver_test" not in host_cmake or \
-            "scoped_camera_router_test" not in host_cmake:
+            "scoped_camera_router_test" not in host_cmake or \
+            "android14_camera_service_profile_test" not in host_cmake:
         fail("native assertions or route resolver test are not enabled")
 
     runtime_exports = (ROOT / "runtime" / "exports.map").read_text(encoding="utf-8")
@@ -171,9 +172,31 @@ def main() -> None:
         "internal_camera_requests_rejected", "EX_ILLEGAL_ARGUMENT",
         "wrapAndroid14CameraListenerRequest",
         "filterAndroid14CameraStatusReply",
+        "selectAndroid14CameraServiceProtocol", "kProtocolUnqualified",
+        "if (!physicalRoutingEnabled_)",
     ):
         if required_symbol not in router_source:
             fail(f"camera service router telemetry is missing: {required_symbol}")
+    protocol_profile = (ROOT / "runtime" / "platform" /
+                        "Android14CameraServiceProfile.cpp").read_text(encoding="utf-8")
+    for required_symbol in (
+        "android14-aosp-initial-candidate", "kProbeCandidate",
+        "observationAllowed", "routingAllowed", "sdk != 34",
+    ):
+        if required_symbol not in protocol_profile and required_symbol not in (
+                ROOT / "runtime" / "include" / "vcam" /
+                "Android14CameraServiceProfile.h").read_text(encoding="utf-8"):
+            fail(f"Android 14 generic protocol selector is missing: {required_symbol}")
+    aosp14_validator = (ROOT / "tools" / "verify-aosp14-build.sh").read_text(
+        encoding="utf-8"
+    )
+    for required_symbol in (
+        "libvcam_cameraserver_router", "vcam_cameraserver_launcher",
+        "vcam_android14_camera_service_profile_test",
+        "vcam_android14_parcel_observer_test",
+    ):
+        if required_symbol not in aosp14_validator:
+            fail(f"Android 14 validator does not build router target: {required_symbol}")
 
     module = (ROOT / "apmodule" / "module.prop").read_text(encoding="utf-8")
     if not re.search(r"^id=android_vcam$", module, re.MULTILINE):

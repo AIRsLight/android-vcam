@@ -258,7 +258,11 @@ m --soong-only -j"$jobs" WITH_DEXPREOPT=false \
     android.hardware.camera.provider@2.4-vcam-service \
     libvcam_googlecamerahwl_impl \
     android.hardware.camera.provider-service-vcam-v2 \
-    vcam_provider_probe_client
+    vcam_provider_probe_client \
+    libvcam_cameraserver_router \
+    vcam_cameraserver_launcher \
+    vcam_android14_camera_service_profile_test \
+    vcam_android14_parcel_observer_test
 set -u
 
 for artifact in \
@@ -266,10 +270,22 @@ for artifact in \
     "$OUT_DIR/soong/target/product/generic_arm64/vendor/lib64/hw/camera.vcam.so" \
     "$OUT_DIR/soong/target/product/generic_arm64/vendor/bin/hw/android.hardware.camera.provider@2.4-vcam-service" \
     "$OUT_DIR/soong/target/product/generic_arm64/system/bin/vcam_provider_probe_client" \
+    "$OUT_DIR/soong/target/product/generic_arm64/system/bin/vcam_cameraserver_launcher" \
+    "$OUT_DIR/soong/target/product/generic_arm64/system/lib64/libvcam_cameraserver_router.so" \
     "$OUT_DIR/soong/target/product/generic_arm64/vendor/lib64/libvcam_googlecamerahwl_impl.so" \
     "$OUT_DIR/soong/target/product/generic_arm64/vendor/bin/hw/android.hardware.camera.provider-service-vcam-v2"; do
     [[ -s "$artifact" ]] || fail "expected build artifact is missing: $artifact"
     printf 'Verified artifact: %s\n' "$artifact"
+done
+
+for test_name in \
+    vcam_android14_camera_service_profile_test \
+    vcam_android14_parcel_observer_test; do
+    test_binary=$(find "$OUT_DIR/soong/host/linux-x86" -type f -name "$test_name" \
+        -perm /111 -print | head -n 1)
+    [[ -n "$test_binary" ]] || fail "host test binary is missing: $test_name"
+    "$test_binary" || fail "host test failed: $test_name"
+    printf 'Verified host test: %s\n' "$test_name"
 done
 
 hwl_artifact="$OUT_DIR/soong/target/product/generic_arm64/vendor/lib64/libvcam_googlecamerahwl_impl.so"

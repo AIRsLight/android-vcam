@@ -70,6 +70,33 @@ int main() {
             vcam::runtime::kNx769jAndroid14Fingerprint));
     assert(!vcam::runtime::matchesNx769jAndroid14CameraServiceProfile(
             "unknown/device:14/test"));
+    const auto qualifiedProtocol =
+            vcam::runtime::selectAndroid14CameraServiceProtocol(
+                    34, vcam::runtime::kNx769jAndroid14Fingerprint);
+    assert(qualifiedProtocol.observationAllowed);
+    assert(qualifiedProtocol.routingAllowed);
+    assert(qualifiedProtocol.confidence ==
+           vcam::runtime::Android14CameraServiceProtocolConfidence::kQualified);
+    assert(std::strcmp(qualifiedProtocol.profileName,
+                       vcam::runtime::kNx769jAndroid14ProfileName) == 0);
+    const auto candidateProtocol =
+            vcam::runtime::selectAndroid14CameraServiceProtocol(
+                    34, "vendor/product/device:14/UP1A/build:user/release-keys");
+    assert(candidateProtocol.observationAllowed);
+    assert(!candidateProtocol.routingAllowed);
+    assert(candidateProtocol.confidence ==
+           vcam::runtime::Android14CameraServiceProtocolConfidence::kProbeCandidate);
+    assert(std::strcmp(candidateProtocol.profileName,
+                       vcam::runtime::kAndroid14InitialCandidateProfileName) == 0);
+    const auto unsupportedProtocol =
+            vcam::runtime::selectAndroid14CameraServiceProtocol(
+                    33, vcam::runtime::kNx769jAndroid14Fingerprint);
+    assert(!unsupportedProtocol.observationAllowed);
+    assert(!unsupportedProtocol.routingAllowed);
+    assert(unsupportedProtocol.recipe.transactions.empty());
+    assert(std::strcmp(vcam::runtime::android14CameraServiceProtocolConfidenceName(
+                               candidateProtocol.confidence),
+                       "probe_candidate") == 0);
     const auto qualifiedRecipe =
             vcam::runtime::makeNx769jAndroid14CameraServiceRecipe();
     assert(qualifiedRecipe.schema == 2);

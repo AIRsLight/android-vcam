@@ -45,6 +45,15 @@ constexpr unsigned int kStatsPublishIntervalSeconds = 1;
 constexpr char kRuntimeRoutesPath[] = "/data/vendor/camera/vcam/routes.tsv";
 constexpr char kRuntimeProvidersPath[] = "/data/vendor/camera/vcam/providers";
 
+android::status_t rejectCameraRequest(
+        android::Parcel* reply, const char* message) {
+    if (reply == nullptr) return android::BAD_VALUE;
+    reply->freeData();
+    return android::binder::Status::fromExceptionCode(
+                   android::binder::Status::EX_ILLEGAL_ARGUMENT, message)
+            .writeToParcel(reply);
+}
+
 std::atomic<AndroidCameraServiceRouterState> gState {
         AndroidCameraServiceRouterState::kNotStarted};
 android::sp<android::IBinder> gOriginalService;
@@ -301,13 +310,8 @@ protected:
             observation.transaction.cameraScoped &&
             ::vcam::ScopedCameraRouter::isInternalCameraId(
                     observation.cameraId)) {
-            if (reply == nullptr) return android::BAD_VALUE;
-            reply->freeData();
-            const android::binder::Status rejection =
-                    android::binder::Status::fromExceptionCode(
-                            android::binder::Status::EX_ILLEGAL_ARGUMENT,
-                            "Unknown camera ID");
-            const android::status_t writeStatus = rejection.writeToParcel(reply);
+            const android::status_t writeStatus =
+                    rejectCameraRequest(reply, "Unknown camera ID");
             if (writeStatus == android::OK) {
                 gInternalCameraRequestsRejected.fetch_add(
                         1, std::memory_order_relaxed);
@@ -405,6 +409,21 @@ protected:
         }
         if (physicalRoutingEnabled_ && !replacementCameraId.empty()) {
             gPhysicalRewriteAttempts.fetch_add(1, std::memory_order_relaxed);
+            if (observation.transaction.payloadShape ==
+                    BinderPayloadShape::kConnectApi1) {
+                const std::string camera1Index =
+                        ::vcam::ScopedCameraRouter::camera1IndexForId(
+                                replacementCameraId);
+                if (camera1Index.empty()) {
+                    gPhysicalRewriteFailures.fetch_add(
+                            1, std::memory_order_relaxed);
+                    ALOGE("Camera1 route has no index mapping: cameraId=%s",
+                          replacementCameraId.c_str());
+                    return rejectCameraRequest(
+                            reply, "Camera1 routing map unavailable");
+                }
+                replacementCameraId = camera1Index;
+            }
             android::Parcel rewritten;
             const CameraIdRewriteStatus rewriteStatus =
                     rewriteAndroid14CameraId(

@@ -7,6 +7,8 @@
 int main() {
     using vcam::runtime::Android14CameraServiceProtocolConfidence;
     using vcam::runtime::android14CameraServiceProtocolConfidenceName;
+    using vcam::runtime::kAosp14AvdFingerprint;
+    using vcam::runtime::kAosp14AvdProfileName;
     using vcam::runtime::kAndroid14InitialCandidateProfileName;
     using vcam::runtime::kNx769jAndroid14Fingerprint;
     using vcam::runtime::kNx769jAndroid14ProfileName;
@@ -21,6 +23,15 @@ int main() {
     assert(std::strcmp(qualified.profileName, kNx769jAndroid14ProfileName) == 0);
     assert(qualified.recipe.schema == 2);
     assert(qualified.recipe.transactions.size() == 12);
+
+    const auto avdQualified =
+            selectAndroid14CameraServiceProtocol(34, kAosp14AvdFingerprint);
+    assert(avdQualified.observationAllowed);
+    assert(avdQualified.routingAllowed);
+    assert(avdQualified.confidence ==
+           Android14CameraServiceProtocolConfidence::kQualified);
+    assert(std::strcmp(avdQualified.profileName, kAosp14AvdProfileName) == 0);
+    assert(avdQualified.recipe.transactions.size() == 12);
 
     const auto candidate = selectAndroid14CameraServiceProtocol(
             34, "vendor/product/device:14/UP1A/build:user/release-keys");

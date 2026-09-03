@@ -232,6 +232,15 @@ Development should proceed in this order:
 7. Repeat protocol builds and smoke tests on Android 10-13 before qualifying
    vendor profiles.
 
+Public Camera2 IDs and Camera1 indices must be discovered rather than assumed.
+After the virtual provider is registered in pass-through mode, the qualifier
+captures CameraService's raw `Device N maps to "ID"` table. It writes one map
+from public IDs/legacy aliases to logical target slots and a second map from
+Camera2 string IDs to Camera1 integer indices. Physical routing is authorized
+only if every selected public target and internal virtual device has an
+unambiguous mapping. A missing Camera1 mapping rejects the routed Camera1 open;
+it must never silently fall back to the physical device.
+
 The first device experiment must stop after gate 2 if the CameraService entry
 point is unavailable, the original service Binder is not local, the proxy cannot
 be registered safely, or SELinux requires broad permissions. Any of those

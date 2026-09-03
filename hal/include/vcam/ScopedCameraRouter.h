@@ -28,15 +28,28 @@ class ScopedCameraRouter final {
             "/data/vendor/camera/vcam/routes.tsv";
     static constexpr const char* kDefaultProvidersPath =
             "/data/vendor/camera/vcam/providers";
+    static constexpr const char* kDefaultTargetMapPath =
+            "/data/vendor/camera/vcam/targets.tsv";
+    static constexpr const char* kDefaultCamera1MapPath =
+            "/data/vendor/camera/vcam/camera1-map.tsv";
 
     static ScopedCameraRoute resolve(
             const std::string& packageName,
             const std::string& requestedCameraId,
             const std::string& routesPath = kDefaultRoutesPath,
-            const std::string& providersPath = kDefaultProvidersPath);
+            const std::string& providersPath = kDefaultProvidersPath,
+            const std::string& targetMapPath = kDefaultTargetMapPath);
 
     static bool isInternalCameraId(const std::string& cameraId);
-    static std::string visibleCameraId(const std::string& cameraId);
+    static std::string visibleCameraId(
+            const std::string& cameraId,
+            const std::string& targetMapPath = kDefaultTargetMapPath);
+    // Camera1 connect() carries an integer index, not the Camera2 string ID.
+    // The map is generated from CameraService's "Device N maps to ID" table
+    // after the virtual provider has registered.
+    static std::string camera1IndexForId(
+            const std::string& cameraId,
+            const std::string& camera1MapPath = kDefaultCamera1MapPath);
 };
 
 }  // namespace vcam

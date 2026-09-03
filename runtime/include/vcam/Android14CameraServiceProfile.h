@@ -9,6 +9,10 @@ namespace vcam::runtime {
 constexpr char kNx769jAndroid14Fingerprint[] =
         "nubia/NX769J/NX769J:14/UKQ1.230917.001/20240417.145608:user/release-keys";
 constexpr char kNx769jAndroid14ProfileName[] = "nx769j-ukq1-20240417";
+constexpr char kAosp14AvdFingerprint[] =
+        "Android/sdk_phone64_x86_64/emu64x:14/UE1A.230829.036.A1/"
+        "11228894:userdebug/test-keys";
+constexpr char kAosp14AvdProfileName[] = "aosp14-api34-avd-11228894";
 constexpr char kAndroid14InitialCandidateProfileName[] =
         "android14-aosp-initial-candidate";
 

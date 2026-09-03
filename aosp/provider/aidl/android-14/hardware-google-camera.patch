@@ -454,7 +454,7 @@ index d4fae3e..d8f179c 100644
  // Location of the camera configuration files.
  constexpr std::string_view kConfigurationFileNames[] = {
      "emu_camera_back.json",
-@@ -710,5 +715,12 @@ status_t EmulatedCameraProviderHwlImpl::Initialize() {
+@@ -710,5 +715,17 @@ status_t EmulatedCameraProviderHwlImpl::Initialize() {
      config_dir += kConfigurationFileDirVendor.data();
    }
 +#ifdef ANDROID_VCAM_CUSTOM_FACTORY
@@ -464,8 +464,14 @@ index d4fae3e..d8f179c 100644
 +    if (config_dir.back() != '/') config_dir.push_back('/');
 +  }
 +#endif
++#ifdef ANDROID_VCAM_CUSTOM_FACTORY
++  const bool force_config_files = true;
++#else
++  const bool force_config_files = false;
++#endif
    char prop[PROPERTY_VALUE_MAX];
-   if (!property_get_bool("ro.boot.qemu", false)) {
+-  if (!property_get_bool("ro.boot.qemu", false)) {
++  if (force_config_files || !property_get_bool("ro.boot.qemu", false)) {
      for (const auto& iter : kConfigurationFileNames) {
 @@ -809,6 +821,13 @@ status_t EmulatedCameraProviderHwlImpl::Initialize() {
        camera_id_map_.emplace(logical_id, std::vector<std::pair<CameraDeviceStatus, uint32_t>>());

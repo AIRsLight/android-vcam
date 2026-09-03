@@ -175,6 +175,7 @@ def main() -> None:
         "uid_packages_unique", "uid_packages_ambiguous",
         "physical_rewrite_successes", "rewriteAndroid14CameraId",
         "replacementCameraId = route.effectiveCameraId",
+        "camera1IndexForId", "Camera1 routing map unavailable",
         "internal_camera_requests_rejected", "EX_ILLEGAL_ARGUMENT",
         "wrapAndroid14CameraListenerRequest",
         "filterAndroid14CameraStatusReply",
@@ -188,6 +189,7 @@ def main() -> None:
                         "Android14CameraServiceProfile.cpp").read_text(encoding="utf-8")
     for required_symbol in (
         "android14-aosp-initial-candidate", "kProbeCandidate",
+        "aosp14-api34-avd-11228894",
         "observationAllowed", "routingAllowed", "sdk != 34",
     ):
         if required_symbol not in protocol_profile and required_symbol not in (
@@ -403,7 +405,11 @@ def main() -> None:
         ROOT / "hal" / "include" / "vcam" / "ScopedCameraRouter.h",
         ROOT / "hal" / "src" / "ScopedCameraRouter.cpp",
     ))
-    for required_symbol in ("1000", "1001", "configured", "available"):
+    for required_symbol in (
+        "1000", "1001", "configured", "available",
+        "kDefaultTargetMapPath", "kDefaultCamera1MapPath",
+        "camera1IndexForId",
+    ):
         if required_symbol not in scoped_router:
             fail(f"scoped camera router is missing expected feature: {required_symbol}")
     cameraservice_patch = (
@@ -540,6 +546,12 @@ def main() -> None:
                 f"{android_version} must not inject routed YUV into the "
                 "low-resolution CaptureYUV420 intermediate"
             )
+    android14_google_camera_patch = (
+        ROOT / "aosp" / "provider" / "aidl" / "android-14" /
+        "hardware-google-camera.patch"
+    ).read_text(encoding="utf-8")
+    if "force_config_files" not in android14_google_camera_patch:
+        fail("Android 14 custom HWL must load VCAM configs on an AVD")
     aidl_v2_manifest = (
         ROOT / "aosp" / "provider" / "aidl" / "android-14" /
         "android.hardware.camera.provider-service-vcam-v2.xml"

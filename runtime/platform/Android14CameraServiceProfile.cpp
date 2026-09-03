@@ -39,6 +39,10 @@ Android14CameraServiceProtocolSelection selectAndroid14CameraServiceProtocol(
         selection.profileName = kNx769jAndroid14ProfileName;
         selection.confidence = Android14CameraServiceProtocolConfidence::kQualified;
         selection.routingAllowed = true;
+    } else if (fingerprint == kAosp14AvdFingerprint) {
+        selection.profileName = kAosp14AvdProfileName;
+        selection.confidence = Android14CameraServiceProtocolConfidence::kQualified;
+        selection.routingAllowed = true;
     } else {
         selection.profileName = kAndroid14InitialCandidateProfileName;
         selection.confidence =

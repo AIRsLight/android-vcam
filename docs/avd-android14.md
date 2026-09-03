@@ -79,20 +79,65 @@ SELinux was then made Permissive only for the disposable AVD functional test:
    scene at about 30 fps while the YUV analysis stream advanced to 180 frames
    with non-constant luminance (`avg=100`, `min=16`, `max=225`).
 
-After qualification, the test app was stopped, the exact stock cameraserver
+## AIDL provider and global-route gate
+
+The AOSP r23 stable-AIDL v2 provider was then staged as `vcam/0`. Two AVD-only
+integration facts were found:
+
+- the provider must be staged with the matching AOSP r23 Google camera HAL
+  libraries; mixing the new HWL with the system image's older
+  `libgooglecamerahal.so` silently bypasses the custom factory; and
+- the emulator Google HWL normally ignores JSON camera configurations when
+  `ro.boot.qemu=1`. The custom VCAM factory now explicitly enables its own
+  configuration path without changing upstream emulator behavior for normal
+  builds.
+
+The direct AIDL probe reported interface version 2, two devices
+`device@1.1/vcam/1000` and `device@1.1/vcam/1001`, and valid 640x480 YUV frames
+from both. CameraService then held three raw devices (`10`, `1000`, `1001`),
+while Camera2 and NDK clients continued to enumerate only public device `10`.
+
+Public IDs are not assumed to be `0` and `1`. For this baseline,
+`targets.tsv` made `10` the canonical Camera2 alias for logical back target 0
+and added Camera1 index `0` as a second alias. Camera1 required a separate map
+derived from CameraService's raw `Device N maps to "ID"` table:
+
+```text
+10    0
+1000  1
+1001  2
+```
+
+This distinction is required because Camera1 `connect()` carries an integer
+enumeration index, whereas Camera2 carries the string device ID. Sending
+`1000` as a Camera1 index was caught by the protocol test and failed to
+connect. With `camera1-map.tsv`, public Camera1 index `0` and public Camera2 ID
+`10` both opened internal device `1000`; the virtual provider created a session
+for each, and all router rewrite failures remained zero. Missing Camera1 map
+entries now fail closed instead of falling through to a physical camera.
+
+Finally, the ordinary preview activity requested only public ID `10` and
+received the virtual color bars at about 30 fps. Its YUV analysis stream
+advanced to 225 frames with full-range non-constant luminance (`min=0`,
+`max=255`), while CameraService logs showed internal device `1000`. The
+cameraserver and provider PIDs remained stable.
+
+After qualification, the test app and provider were stopped, the VINTF
+fragment and route files were removed, and the exact stock cameraserver
 (`b40500255b1b9d51ea59d0dce3ac6c00fba81f605226297741d4a95ab849df99`)
-was restored to `/system/bin/cameraserver`, mode was set to `stock`, SELinux was
-returned to Enforcing, and `media.camera` plus closed device 10 were verified.
+was restored. After an Enforcing reboot, `media.camera` was present, only
+physical device `10` remained, and no `vcam` service was registered.
 
 ## What this proves
 
-The AVD proves that the same-process launcher and Binder router work on a clean
-AOSP Android 14 camera stack and that the pass-through path preserves real
-preview frames. It also removed the relocated-executable assumption from the
-portable architecture.
+The AVD proves that the same-process launcher, stable-AIDL v2 provider,
+internal-ID hiding and a global public-to-virtual route work together on a clean
+AOSP Android 14 stack. It covers Camera1, Camera2 and NDK clients and real frame
+delivery through a public ID. It also removes both the relocated-executable and
+hard-coded public-ID assumptions from the portable architecture.
 
 It does not prove OEM compatibility, production SELinux policy installation,
-MetaModule behavior, virtual provider registration, ID rewriting or frame
-replacement. The next generic gate is an Enforcing run with the complete module
-policy, followed by AIDL provider registration and one global physical-ID route
-on the AOSP baseline.
+MetaModule behavior, automatic target-map generation, or non-pattern media
+sources on the AOSP provider. The next generic gate is an Enforcing run with
+the complete module policy and automatic derivation/validation of both target
+and Camera1 index maps before routing is authorized.

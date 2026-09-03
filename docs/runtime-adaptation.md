@@ -35,6 +35,15 @@ It can be launched without the Manager:
 adb shell am start -a io.github.androidvcam.test.RUN_PROTOCOL_PROBE
 ```
 
+Camera IDs are transport-specific. Camera2 and the provider use string IDs,
+which may be `10`, `front-main`, or another vendor value; Camera1 `connect()`
+uses an integer index into CameraService's compatibility list. Qualification
+therefore records both a public-ID-to-logical-target map and the raw Camera2
+ID-to-Camera1-index map observed after provider registration. Rewriting a
+Camera1 index directly to internal Camera2 ID `1000` is invalid. If the index
+for a routed destination is absent or ambiguous, the router rejects that open
+instead of exposing the physical camera.
+
 ## Fail-closed boundary
 
 Before any future cameraserver interception may be activated, the agent checks

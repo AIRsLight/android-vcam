@@ -7,6 +7,9 @@ else
     LOG_DIR=/data/adb/android_vcam_portable
 fi
 LOG_FILE=$LOG_DIR/bootstrap.log
+MODE_FILE=/system/etc/android_vcam/bootstrap.mode
+MAP_SCRIPT=$MODDIR/camera-map.sh
+MAP_DUMP=$LOG_DIR/camera-map-dump.txt
 mkdir -p "$LOG_DIR"
 chmod 0700 "$LOG_DIR"
 
@@ -42,11 +45,34 @@ while [ "$attempt" -lt 450 ]; do
     sleep 0.1
 done
 
+failure_reason=""
+reboot_reason=vcam-bootstrap-recovery
 if [ -z "$pid" ]; then
-    echo "service: CameraService did not remain stable for 10 seconds; recovering stock" >> "$LOG_FILE"
+    failure_reason="CameraService did not remain stable for 10 seconds"
+else
+    echo "service: CameraService stable for 10 seconds" >> "$LOG_FILE"
+    if [ "$(sed -n '1p' "$MODE_FILE" 2>/dev/null)" = physical-route ]; then
+        if [ ! -x "$MAP_SCRIPT" ]; then
+            failure_reason="camera map generator missing"
+        elif ! dumpsys media.camera > "$MAP_DUMP" 2>&1; then
+            failure_reason="unable to capture camera topology"
+        elif ! "$MAP_SCRIPT" "$MAP_DUMP" /data/vendor/camera/vcam \
+                >> "$LOG_FILE" 2>&1; then
+            failure_reason="camera topology validation failed"
+        else
+            chmod 0600 "$MAP_DUMP"
+            echo "service: camera routing maps ready" >> "$LOG_FILE"
+        fi
+        [ -z "$failure_reason" ] || reboot_reason=vcam-map-recovery
+    fi
+fi
+
+if [ -n "$failure_reason" ]; then
+    echo "service: $failure_reason; recovering stock" >> "$LOG_FILE"
     touch "$MODDIR/disable"
     if [ -x /system/bin/vcam/cameraserver ] && [ -e /system/bin/cameraserver ]; then
-        if mount -o bind /system/bin/vcam/cameraserver /system/bin/cameraserver 2>> "$LOG_FILE"; then
+        if mount -o bind /system/bin/vcam/cameraserver /system/bin/cameraserver \
+                2>> "$LOG_FILE"; then
             echo "service: stock cameraserver rebound for recovery reboot" >> "$LOG_FILE"
         else
             echo "service: emergency stock bind failed" >> "$LOG_FILE"
@@ -57,9 +83,8 @@ if [ -z "$pid" ]; then
     # complete reboot tear down the camera stack in normal init order.
     sync
     echo "service: module disabled; requesting full recovery reboot" >> "$LOG_FILE"
-    setprop sys.powerctl reboot,vcam-bootstrap-recovery
+    setprop sys.powerctl "reboot,$reboot_reason"
 else
-    echo "service: CameraService stable for 10 seconds" >> "$LOG_FILE"
     if [ "$(cat "$MODDIR/profile.id" 2>/dev/null)" = nx769j-ukq1-20240417 ]; then
         echo "service: unified module remains enabled" >> "$LOG_FILE"
     else

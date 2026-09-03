@@ -46,6 +46,12 @@ case "$configured_mode" in
     stock|preflight|passthrough|physical-route) ;;
     *) fail_bootstrap "invalid bootstrap mode: $configured_mode" ;;
 esac
+if [ "$configured_mode" = physical-route ]; then
+    # Maps are regenerated from this boot's provider enumeration. Removing the
+    # final publication marker keeps routed requests fail-closed until then.
+    rm -f /data/vendor/camera/vcam/topology.conf || \
+        fail_bootstrap "unable to invalidate stale camera topology"
+fi
 
 live_context="$(ls -Zd "$LIVE" 2>/dev/null | awk '{print $1}')"
 stock_context="$(ls -Zd "$STOCK" 2>/dev/null | awk '{print $1}')"

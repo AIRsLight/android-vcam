@@ -97,10 +97,12 @@ The direct AIDL probe reported interface version 2, two devices
 from both. CameraService then held three raw devices (`10`, `1000`, `1001`),
 while Camera2 and NDK clients continued to enumerate only public device `10`.
 
-Public IDs are not assumed to be `0` and `1`. For this baseline,
-`targets.tsv` made `10` the canonical Camera2 alias for logical back target 0
-and added Camera1 index `0` as a second alias. Camera1 required a separate map
-derived from CameraService's raw `Device N maps to "ID"` table:
+Public IDs are not assumed to be `0` and `1`. Camera2 IDs and Camera1 indices
+also occupy separate namespaces, so they are never placed in the same routing
+table. For this baseline, `targets.tsv` maps Camera2 ID `10` to logical back
+target 0, while `camera1-targets.tsv` independently maps Camera1 index `0` to
+that target. `camera1-map.tsv` is derived from CameraService's raw
+`Device N maps to "ID"` table:
 
 ```text
 10    0
@@ -115,6 +117,18 @@ connect. With `camera1-map.tsv`, public Camera1 index `0` and public Camera2 ID
 `10` both opened internal device `1000`; the virtual provider created a session
 for each, and all router rewrite failures remained zero. Missing Camera1 map
 entries now fail closed instead of falling through to a physical camera.
+
+The portable `camera-map.sh` now performs this derivation automatically after
+the provider and CameraService remain stable. It rejects duplicate IDs or
+indices, missing internal devices, unexpected internal lens facing, and any
+topology without a public back camera. It publishes the three maps plus
+`topology.conf` only after the full dump validates. With a non-empty routing
+policy, the Binder router rejects camera-scoped requests until that final
+marker is readable. An AVD test confirmed Camera1, Camera2 characteristics and
+NDK access were blocked before publication, with no physical or virtual open;
+running the startup path then produced `10 -> back`, `0 -> back`,
+`1000 -> Camera1 index 1` and `1001 -> Camera1 index 2` without restarting
+cameraserver.
 
 Finally, the ordinary preview activity requested only public ID `10` and
 received the virtual color bars at about 30 fps. Its YUV analysis stream
@@ -137,7 +151,7 @@ delivery through a public ID. It also removes both the relocated-executable and
 hard-coded public-ID assumptions from the portable architecture.
 
 It does not prove OEM compatibility, production SELinux policy installation,
-MetaModule behavior, automatic target-map generation, or non-pattern media
-sources on the AOSP provider. The next generic gate is an Enforcing run with
-the complete module policy and automatic derivation/validation of both target
-and Camera1 index maps before routing is authorized.
+MetaModule behavior, or non-pattern media sources on the AOSP provider. The
+next generic gate is an Enforcing run with the complete module policy, followed
+by testing the generated topology against the NX769J and another independently
+implemented Android 14 camera stack.

@@ -25,6 +25,7 @@ int main() {
 
     const std::string routes = root + "/routes.tsv";
     const std::string targets = root + "/targets.tsv";
+    const std::string camera1Targets = root + "/camera1-targets.tsv";
     const std::string camera1Map = root + "/camera1-map.tsv";
     std::ofstream table(routes);
     assert(table.good());
@@ -41,6 +42,12 @@ int main() {
     targetMap << "10\t0\n"
               << "front-main\t1\n";
     targetMap.close();
+
+    std::ofstream camera1TargetMap(camera1Targets);
+    assert(camera1TargetMap.good());
+    camera1TargetMap << "0\t0\n"
+                     << "1\t1\n";
+    camera1TargetMap.close();
 
     std::ofstream camera1Table(camera1Map);
     assert(camera1Table.good());
@@ -105,6 +112,11 @@ int main() {
             "com.example.mapped", "0", routes, providers, targets);
     assert(!unmapped.configured);
     assert(!unmapped.redirected);
+
+    const auto mappedCamera1 = vcam::ScopedCameraRouter::resolve(
+            "com.example.mapped", "0", routes, providers, camera1Targets);
+    assert(mappedCamera1.redirected);
+    assert(mappedCamera1.effectiveCameraId == "1000");
 
     const auto explicitInternal = vcam::ScopedCameraRouter::resolve(
             "com.example.virtual", "1000", routes, providers);

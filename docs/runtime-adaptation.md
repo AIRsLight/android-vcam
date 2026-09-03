@@ -44,6 +44,13 @@ Camera1 index directly to internal Camera2 ID `1000` is invalid. If the index
 for a routed destination is absent or ambiguous, the router rejects that open
 instead of exposing the physical camera.
 
+The Camera1 target map is deliberately separate from the Camera2 target map.
+For example, a device may expose Camera2 IDs `1,0` while Camera1 indices remain
+`0,1`; merging both namespaces would assign the same token to different lens
+facings. Integer CameraService operations, including API1 connect and legacy
+parameter lookup, use the Camera1 target and destination-index maps. String-ID
+operations use the Camera2 target map.
+
 ## Fail-closed boundary
 
 Before any future cameraserver interception may be activated, the agent checks

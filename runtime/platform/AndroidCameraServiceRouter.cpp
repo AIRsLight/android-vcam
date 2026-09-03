@@ -20,6 +20,7 @@
 #include <pthread.h>
 #include <string>
 #include <sys/system_properties.h>
+#include <sys/stat.h>
 #include <utility>
 #include <unistd.h>
 
@@ -43,7 +44,11 @@ constexpr std::uint32_t kServiceWaitAttempts = 3000;
 constexpr useconds_t kServiceWaitDelayMicroseconds = 10000;
 constexpr unsigned int kStatsPublishIntervalSeconds = 1;
 constexpr char kRuntimeRoutesPath[] = "/data/vendor/camera/vcam/routes.tsv";
+constexpr char kRuntimeRoutesDisabledPath[] =
+        "/data/vendor/camera/vcam/routes.tsv.disabled";
 constexpr char kRuntimeProvidersPath[] = "/data/vendor/camera/vcam/providers";
+constexpr char kRuntimeTopologyPath[] =
+        "/data/vendor/camera/vcam/topology.conf";
 
 android::status_t rejectCameraRequest(
         android::Parcel* reply, const char* message) {
@@ -52,6 +57,20 @@ android::status_t rejectCameraRequest(
     return android::binder::Status::fromExceptionCode(
                    android::binder::Status::EX_ILLEGAL_ARGUMENT, message)
             .writeToParcel(reply);
+}
+
+bool routingPolicyActive() {
+    struct stat info {};
+    return access(kRuntimeRoutesDisabledPath, F_OK) != 0 &&
+            stat(kRuntimeRoutesPath, &info) == 0 && info.st_size > 0;
+}
+
+bool routingMapsReady() {
+    return access(::vcam::ScopedCameraRouter::kDefaultTargetMapPath, R_OK) == 0 &&
+            access(::vcam::ScopedCameraRouter::kDefaultCamera1TargetMapPath,
+                   R_OK) == 0 &&
+            access(::vcam::ScopedCameraRouter::kDefaultCamera1MapPath, R_OK) == 0 &&
+            access(kRuntimeTopologyPath, R_OK) == 0;
 }
 
 std::atomic<AndroidCameraServiceRouterState> gState {
@@ -323,6 +342,15 @@ protected:
             // probe candidate never resolves caller packages or route files.
             return target_->transact(code, data, reply, flags);
         }
+        const bool routesConfigured = routingPolicyActive();
+        if (routesConfigured &&
+            observation.status == ParcelObservationStatus::kObserved &&
+            observation.transaction.cameraScoped && !routingMapsReady()) {
+            gUnavailableRouteProviders.fetch_add(1, std::memory_order_relaxed);
+            ALOGE("camera routing maps are not ready");
+            return rejectCameraRequest(
+                    reply, "Camera routing topology unavailable");
+        }
         const CameraCallerIdentityClassification identity =
                 classifyCameraCallerIdentity(
                         observation.transaction.cameraScoped,
@@ -332,7 +360,6 @@ protected:
                         observation.packageName);
         std::string verifiedPackage;
         std::string replacementCameraId;
-        const bool routesConfigured = access(kRuntimeRoutesPath, R_OK) == 0;
         if (observation.status == ParcelObservationStatus::kObserved &&
             identity.kind == CameraCallerIdentityKind::kClaimedPackage) {
             android::Vector<android::String16> packages;
@@ -379,12 +406,21 @@ protected:
             observation.status == ParcelObservationStatus::kObserved &&
             observation.transaction.cameraScoped &&
             !observation.cameraId.empty()) {
+            const bool integerCameraId =
+                    observation.transaction.payloadShape ==
+                            BinderPayloadShape::kConnectApi1 ||
+                    observation.transaction.payloadShape ==
+                            BinderPayloadShape::kIntegerCameraId;
             const ::vcam::ScopedCameraRoute route =
                     ::vcam::ScopedCameraRouter::resolve(
                     verifiedPackage,
                     observation.cameraId,
                     kRuntimeRoutesPath,
-                    kRuntimeProvidersPath);
+                    kRuntimeProvidersPath,
+                    integerCameraId
+                            ? ::vcam::ScopedCameraRouter::
+                                      kDefaultCamera1TargetMapPath
+                            : ::vcam::ScopedCameraRouter::kDefaultTargetMapPath);
             if (route.configured && !route.available) {
                 gUnavailableRouteProviders.fetch_add(
                         1, std::memory_order_relaxed);
@@ -410,7 +446,9 @@ protected:
         if (physicalRoutingEnabled_ && !replacementCameraId.empty()) {
             gPhysicalRewriteAttempts.fetch_add(1, std::memory_order_relaxed);
             if (observation.transaction.payloadShape ==
-                    BinderPayloadShape::kConnectApi1) {
+                            BinderPayloadShape::kConnectApi1 ||
+                observation.transaction.payloadShape ==
+                            BinderPayloadShape::kIntegerCameraId) {
                 const std::string camera1Index =
                         ::vcam::ScopedCameraRouter::camera1IndexForId(
                                 replacementCameraId);

@@ -241,6 +241,14 @@ only if every selected public target and internal virtual device has an
 unambiguous mapping. A missing Camera1 mapping rejects the routed Camera1 open;
 it must never silently fall back to the physical device.
 
+This gate is implemented by the portable `camera-map.sh` startup helper. It
+keeps Camera2 targets, Camera1 targets and Camera2-ID-to-Camera1-index mappings
+in separate files so numeric names cannot collide across API namespaces. The
+final `topology.conf` acts as the publication marker. When routes are enabled
+but that marker or any map is unreadable, camera-scoped Binder calls fail
+closed until validation completes. A generation failure disables the module
+for the next boot and enters the existing full-device recovery path.
+
 The first device experiment must stop after gate 2 if the CameraService entry
 point is unavailable, the original service Binder is not local, the proxy cannot
 be registered safely, or SELinux requires broad permissions. Any of those

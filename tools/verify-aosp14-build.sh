@@ -134,6 +134,8 @@ git -C "$frameworks_av" apply -R "$patch" ||
     fail "frameworks/av is not pristine after CameraService patch preflight"
 git -C "$google_camera" apply --check "$google_patch" ||
     fail "AIDL transport patch does not apply cleanly to hardware/google/camera $google_head"
+bash "$source_root/tests/test-camera-map.sh" ||
+    fail "portable camera map tests failed"
 
 for required in \
     "$aosp_root/build/soong/soong_ui.bash" \

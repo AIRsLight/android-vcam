@@ -176,6 +176,7 @@ def main() -> None:
         "physical_rewrite_successes", "rewriteAndroid14CameraId",
         "replacementCameraId = route.effectiveCameraId",
         "camera1IndexForId", "Camera1 routing map unavailable",
+        "routingMapsReady", "Camera routing topology unavailable",
         "internal_camera_requests_rejected", "EX_ILLEGAL_ARGUMENT",
         "wrapAndroid14CameraListenerRequest",
         "filterAndroid14CameraStatusReply",
@@ -229,6 +230,31 @@ def main() -> None:
             fail(f"APatch script uses CRLF: {shell_script.name}")
         if not raw.startswith(b"#!/system/bin/sh\n"):
             fail(f"invalid Android shell shebang: {shell_script.name}")
+
+    camera_map = (ROOT / "portable-module" / "camera-map.sh").read_text(
+        encoding="utf-8"
+    )
+    for required_symbol in (
+        "camera1-map.tsv", "camera1-targets.tsv", "targets.tsv",
+        "internal cameras 1000/1001 are not both registered",
+        "no public back camera found", ".camera-map.$$",
+    ):
+        if required_symbol not in camera_map:
+            fail(f"portable camera map generator is missing: {required_symbol}")
+    portable_service = (ROOT / "portable-module" / "service.sh").read_text(
+        encoding="utf-8"
+    )
+    for required_symbol in (
+        "camera-map.sh", "camera routing maps ready", "vcam-map-recovery",
+    ):
+        if required_symbol not in portable_service:
+            fail(f"portable service lacks guarded map activation: {required_symbol}")
+    portable_post_mount = (ROOT / "portable-module" / "post-mount.sh").read_text(
+        encoding="utf-8"
+    )
+    if "invalidate stale camera topology" not in portable_post_mount or \
+            "rm -f /data/vendor/camera/vcam/topology.conf" not in portable_post_mount:
+        fail("portable post-mount does not invalidate stale topology")
 
     hidl_probe_scripts = "\n".join(
         path.read_text(encoding="utf-8")
@@ -311,7 +337,8 @@ def main() -> None:
     )
     if "ctl.restart cameraserver" in portable_service:
         fail("portable recovery must not restart cameraserver in isolation")
-    if "reboot,vcam-bootstrap-recovery" not in portable_service:
+    if "vcam-bootstrap-recovery" not in portable_service or \
+            'setprop sys.powerctl "reboot,$reboot_reason"' not in portable_service:
         fail("portable recovery does not request a full device reboot")
 
     source = (ROOT / "hal" / "src" / "VirtualCamera.cpp").read_text(encoding="utf-8")
@@ -407,7 +434,8 @@ def main() -> None:
     ))
     for required_symbol in (
         "1000", "1001", "configured", "available",
-        "kDefaultTargetMapPath", "kDefaultCamera1MapPath",
+        "kDefaultTargetMapPath", "kDefaultCamera1TargetMapPath",
+        "kDefaultCamera1MapPath",
         "camera1IndexForId",
     ):
         if required_symbol not in scoped_router:

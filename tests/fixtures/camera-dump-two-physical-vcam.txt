@@ -1,0 +1,23 @@
+== Service global info: ==
+
+Number of camera devices: 4
+Number of normal camera devices: 4
+Number of public camera devices visible to API1: 4
+    Device 0 maps to "1"
+    Device 1 maps to "0"
+    Device 2 maps to "1000"
+    Device 3 maps to "1001"
+
+== Camera HAL device device@3.4/internal/1 (v3.5) static information: ==
+  API1 info:
+    Facing: Back
+== Camera HAL device device@3.4/internal/0 (v3.5) static information: ==
+  API1 info:
+    Facing: Front
+== Camera HAL device device@1.1/vcam/1000 (v3.4) static information: ==
+  API1 info:
+    Facing: Back
+== Camera HAL device device@1.1/vcam/1001 (v3.4) static information: ==
+  API1 info:
+    Facing: Front
+

@@ -69,6 +69,7 @@ set_perm "$router" 0 0 0644
 set_perm "$mode_file" 0 0 0644
 set_perm "$MODPATH/post-mount.sh" 0 0 0755
 set_perm "$MODPATH/service.sh" 0 0 0755
+set_perm "$MODPATH/camera-map.sh" 0 0 0755
 chcon u:object_r:cameraserver_exec:s0 "$launcher" "$stock" || \
     abort "! Unable to label cameraserver executables"
 chcon u:object_r:system_file:s0 "$router" "$mode_file" || \

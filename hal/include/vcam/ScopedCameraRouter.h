@@ -30,6 +30,8 @@ class ScopedCameraRouter final {
             "/data/vendor/camera/vcam/providers";
     static constexpr const char* kDefaultTargetMapPath =
             "/data/vendor/camera/vcam/targets.tsv";
+    static constexpr const char* kDefaultCamera1TargetMapPath =
+            "/data/vendor/camera/vcam/camera1-targets.tsv";
     static constexpr const char* kDefaultCamera1MapPath =
             "/data/vendor/camera/vcam/camera1-map.tsv";
 

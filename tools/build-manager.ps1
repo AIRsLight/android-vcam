@@ -6,7 +6,9 @@ param(
     [string]$JdkHome = "$env:LOCALAPPDATA\Programs\Microsoft\jdk-17.0.10.7-hotspot",
     [string]$AppDirectory = "manager",
     [string]$BuildDirectory = "out\manager",
-    [string]$OutputFile = "android-vcam-manager-debug.apk"
+    [string]$OutputFile = "android-vcam-manager-debug.apk",
+    [string]$Version = "0.5.0-dev.39",
+    [int]$VersionCode = 23
 )
 
 $ErrorActionPreference = "Stop"
@@ -51,7 +53,7 @@ if ($LASTEXITCODE -ne 0) { throw "aapt2 compile failed" }
 & $aapt2 link -o $unsigned -I $androidJar `
     --manifest (Join-Path $appRoot "AndroidManifest.xml") `
     --java $gen --min-sdk-version 31 --target-sdk-version 35 `
-    --version-code 22 --version-name "0.5.0-dev.38" $compiled
+    --version-code $VersionCode --version-name $Version $compiled
 if ($LASTEXITCODE -ne 0) { throw "aapt2 link failed" }
 
 $sources = @(

@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "0.5.0-dev.38",
+    [string]$Version = "0.5.0-dev.39",
     [string]$CameraHal = "out\device\camera.qcom.vcam-proxy.so",
     [string]$AidlArtifactRoot = "out/android14-provider-probe",
     [string]$NativeArtifactRoot = "out/native/arm64-v8a",
@@ -53,6 +53,7 @@ New-Item -ItemType Directory -Force -Path $profileZipRoot, $extractRoot | Out-Nu
 $relativeProfileZipRoot = [IO.Path]::GetRelativePath($repoRoot, $profileZipRoot)
 & (Join-Path $PSScriptRoot "package-apmodule.ps1") `
     -CameraHal $CameraHal `
+    -Version $Version `
     -OutputDirectory $relativeProfileZipRoot `
     -Python $Python
 if ($LASTEXITCODE -ne 0) { throw "OnePlus profile packaging failed" }
@@ -69,6 +70,7 @@ if ($LASTEXITCODE -ne 0) { throw "NX769J provider profile packaging failed" }
     -Launcher $RouterLauncher `
     -Router $RouterLibrary `
     -OutputDirectory $relativeProfileZipRoot `
+    -Version $Version `
     -BootstrapMode physical-route `
     -Python $Python
 if ($LASTEXITCODE -ne 0) { throw "NX769J router profile packaging failed" }

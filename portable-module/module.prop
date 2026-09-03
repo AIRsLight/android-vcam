@@ -1,6 +1,6 @@
 id=android_vcam_portable
 name=Android Virtual Camera Portable Bootstrap
-version=0.5.0-dev.38
-versionCode=50
+version=0.5.0-dev.39
+versionCode=51
 author=android-vcam contributors
 description=One-shot NX769J Android 14 public-ID Binder router with segmented request repair and internal-ID filtering. Release packages default to stock mode.

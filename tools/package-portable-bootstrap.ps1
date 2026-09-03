@@ -5,7 +5,8 @@ param(
     [string]$OutputDirectory = "dist",
     [ValidateSet("stock", "preflight", "passthrough", "physical-route")]
     [string]$BootstrapMode = "stock",
-    [string]$Python = "python"
+    [string]$Python = "python",
+    [string]$Version = "0.5.0-dev.39"
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,6 +53,11 @@ if (Test-Path -LiteralPath $staging) {
     Remove-Item -LiteralPath $resolvedStaging -Recurse -Force
 }
 Copy-Item -LiteralPath (Join-Path $repoRoot "portable-module") -Destination $staging -Recurse
+$profileProp = Join-Path $staging "module.prop"
+$profilePropText = [IO.File]::ReadAllText($profileProp)
+$profilePropText = [Text.RegularExpressions.Regex]::Replace(
+    $profilePropText, "(?m)^version=.*$", "version=$Version")
+[IO.File]::WriteAllText($profileProp, $profilePropText, [Text.UTF8Encoding]::new($false))
 
 $launcherDestination = Join-Path $staging "system\bin\cameraserver"
 $routerDestination = Join-Path $staging "system\lib64\libvcam_cameraserver_router.so"
@@ -63,7 +69,7 @@ $modeDestination = Join-Path $staging "system\etc\android_vcam\bootstrap.mode"
 Get-ChildItem -LiteralPath $staging -Recurse -Filter .gitkeep | Remove-Item -Force
 
 $modeSuffix = if ($BootstrapMode -eq "stock") { "" } else { "-$BootstrapMode" }
-$zip = Join-Path $dist "android-vcam-portable-bootstrap-v0.5.0-dev.38$modeSuffix.zip"
+$zip = Join-Path $dist "android-vcam-portable-bootstrap-v$Version$modeSuffix.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 & $Python (Join-Path $PSScriptRoot "create-module-zip.py") $staging $zip
 if ($LASTEXITCODE -ne 0) { throw "Portable module ZIP creation failed" }

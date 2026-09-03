@@ -7,7 +7,8 @@ param(
     [string]$ControlDaemon = "out\native\arm64-v8a\vcamd",
     [string]$CameraService = "out\device\libcameraservice.vcam.so",
     [string]$OutputDirectory = "dist",
-    [string]$Python = "python"
+    [string]$Python = "python",
+    [string]$Version = "0.5.0-dev.39"
 )
 
 $ErrorActionPreference = "Stop"
@@ -62,6 +63,11 @@ if (Test-Path -LiteralPath $staging) {
     Remove-Item -LiteralPath $resolvedStaging -Recurse -Force
 }
 Copy-Item -LiteralPath (Join-Path $root "apmodule") -Destination $staging -Recurse
+$profileProp = Join-Path $staging "module.prop"
+$profilePropText = [IO.File]::ReadAllText($profileProp)
+$profilePropText = [Text.RegularExpressions.Regex]::Replace(
+    $profilePropText, "(?m)^version=.*$", "version=$Version")
+[IO.File]::WriteAllText($profileProp, $profilePropText, [Text.UTF8Encoding]::new($false))
 
 $destinations = @{
     Hal = Join-Path $staging "vendor/lib64/hw/camera.qcom.so"
@@ -86,7 +92,7 @@ Copy-Item -LiteralPath $inputs.Daemon -Destination $destinations.Daemon -Force
 Copy-Item -LiteralPath $inputs.CameraService -Destination $destinations.CameraService -Force
 Get-ChildItem -LiteralPath $staging -Recurse -Filter .gitkeep | Remove-Item -Force
 
-$zip = Join-Path $dist "android-vcam-oneplus7pro-apm-v0.5.0-dev.38.zip"
+$zip = Join-Path $dist "android-vcam-oneplus7pro-apm-v$Version.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 & $Python (Join-Path $PSScriptRoot "create-module-zip.py") $staging $zip
 if ($LASTEXITCODE -ne 0) { throw "APatch ZIP creation failed" }

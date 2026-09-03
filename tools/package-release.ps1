@@ -4,7 +4,7 @@ param(
     [string]$PatchedCameraHal = "out\device\camera.qcom.vcam-proxy.so",
     [string]$ManagerApk = "out\manager\android-vcam-manager-debug.apk",
     [string]$TestApk = "out\testapp\android-vcam-camera2-test-debug.apk",
-    [string]$Version = "0.5.0-dev.38",
+    [string]$Version = "0.5.0-dev.39",
     [switch]$SkipDeviceModule
 )
 
@@ -18,9 +18,9 @@ $dist = Join-Path $repoRoot "dist"
 
 & (Join-Path $PSScriptRoot "build-native.ps1")
 if ($LASTEXITCODE -ne 0) { throw "Native build failed" }
-& (Join-Path $PSScriptRoot "build-manager.ps1")
+& (Join-Path $PSScriptRoot "build-manager.ps1") -Version $Version
 if ($LASTEXITCODE -ne 0) { throw "Manager APK build failed" }
-& (Join-Path $PSScriptRoot "build-testapp.ps1")
+& (Join-Path $PSScriptRoot "build-testapp.ps1") -Version $Version
 if ($LASTEXITCODE -ne 0) { throw "Test APK build failed" }
 python (Join-Path $PSScriptRoot "patch-original-hal.py") `
     --library /vendor/lib64/hw/local_time.default.so $original $patched

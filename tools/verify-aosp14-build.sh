@@ -311,6 +311,16 @@ hwl_artifact="$OUT_DIR/soong/target/product/$product_output/vendor/lib64/libvcam
 llvm_nm=$(find "$aosp_root/prebuilts/clang/host/linux-x86" \
     -path '*/bin/llvm-nm' -type f -print | sort -V | tail -n 1)
 [[ -x "$llvm_nm" ]] || fail "llvm-nm is missing from the Android 14 prebuilts"
+
+# The systemless launcher recreates main_cameraserver in its already-transitioned
+# process. Refuse a platform build whose libcameraservice does not export the
+# single private entry point required by that bootstrap contract.
+cameraservice_artifact="$OUT_DIR/soong/target/product/$product_output/system/lib64/libcameraservice.so"
+cameraservice_symbols=$("$llvm_nm" -D --defined-only "$cameraservice_artifact")
+grep -Fq '_ZN7android13CameraService11instantiateEv' <<<"$cameraservice_symbols" || \
+    fail "libcameraservice does not export CameraService::instantiate()"
+printf 'Verified launcher entry point: CameraService::instantiate()\n'
+
 hwl_symbols=$("$llvm_nm" -D --defined-only "$hwl_artifact")
 for symbol in \
     CreateCameraProviderHwl \

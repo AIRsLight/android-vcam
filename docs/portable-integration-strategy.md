@@ -1,7 +1,7 @@
 # Portable system integration strategy
 
-Status: proposed architecture; the bootstrap and pass-through gates still need
-device validation.
+Status: AOSP Android 14 AVD bootstrap and pass-through qualified; production
+SELinux delivery and OEM requalification are pending.
 
 ## Decision
 
@@ -10,11 +10,13 @@ For rooted stock Android 10-14 devices, prefer an in-process Binder router in
 instruction patching as the default compatibility mechanism.
 
 The router is loaded at process start, after a systemless launcher has entered
-the stock `cameraserver` SELinux domain and re-executed the unmodified stock
-binary. It waits for the real `media.camera` service, verifies that its Binder
-object is local to the process, then registers a small forwarding Binder under
-the same service name. Unknown transactions are forwarded unchanged to the
-original local Binder object.
+the stock `cameraserver` SELinux domain. The launcher loads the device's own
+`libcameraservice.so` and performs the small, stable `main_cameraserver` startup
+sequence in that same process. It does not execute a relocated cameraserver
+binary. The router waits for the real `media.camera` service, verifies that its
+Binder object is local to the process, then registers a small forwarding Binder
+under the same service name. Unknown transactions are forwarded unchanged to
+the original local Binder object.
 
 ```text
 app Camera1 / Camera2 / CameraX / NDK
@@ -134,23 +136,33 @@ integration.
 
 Directly setting `LD_PRELOAD` on the init-launched cameraserver is not reliable:
 the Android linker removes loader environment variables when `AT_SECURE` is set,
-including security transitions. The proposed launcher is executed at the normal
-`/system/bin/cameraserver` path and enters the stock domain first. It then sets
-`LD_PRELOAD` and re-executes an exact copy of the stock binary without another
-domain transition.
+including security transitions. Re-executing a relocated stock cameraserver is
+also not a portable fallback: standard AOSP policy has a `neverallow` against
+`cameraserver` executing an arbitrary file without a domain transition.
+
+The launcher is therefore executed once at the normal
+`/system/bin/cameraserver` path. After init has transitioned it into the stock
+domain, it optionally loads the router with `dlopen()`, loads the device's own
+`libcameraservice.so`, resolves `CameraService::instantiate()`, and mirrors the
+Android 14 `main_cameraserver` Binder/HIDL thread-pool sequence. This keeps the
+router and original CameraService local without requesting an OEM SELinux
+exception for `execute_no_trans`.
 
 The bootstrap must be qualified independently from the camera protocol:
 
-1. capture and hash the stock executable before any bind mount;
-2. expose a read-only exact copy as the second-exec target;
-3. preserve UID, GID, supplementary groups, capabilities, rlimits, argv and
-   process name inherited from init;
-4. verify the selected linker namespace permits the agent path and all of its
-   dependencies;
+1. capture and hash the stock executable before any bind mount, solely as a
+   recoverable rollback asset;
+2. verify that the device `libcameraservice.so` exports the required instantiate
+   entry point before activating the launcher;
+3. preserve UID, GID, supplementary groups, capabilities and rlimits inherited
+   from init;
+4. verify the selected linker namespace permits the launcher, router and all
+   of their dependencies;
 5. install the forwarding service only when the original Binder is local and
    has the exact `android.hardware.ICameraService` descriptor; and
-6. use a boot-attempt marker so a loader failure or early crash makes the next
-   restart execute the stock binary without the agent.
+6. use a boot-attempt marker plus the root-manager recovery service so a loader
+   failure or early crash disables the module and restores the captured stock
+   executable on the recovery boot.
 
 KernelSU and APatch delivery may use different mount helpers, but both should
 produce this same runtime contract. Root-manager-specific scripts must not leak
@@ -159,23 +171,26 @@ into Binder routing or provider code.
 The first Android 14 prototype keeps bootstrap activation separate from module
 installation. Its fixed runtime contract is:
 
-- `/system/bin/vcam/cameraserver` is the captured stock executable;
+- `/system/bin/vcam/cameraserver` is the captured rollback executable and is
+  never launched from the `cameraserver` domain;
 - `/system/lib64/libvcam_cameraserver_router.so` is the in-process router;
 - `/system/etc/android_vcam/bootstrap.mode` selects `stock`, `preflight`, or
   `passthrough`; a missing, empty, oversized, non-regular, or unrecognized value
   fails to `stock`;
-- preload is allowed only after the launcher observes the `cameraserver` SELinux
-  domain, a distinct executable stock inode, and a readable router library;
-- the launcher atomically creates `/dev/vcam/bootstrap.pending` before preload. A second
-  launch with that marker still present selects `stock`; only a router that has
-  verified the original local CameraService Binder (and, for `passthrough`, the
-  replacement registration) clears the marker.
+- router loading is allowed only after the launcher observes the `cameraserver`
+  SELinux domain and a readable router library;
+- the launcher atomically creates `/dev/vcam/bootstrap.pending` before loading
+  the router. A second launch with that marker still present selects `stock`;
+  only a router that has verified the original local CameraService Binder (and,
+  for `passthrough`, the replacement registration) clears the marker.
 
-The launcher can retry the stock `exec` when `execve` itself fails. A dynamic
-linker failure after a successful `execve` cannot return to the launcher; the
-remaining marker makes the following init restart physical-only. Enabling a new
-attempt therefore requires an explicit control-daemon operation that removes
-the marker, rather than an automatic retry loop.
+If router loading fails before CameraService starts, the launcher clears the
+router mode and starts the device's own CameraService in-process. If the
+launcher or CameraService entry point itself is incompatible, the external
+root-manager service detects that `media.camera` did not remain stable, disables
+the module and restores the captured executable for a recovery boot. Enabling a
+new routed attempt requires an explicit control operation that removes the
+marker rather than an automatic retry loop.
 
 ## Version and vendor adaptation boundary
 
@@ -187,7 +202,8 @@ The expected maintained surface is:
 | Baseline provider transport | HIDL 2.4 / Device 3.4 builds | Normally no |
 | `ICameraService` transaction decoder | One reviewed adapter per Android major | OEM additions are probed |
 | Binder listener filtering | One reviewed adapter per Android major | OEM additions are passed through |
-| Launcher/mount | APatch and KernelSU capability backends | Root implementation only |
+| Launcher entry sequence | One reviewed build per Android major | Usually platform-version specific |
+| Mount/recovery | APatch and KernelSU capability backends | Root implementation only |
 | SELinux/VINTF/init facts | Generated device profile plus small policy recipe | Yes, declarative |
 | Live code hook | Exact binary recipe | Yes, fallback only |
 
@@ -216,8 +232,8 @@ Development should proceed in this order:
 7. Repeat protocol builds and smoke tests on Android 10-13 before qualifying
    vendor profiles.
 
-The first device experiment must stop after gate 2 if the second exec changes
-the linker namespace, the original service Binder is not local, the proxy cannot
+The first device experiment must stop after gate 2 if the CameraService entry
+point is unavailable, the original service Binder is not local, the proxy cannot
 be registered safely, or SELinux requires broad permissions. Any of those
 results invalidates this primary path and sends the device to native injection
 or an exact OEM adapter instead of expanding runtime reflection.

@@ -133,14 +133,20 @@ is now installed and its ext4 module image mounts successfully. Regular modules
 created before the KernelSU 3.x migration were not copied into that image and
 must be reinstalled separately.
 
-The VCAM package uses a dedicated `android_vcam_portable` module ID and ships a
-`bootstrap.mode` whose installation default is `stock`. In that mode the
-launcher removes loader variables and executes the captured physical
-cameraserver. Installation captures and hashes
-the exact `/system/bin/cameraserver` before the overlay is activated. At
-post-mount, the module verifies launcher and stock hashes plus both
-`cameraserver_exec` labels; a failure disables the module and bind-mounts the
-captured stock executable over the launcher for the current boot.
+The qualified NX769J packages through dev.39 use a dedicated
+`android_vcam_portable` payload and ship a `bootstrap.mode` whose installation
+default is `stock`. Installation captures and hashes the exact
+`/system/bin/cameraserver` before the overlay is activated. At post-mount, the
+module verifies launcher and stock hashes plus both `cameraserver_exec` labels;
+a failure disables the module and bind-mounts the captured stock executable over
+the launcher for the recovery boot.
+
+That qualified payload used a second execution of the captured cameraserver.
+The generic Android 14 branch now replaces this with an in-process
+`libcameraservice.so` entry sequence because clean AOSP policy forbids
+`execute_no_trans`. The new launcher has passed AOSP 14 AVD stock, preflight,
+pass-through and live-preview gates, but has not yet been requalified on NX769J.
+The historical results below describe the earlier NX769J payload.
 
 Device preflight on 2026-08-19 confirmed:
 

@@ -77,7 +77,13 @@ cc_binary {
     srcs: ["runtime/platform/CameraServerLauncher.cpp"],
     local_include_dirs: ["runtime/include"],
     static_libs: ["libvcam_cameraserver_bootstrap_mode"],
-    shared_libs: ["liblog"],
+    shared_libs: [
+        "libbinder",
+        "libbinder_ndk",
+        "libhidlbase",
+        "liblog",
+        "libutils",
+    ],
     cflags: [
         "-Wall",
         "-Wextra",

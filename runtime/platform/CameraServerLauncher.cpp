@@ -7,8 +7,15 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <csignal>
+#include <dlfcn.h>
 #include <fcntl.h>
 #include <log/log.h>
+#include <android/binder_process.h>
+#include <binder/IPCThreadState.h>
+#include <binder/IServiceManager.h>
+#include <binder/ProcessState.h>
+#include <hidl/HidlTransportSupport.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -79,18 +86,6 @@ bool isCameraServerDomain() {
                         std::strlen(vcam::runtime::bootstrap::kExpectedDomainPrefix)) == 0;
 }
 
-bool stockExecutableIsSafe() {
-    struct stat selfMetadata {};
-    struct stat stockMetadata {};
-    if (stat("/proc/self/exe", &selfMetadata) != 0 ||
-        stat(vcam::runtime::bootstrap::kStockCameraServerPath, &stockMetadata) != 0 ||
-        access(vcam::runtime::bootstrap::kStockCameraServerPath, X_OK) != 0) {
-        return false;
-    }
-    return selfMetadata.st_dev != stockMetadata.st_dev ||
-           selfMetadata.st_ino != stockMetadata.st_ino;
-}
-
 AttemptArmStatus armBootstrapAttempt() {
     const int fd = open(vcam::runtime::bootstrap::kPendingPath,
                         O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW,
@@ -114,25 +109,55 @@ AttemptArmStatus armBootstrapAttempt() {
     return AttemptArmStatus::kArmed;
 }
 
-[[noreturn]] void runStockCameraServer(char* const argv[]) {
-    unsetenv("LD_PRELOAD");
-    unsetenv("VCAM_BINDER_ROUTER_MODE");
-    execv(vcam::runtime::bootstrap::kStockCameraServerPath, argv);
-    const int launchError = errno;
-    ALOGE("stock cameraserver exec failed: path=%s errno=%d (%s)",
-          vcam::runtime::bootstrap::kStockCameraServerPath,
-          launchError, std::strerror(launchError));
-    _exit(127);
+[[noreturn]] void runCameraServer(bool routerLoaded) {
+    if (!routerLoaded) {
+        unsetenv("VCAM_BINDER_ROUTER_MODE");
+    }
+
+    // AOSP forbids cameraserver from executing another file without a domain
+    // transition. Recreate the stable main_cameraserver entry sequence in this
+    // already transitioned process instead of execing a relocated binary.
+    void* const cameraService = dlopen("libcameraservice.so", RTLD_NOW | RTLD_GLOBAL);
+    if (cameraService == nullptr) {
+        ALOGE("could not load libcameraservice: %s", dlerror());
+        _exit(125);
+    }
+    constexpr char kInstantiateSymbol[] =
+            "_ZN7android13CameraService11instantiateEv";
+    dlerror();
+    void* const instantiateAddress = dlsym(cameraService, kInstantiateSymbol);
+    const char* const symbolError = dlerror();
+    if (symbolError != nullptr || instantiateAddress == nullptr) {
+        ALOGE("CameraService instantiate interface is unavailable: %s",
+              symbolError == nullptr ? "symbol resolved to null" : symbolError);
+        _exit(125);
+    }
+
+    using InstantiateCameraService = void (*)();
+    const auto instantiate =
+            reinterpret_cast<InstantiateCameraService>(instantiateAddress);
+
+    signal(SIGPIPE, SIG_IGN);
+    android::hardware::configureRpcThreadpool(5, false);
+    ABinderProcess_setThreadPoolMaxThreadCount(5);
+
+    const android::sp<android::ProcessState> process =
+            android::ProcessState::self();
+    const android::sp<android::IServiceManager> serviceManager =
+            android::defaultServiceManager();
+    ALOGI("ServiceManager: %p", serviceManager.get());
+    instantiate();
+    ALOGI("ServiceManager: %p done instantiate", serviceManager.get());
+    process->startThreadPool();
+    ABinderProcess_startThreadPool();
+    android::IPCThreadState::self()->joinThreadPool();
+    ABinderProcess_joinThreadPool();
+    _exit(0);
 }
 
 }  // namespace
 
-int main(int, char* argv[]) {
-    if (!stockExecutableIsSafe()) {
-        ALOGE("stock cameraserver is missing, not executable, or aliases launcher");
-        return 126;
-    }
-
+int main() {
     // A stats file belongs to one cameraserver lifetime only. In stock mode no
     // router will recreate it, so readers cannot mistake old telemetry for a
     // currently active proxy.
@@ -145,27 +170,27 @@ int main(int, char* argv[]) {
     if (mode == vcam::runtime::CameraServerBootstrapMode::kStock ||
         mode == vcam::runtime::CameraServerBootstrapMode::kInvalid) {
         if (mode == vcam::runtime::CameraServerBootstrapMode::kInvalid) {
-            ALOGE("invalid bootstrap mode; starting stock cameraserver");
+            ALOGE("invalid bootstrap mode; starting unrouted CameraService");
         }
-        runStockCameraServer(argv);
+        runCameraServer(false);
     }
 
     if (!isCameraServerDomain()) {
-        ALOGE("launcher did not enter cameraserver SELinux domain; skipping preload");
-        runStockCameraServer(argv);
+        ALOGE("launcher did not enter cameraserver SELinux domain; skipping router");
+        runCameraServer(false);
     }
     if (access(vcam::runtime::bootstrap::kRouterLibraryPath, R_OK) != 0) {
-        ALOGE("router library is unavailable; starting stock cameraserver");
-        runStockCameraServer(argv);
+        ALOGE("router library is unavailable; starting unrouted CameraService");
+        runCameraServer(false);
     }
 
     const AttemptArmStatus attempt = armBootstrapAttempt();
     if (attempt != AttemptArmStatus::kArmed) {
-        ALOGE("bootstrap attempt not armed (%s); starting stock cameraserver",
+        ALOGE("bootstrap attempt not armed (%s); starting unrouted CameraService",
               attempt == AttemptArmStatus::kAlreadyPending
                       ? "previous attempt pending"
                       : "marker creation failed");
-        runStockCameraServer(argv);
+        runCameraServer(false);
     }
 
     const char* routerMode =
@@ -174,18 +199,21 @@ int main(int, char* argv[]) {
             : mode == vcam::runtime::CameraServerBootstrapMode::kPhysicalRoute
             ? "physical-route"
             : "passthrough";
-    if (setenv("VCAM_BINDER_ROUTER_MODE", routerMode, 1) != 0 ||
-        setenv("LD_PRELOAD", vcam::runtime::bootstrap::kRouterLibraryPath, 1) != 0) {
-        ALOGE("could not prepare preload environment; starting stock cameraserver");
-        runStockCameraServer(argv);
+    if (setenv("VCAM_BINDER_ROUTER_MODE", routerMode, 1) != 0) {
+        ALOGE("could not prepare router environment; starting unrouted "
+              "CameraService");
+        runCameraServer(false);
     }
 
-    ALOGI("starting cameraserver with router mode=%s",
-          vcam::runtime::cameraServerBootstrapModeName(mode));
-    execv(vcam::runtime::bootstrap::kStockCameraServerPath, argv);
+    void* const router = dlopen(vcam::runtime::bootstrap::kRouterLibraryPath,
+                                RTLD_NOW | RTLD_GLOBAL);
+    if (router == nullptr) {
+        ALOGE("could not load router library: %s; starting unrouted CameraService",
+              dlerror());
+        runCameraServer(false);
+    }
 
-    const int preloadError = errno;
-    ALOGE("preloaded cameraserver exec failed: errno=%d (%s); retrying stock",
-          preloadError, std::strerror(preloadError));
-    runStockCameraServer(argv);
+    ALOGI("starting in-process cameraserver with router mode=%s",
+          vcam::runtime::cameraServerBootstrapModeName(mode));
+    runCameraServer(true);
 }

@@ -93,10 +93,11 @@ def main() -> None:
             fail("NX unified Provider mode is not persistent")
         for rule in (
             "allow ksu default_android_service service_manager { add find }",
-            "allow cameraserver cameraserver_exec file execute_no_trans",
         ):
             if rule not in nx_policy:
                 fail(f"NX merged SELinux policy lacks: {rule}")
+        if "allow cameraserver cameraserver_exec file execute_no_trans" in nx_policy:
+            fail("NX merged SELinux policy still permits the obsolete second exec")
 
     print(f"Unified module archive checks passed: {archive_path}")
 

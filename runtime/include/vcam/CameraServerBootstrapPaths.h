@@ -2,7 +2,6 @@
 
 namespace vcam::runtime::bootstrap {
 
-inline constexpr char kStockCameraServerPath[] = "/system/bin/vcam/cameraserver";
 inline constexpr char kRouterLibraryPath[] =
         "/system/lib64/libvcam_cameraserver_router.so";
 inline constexpr char kModePath[] = "/system/etc/android_vcam/bootstrap.mode";

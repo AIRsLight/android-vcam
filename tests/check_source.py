@@ -149,6 +149,12 @@ def main() -> None:
         "vcam_camera_service_router_state",
         "vcam_camera_service_router_state_name",
         "vcam_camera_service_router_observer_profile",
+        "vcam_camera_service_router_protocol_verdict",
+        "vcam_camera_service_router_protocol_required_mask",
+        "vcam_camera_service_router_protocol_seen_mask",
+        "vcam_camera_service_router_protocol_valid_mask",
+        "vcam_camera_service_router_protocol_invalid_mask",
+        "vcam_camera_service_router_protocol_unsupported_mask",
         "vcam_camera_service_router_observed_transactions",
         "vcam_camera_service_router_ignored_transactions",
         "vcam_camera_service_router_rejected_transactions",
@@ -174,6 +180,7 @@ def main() -> None:
         "filterAndroid14CameraStatusReply",
         "selectAndroid14CameraServiceProtocol", "kProtocolUnqualified",
         "if (!physicalRoutingEnabled_)",
+        "protocol_required_mask", "protocol_invalid_mask",
     ):
         if required_symbol not in router_source:
             fail(f"camera service router telemetry is missing: {required_symbol}")
@@ -193,6 +200,7 @@ def main() -> None:
     for required_symbol in (
         "libvcam_cameraserver_router", "vcam_cameraserver_launcher",
         "vcam_android14_camera_service_profile_test",
+        "vcam_android14_protocol_evidence_test",
         "vcam_android14_parcel_observer_test",
     ):
         if required_symbol not in aosp14_validator:

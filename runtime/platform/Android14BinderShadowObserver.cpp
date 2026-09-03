@@ -13,6 +13,7 @@ ParcelObservation Android14BinderShadowObserver::observe(
     total_.fetch_add(1, std::memory_order_relaxed);
     const ParcelObservation observation =
             observeAndroid14CameraServiceParcel(recipe_, code, dataParcel);
+    protocolEvidence_.record(observation);
     switch (observation.status) {
         case ParcelObservationStatus::kObserved:
             observed_.fetch_add(1, std::memory_order_relaxed);
@@ -62,6 +63,7 @@ Android14ShadowObservationStats Android14BinderShadowObserver::stats() const noe
     result.uidOnly = uidOnly_.load(std::memory_order_relaxed);
     result.identityUnavailable =
             identityUnavailable_.load(std::memory_order_relaxed);
+    result.protocolEvidence = protocolEvidence_.snapshot();
     return result;
 }
 

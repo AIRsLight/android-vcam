@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "vcam/Android14ParcelObserver.h"
+#include "vcam/Android14ProtocolEvidence.h"
 #include "vcam/BinderPassThroughBridge.h"
 
 namespace vcam::runtime {
@@ -17,6 +18,7 @@ struct Android14ShadowObservationStats {
     std::uint64_t claimedPackage = 0;
     std::uint64_t uidOnly = 0;
     std::uint64_t identityUnavailable = 0;
+    Android14ProtocolEvidenceSnapshot protocolEvidence;
 };
 
 // Thread-safe telemetry adapter for the pass-through bridge. It intentionally
@@ -42,6 +44,7 @@ private:
     std::atomic<std::uint64_t> claimedPackage_{0};
     std::atomic<std::uint64_t> uidOnly_{0};
     std::atomic<std::uint64_t> identityUnavailable_{0};
+    Android14ProtocolEvidence protocolEvidence_;
 };
 
 }  // namespace vcam::runtime

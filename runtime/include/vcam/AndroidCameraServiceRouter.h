@@ -34,6 +34,12 @@ extern "C" {
 int vcam_camera_service_router_state();
 const char* vcam_camera_service_router_state_name();
 const char* vcam_camera_service_router_observer_profile();
+const char* vcam_camera_service_router_protocol_verdict();
+std::uint64_t vcam_camera_service_router_protocol_required_mask();
+std::uint64_t vcam_camera_service_router_protocol_seen_mask();
+std::uint64_t vcam_camera_service_router_protocol_valid_mask();
+std::uint64_t vcam_camera_service_router_protocol_invalid_mask();
+std::uint64_t vcam_camera_service_router_protocol_unsupported_mask();
 std::uint64_t vcam_camera_service_router_observed_transactions();
 std::uint64_t vcam_camera_service_router_ignored_transactions();
 std::uint64_t vcam_camera_service_router_rejected_transactions();

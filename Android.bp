@@ -363,6 +363,7 @@ cc_library_static {
     name: "libvcam_android14_parcel_observer",
     host_supported: true,
     srcs: [
+        "runtime/Android14ProtocolEvidence.cpp",
         "runtime/BinderTransactionClassifier.cpp",
         "runtime/CameraCallerIdentityClassifier.cpp",
         "runtime/platform/Android14BinderShadowObserver.cpp",
@@ -379,6 +380,26 @@ cc_library_static {
         "-Wall",
         "-Wextra",
         "-Werror",
+    ],
+    cpp_std: "c++17",
+}
+
+cc_test {
+    name: "vcam_android14_protocol_evidence_test",
+    host_supported: true,
+    device_supported: false,
+    srcs: ["tests/android14_protocol_evidence_test.cpp"],
+    local_include_dirs: ["runtime/include"],
+    static_libs: ["libvcam_android14_parcel_observer"],
+    shared_libs: [
+        "libbinder",
+        "libutils",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-UNDEBUG",
     ],
     cpp_std: "c++17",
 }

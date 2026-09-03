@@ -858,17 +858,21 @@ print_status() {
     fi
     router_state=stock
     router_profile=none
+    router_protocol_verdict=unavailable
     if [ -r /dev/vcam/router.stats ]; then
         router_state=$(sed -n 's/^state=//p' /dev/vcam/router.stats | head -n 1)
         router_profile=$(sed -n 's/^profile=//p' /dev/vcam/router.stats | head -n 1)
+        router_protocol_verdict=$(sed -n 's/^protocol_verdict=//p' /dev/vcam/router.stats | head -n 1)
         [ -n "$router_state" ] || router_state=unknown
         [ -n "$router_profile" ] || router_profile=none
+        [ -n "$router_protocol_verdict" ] || router_protocol_verdict=unavailable
     elif [ "${MODDIR##*/}" = android_vcam ] && [ -e "$STATE_DIR/mount.ok" ]; then
         router_state=oem_proxy_ready
         router_profile=oneplus7pro-p202303230244
     fi
     echo "router_state=$router_state"
     echo "router_profile=$router_profile"
+    echo "router_protocol_verdict=$router_protocol_verdict"
     if pidof android.hardware.camera.provider-service-vcam-v2 >/dev/null 2>&1; then
         echo "virtual_provider_active=true"
     else

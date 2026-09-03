@@ -262,6 +262,7 @@ m --soong-only -j"$jobs" WITH_DEXPREOPT=false \
     libvcam_cameraserver_router \
     vcam_cameraserver_launcher \
     vcam_android14_camera_service_profile_test \
+    vcam_android14_protocol_evidence_test \
     vcam_android14_parcel_observer_test
 set -u
 
@@ -280,6 +281,7 @@ done
 
 for test_name in \
     vcam_android14_camera_service_profile_test \
+    vcam_android14_protocol_evidence_test \
     vcam_android14_parcel_observer_test; do
     test_binary=$(find "$OUT_DIR/soong/host/linux-x86" -type f -name "$test_name" \
         -perm /111 -print | head -n 1)

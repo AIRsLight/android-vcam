@@ -264,5 +264,17 @@ int main() {
     assert(stats.claimedPackage == 0);
     assert(stats.uidOnly == 1);
     assert(stats.identityUnavailable == 0);
+    const std::uint64_t characteristicsBit =
+            vcam::runtime::android14ProtocolRoleBit(
+                    "get_camera_characteristics");
+    const std::uint64_t concurrentSessionBit =
+            vcam::runtime::android14ProtocolRoleBit(
+                    "concurrent_session_support");
+    assert((stats.protocolEvidence.seenMask & characteristicsBit) != 0);
+    assert((stats.protocolEvidence.validMask & characteristicsBit) != 0);
+    assert((stats.protocolEvidence.invalidMask & characteristicsBit) != 0);
+    assert((stats.protocolEvidence.unsupportedMask & concurrentSessionBit) != 0);
+    assert(stats.protocolEvidence.verdict ==
+           vcam::runtime::Android14ProtocolEvidenceVerdict::kRejected);
     return 0;
 }

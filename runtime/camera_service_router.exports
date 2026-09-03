@@ -3,6 +3,12 @@ VCAM_CAMERA_SERVICE_ROUTER_1.0 {
         vcam_camera_service_router_state;
         vcam_camera_service_router_state_name;
         vcam_camera_service_router_observer_profile;
+        vcam_camera_service_router_protocol_verdict;
+        vcam_camera_service_router_protocol_required_mask;
+        vcam_camera_service_router_protocol_seen_mask;
+        vcam_camera_service_router_protocol_valid_mask;
+        vcam_camera_service_router_protocol_invalid_mask;
+        vcam_camera_service_router_protocol_unsupported_mask;
         vcam_camera_service_router_observed_transactions;
         vcam_camera_service_router_ignored_transactions;
         vcam_camera_service_router_rejected_transactions;

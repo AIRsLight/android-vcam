@@ -66,6 +66,15 @@ if(UNIX)
     add_test(NAME android14_camera_service_profile_test
         COMMAND android14_camera_service_profile_test)
 
+    add_executable(android14_protocol_evidence_test
+        tests/android14_protocol_evidence_test.cpp
+        runtime/Android14ProtocolEvidence.cpp)
+    target_include_directories(android14_protocol_evidence_test
+        PRIVATE runtime/include)
+    target_compile_options(android14_protocol_evidence_test PRIVATE -UNDEBUG)
+    add_test(NAME android14_protocol_evidence_test
+        COMMAND android14_protocol_evidence_test)
+
     add_executable(camera_service_router_mode_test
         tests/camera_service_router_mode_test.cpp
         runtime/CameraServiceRouterMode.cpp)

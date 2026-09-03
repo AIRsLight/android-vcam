@@ -83,6 +83,10 @@ fingerprints and camera-library identities and fail closed on unknown builds.
   transaction template for aggregate read-only pass-through observation. This
   is only a probe candidate: actual routing remains restricted to qualified
   device recipes and rejects an unqualified protocol before Binder takeover.
+- The pass-through observer publishes per-transaction protocol evidence as
+  stable bit masks and a `pending`, `rejected`, or `probe_compatible` verdict.
+  The verdict contains no app, UID, PID, package, or camera-ID data and never
+  authorizes routing by itself.
 
 ## Qualified targets
 

@@ -91,13 +91,19 @@ void* statsPublisher(void*) {
         const Android14ShadowObservationStats stats = observer == nullptr
                 ? Android14ShadowObservationStats {}
                 : observer->stats();
-        char payload[1024] {};
+        char payload[1536] {};
         const int length = std::snprintf(
                 payload,
                 sizeof(payload),
-                "schema=1\n"
+                "schema=2\n"
                 "state=%s\n"
                 "profile=%s\n"
+                "protocol_verdict=%s\n"
+                "protocol_required_mask=0x%016llx\n"
+                "protocol_seen_mask=0x%016llx\n"
+                "protocol_valid_mask=0x%016llx\n"
+                "protocol_invalid_mask=0x%016llx\n"
+                "protocol_unsupported_mask=0x%016llx\n"
                 "transactions_total=%llu\n"
                 "transactions_observed=%llu\n"
                 "transactions_ignored=%llu\n"
@@ -130,6 +136,18 @@ void* statsPublisher(void*) {
                 androidCameraServiceRouterStateName(
                         gState.load(std::memory_order_acquire)),
                 gObserverProfile.load(std::memory_order_acquire),
+                android14ProtocolEvidenceVerdictName(
+                        stats.protocolEvidence.verdict),
+                static_cast<unsigned long long>(
+                        stats.protocolEvidence.requiredMask),
+                static_cast<unsigned long long>(
+                        stats.protocolEvidence.seenMask),
+                static_cast<unsigned long long>(
+                        stats.protocolEvidence.validMask),
+                static_cast<unsigned long long>(
+                        stats.protocolEvidence.invalidMask),
+                static_cast<unsigned long long>(
+                        stats.protocolEvidence.unsupportedMask),
                 static_cast<unsigned long long>(stats.total),
                 static_cast<unsigned long long>(stats.observed),
                 static_cast<unsigned long long>(stats.ignored),
@@ -628,6 +646,37 @@ vcam::runtime::Android14ShadowObservationStats observerStats() {
 }
 
 }  // namespace
+
+extern "C" __attribute__((visibility("default"))) const char*
+vcam_camera_service_router_protocol_verdict() {
+    return vcam::runtime::android14ProtocolEvidenceVerdictName(
+            observerStats().protocolEvidence.verdict);
+}
+
+extern "C" __attribute__((visibility("default"))) std::uint64_t
+vcam_camera_service_router_protocol_required_mask() {
+    return observerStats().protocolEvidence.requiredMask;
+}
+
+extern "C" __attribute__((visibility("default"))) std::uint64_t
+vcam_camera_service_router_protocol_seen_mask() {
+    return observerStats().protocolEvidence.seenMask;
+}
+
+extern "C" __attribute__((visibility("default"))) std::uint64_t
+vcam_camera_service_router_protocol_valid_mask() {
+    return observerStats().protocolEvidence.validMask;
+}
+
+extern "C" __attribute__((visibility("default"))) std::uint64_t
+vcam_camera_service_router_protocol_invalid_mask() {
+    return observerStats().protocolEvidence.invalidMask;
+}
+
+extern "C" __attribute__((visibility("default"))) std::uint64_t
+vcam_camera_service_router_protocol_unsupported_mask() {
+    return observerStats().protocolEvidence.unsupportedMask;
+}
 
 extern "C" __attribute__((visibility("default"))) std::uint64_t
 vcam_camera_service_router_observed_transactions() {

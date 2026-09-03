@@ -5,6 +5,24 @@ layout. The runtime path therefore uses introspection only to select an exact,
 reviewed ABI recipe. It does not infer class layouts, vtables, offsets or calling
 conventions at run time.
 
+## Android 14 protocol evidence
+
+An unknown API 34 build may use the initial AOSP Android 14 transaction map in
+explicit pass-through mode. The observer records only stable role bit masks:
+roles seen, successfully decoded, rejected, and intentionally unsupported. It
+does not retain camera IDs, packages, UIDs, or PIDs. The evidence verdict is:
+
+- `pending` until the deterministic Camera1/Camera2 qualification sequence has
+  exercised every currently understood role;
+- `rejected` if a required role is malformed or unsupported; or
+- `probe_compatible` when every required role has decoded successfully.
+
+The nested concurrent-session configuration is tracked as unsupported and is
+not currently part of the understood-role mask. A `probe_compatible` result is
+diagnostic evidence only: it cannot enable `physical-route`, create a trusted
+device recipe, or survive reboot as an authorization. Routing still requires a
+reviewed qualified profile.
+
 ## Fail-closed boundary
 
 Before any future cameraserver interception may be activated, the agent checks

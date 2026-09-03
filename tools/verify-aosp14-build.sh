@@ -8,6 +8,7 @@ Usage: verify-aosp14-build.sh --aosp-root PATH [options]
 Options:
   --source-root PATH  android_vcam repository root (defaults to script parent)
   --mode MODE         check or build (default: check)
+  --product PRODUCT   aosp_arm64 or aosp_x86_64 (default: aosp_arm64)
   --jobs N            build parallelism (default: host CPU count)
   -h, --help          show this help
 EOF
@@ -22,6 +23,7 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source_root=$(cd -- "$script_dir/.." && pwd)
 aosp_root=
 mode=check
+product=aosp_arm64
 jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')
 
 while (($#)); do
@@ -41,6 +43,11 @@ while (($#)); do
             mode=$2
             shift 2
             ;;
+        --product)
+            (($# >= 2)) || fail "--product requires a value"
+            product=$2
+            shift 2
+            ;;
         --jobs)
             (($# >= 2)) || fail "--jobs requires a value"
             jobs=$2
@@ -58,7 +65,17 @@ done
 
 [[ -n "$aosp_root" ]] || fail "--aosp-root is required"
 [[ "$mode" == check || "$mode" == build ]] || fail "--mode must be check or build"
+[[ "$product" == aosp_arm64 || "$product" == aosp_x86_64 ]] ||
+    fail "--product must be aosp_arm64 or aosp_x86_64"
 [[ "$jobs" =~ ^[1-9][0-9]*$ ]] || fail "--jobs must be a positive integer"
+
+if [[ "$product" == aosp_arm64 ]]; then
+    product_output=generic_arm64
+    output_name=android-vcam-r23-soong
+else
+    product_output=generic_x86_64
+    output_name=android-vcam-r23-soong-x86_64
+fi
 
 aosp_root=$(cd -- "$aosp_root" && pwd)
 source_root=$(cd -- "$source_root" && pwd)
@@ -229,13 +246,13 @@ git -C "$google_camera" apply "$managed_copy/$google_patch_rel"
 google_patch_applied=1
 
 cd "$aosp_root"
-export OUT_DIR="$aosp_root/out/android-vcam-r23-soong"
+export OUT_DIR="$aosp_root/out/$output_name"
 export ALLOW_MISSING_DEPENDENCIES=true
 export WITH_DEXPREOPT=false
 export DISABLE_PREOPT=true
 set +u
 source build/envsetup.sh >/dev/null
-lunch aosp_arm64-eng >/dev/null
+lunch "${product}-eng" >/dev/null
 # --soong-only skips Kati, while Google's AIDL camera version generator reads
 # the standard build number file that Kati normally creates. Query AOSP's own
 # dumpvar interface, then mirror main.mk's compare-and-replace behavior without
@@ -267,14 +284,14 @@ m --soong-only -j"$jobs" WITH_DEXPREOPT=false \
 set -u
 
 for artifact in \
-    "$OUT_DIR/soong/target/product/generic_arm64/system/lib64/libcameraservice.so" \
-    "$OUT_DIR/soong/target/product/generic_arm64/vendor/lib64/hw/camera.vcam.so" \
-    "$OUT_DIR/soong/target/product/generic_arm64/vendor/bin/hw/android.hardware.camera.provider@2.4-vcam-service" \
-    "$OUT_DIR/soong/target/product/generic_arm64/system/bin/vcam_provider_probe_client" \
-    "$OUT_DIR/soong/target/product/generic_arm64/system/bin/vcam_cameraserver_launcher" \
-    "$OUT_DIR/soong/target/product/generic_arm64/system/lib64/libvcam_cameraserver_router.so" \
-    "$OUT_DIR/soong/target/product/generic_arm64/vendor/lib64/libvcam_googlecamerahwl_impl.so" \
-    "$OUT_DIR/soong/target/product/generic_arm64/vendor/bin/hw/android.hardware.camera.provider-service-vcam-v2"; do
+    "$OUT_DIR/soong/target/product/$product_output/system/lib64/libcameraservice.so" \
+    "$OUT_DIR/soong/target/product/$product_output/vendor/lib64/hw/camera.vcam.so" \
+    "$OUT_DIR/soong/target/product/$product_output/vendor/bin/hw/android.hardware.camera.provider@2.4-vcam-service" \
+    "$OUT_DIR/soong/target/product/$product_output/system/bin/vcam_provider_probe_client" \
+    "$OUT_DIR/soong/target/product/$product_output/system/bin/vcam_cameraserver_launcher" \
+    "$OUT_DIR/soong/target/product/$product_output/system/lib64/libvcam_cameraserver_router.so" \
+    "$OUT_DIR/soong/target/product/$product_output/vendor/lib64/libvcam_googlecamerahwl_impl.so" \
+    "$OUT_DIR/soong/target/product/$product_output/vendor/bin/hw/android.hardware.camera.provider-service-vcam-v2"; do
     [[ -s "$artifact" ]] || fail "expected build artifact is missing: $artifact"
     printf 'Verified artifact: %s\n' "$artifact"
 done
@@ -290,7 +307,7 @@ for test_name in \
     printf 'Verified host test: %s\n' "$test_name"
 done
 
-hwl_artifact="$OUT_DIR/soong/target/product/generic_arm64/vendor/lib64/libvcam_googlecamerahwl_impl.so"
+hwl_artifact="$OUT_DIR/soong/target/product/$product_output/vendor/lib64/libvcam_googlecamerahwl_impl.so"
 llvm_nm=$(find "$aosp_root/prebuilts/clang/host/linux-x86" \
     -path '*/bin/llvm-nm' -type f -print | sort -V | tail -n 1)
 [[ -x "$llvm_nm" ]] || fail "llvm-nm is missing from the Android 14 prebuilts"
@@ -306,4 +323,4 @@ for symbol in \
     printf 'Verified AIDL HWL symbol: %s\n' "$symbol"
 done
 
-printf 'Android 14 AOSP targets built successfully in %s\n' "$OUT_DIR"
+printf 'Android 14 AOSP %s targets built successfully in %s\n' "$product" "$OUT_DIR"

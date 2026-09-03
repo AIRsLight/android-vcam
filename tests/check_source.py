@@ -201,7 +201,8 @@ def main() -> None:
         "libvcam_cameraserver_router", "vcam_cameraserver_launcher",
         "vcam_android14_camera_service_profile_test",
         "vcam_android14_protocol_evidence_test",
-        "vcam_android14_parcel_observer_test",
+        "vcam_android14_parcel_observer_test", "--product",
+        "aosp_x86_64", "generic_x86_64",
     ):
         if required_symbol not in aosp14_validator:
             fail(f"Android 14 validator does not build router target: {required_symbol}")

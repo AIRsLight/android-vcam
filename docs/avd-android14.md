@@ -37,3 +37,10 @@ product. Deploy them only to this disposable userdebug AVD with a saved stock
 cameraserver copy and a next-start stock fallback. First qualify `preflight`,
 then pure `passthrough`; do not enable physical or virtual routing during the
 same experiment.
+
+The x86_64 compile uses the same pinned AOSP r23 validator:
+
+```text
+tools/verify-aosp14-build.sh --aosp-root /path/to/aosp \
+  --mode build --product aosp_x86_64
+```

@@ -81,7 +81,8 @@ fingerprints and camera-library identities and fail closed on unknown builds.
 - The test APK also exposes a protocol self-test that combines public Camera1,
   Camera2 and NDK CameraManager calls. It selects only a back-facing camera,
   submits torch checks against an intentionally invalid ID, and can be launched
-  with `io.github.androidvcam.test.RUN_PROTOCOL_PROBE`. Its minimum SDK is 29.
+  with `io.github.androidvcam.test.RUN_PROTOCOL_PROBE`. Its minimum SDK is 29,
+  and its public-NDK probe is packaged for ARM64 devices and x86_64 AVDs.
 - Module installation is systemless and pinned to the tested ROM hashes.
 - Unknown Android 14 builds can select the AOSP initial-release CameraService
   transaction template for aggregate read-only pass-through observation. This
@@ -255,4 +256,5 @@ aosp/       AOSP HIDL/AIDL Camera Provider frontends
 
 See [architecture](docs/architecture.md), [delivery milestones](docs/milestones.md),
 [development and recovery](docs/development.md), [device support](docs/device-support.md),
-and [source format](docs/source-format.md).
+[Android 14 AVD qualification](docs/avd-android14.md), and
+[source format](docs/source-format.md).

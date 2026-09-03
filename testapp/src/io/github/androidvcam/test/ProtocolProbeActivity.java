@@ -90,6 +90,7 @@ public final class ProtocolProbeActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT));
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
         scroll.addView(body);
         setContentView(scroll);
 

@@ -644,8 +644,8 @@ def main() -> None:
         if required_symbol not in protocol_probe_native:
             fail(f"NDK protocol probe coverage is missing: {required_symbol}")
     for required_symbol in (
-        "aarch64-linux-android29-clang++", "-static-libstdc++", "-MinSdk 29",
-        "NativeLibDirectory",
+        "aarch64-linux-android29-clang++", "x86_64-linux-android29-clang++",
+        "-static-libstdc++", "-MinSdk 29", "NativeLibDirectory",
     ):
         if required_symbol not in protocol_builder and required_symbol not in (
                 ROOT / "tools" / "build-manager.ps1").read_text(encoding="utf-8"):

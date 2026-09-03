@@ -12,18 +12,24 @@ param(
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $ndkToolchain = Join-Path $AndroidSdk "ndk\$NdkVersion\toolchains\llvm\prebuilt\windows-x86_64\bin"
-$clang = Join-Path $ndkToolchain "aarch64-linux-android29-clang++.cmd"
-if (-not (Test-Path -LiteralPath $clang)) {
-    throw "Required Android NDK compiler not found: $clang"
-}
 $nativePackage = Join-Path $repoRoot "out\testapp\native-package"
-$nativeAbi = Join-Path $nativePackage "lib\arm64-v8a"
-New-Item -ItemType Directory -Force -Path $nativeAbi | Out-Null
-$nativeOutput = Join-Path $nativeAbi "libvcam_protocol_probe.so"
-& $clang -shared -fPIC -static-libstdc++ -std=c++17 -Wall -Wextra -Werror `
-    (Join-Path $repoRoot "testapp\jni\protocol_probe_jni.cpp") `
-    -lcamera2ndk -llog -o $nativeOutput
-if ($LASTEXITCODE -ne 0) { throw "Protocol probe JNI build failed" }
+$nativeCompilers = [ordered]@{
+    "arm64-v8a" = "aarch64-linux-android29-clang++.cmd"
+    "x86_64" = "x86_64-linux-android29-clang++.cmd"
+}
+foreach ($abi in $nativeCompilers.Keys) {
+    $clang = Join-Path $ndkToolchain $nativeCompilers[$abi]
+    if (-not (Test-Path -LiteralPath $clang)) {
+        throw "Required Android NDK compiler not found: $clang"
+    }
+    $nativeAbi = Join-Path $nativePackage "lib\$abi"
+    New-Item -ItemType Directory -Force -Path $nativeAbi | Out-Null
+    $nativeOutput = Join-Path $nativeAbi "libvcam_protocol_probe.so"
+    & $clang -shared -fPIC -static-libstdc++ -std=c++17 -Wall -Wextra -Werror `
+        (Join-Path $repoRoot "testapp\jni\protocol_probe_jni.cpp") `
+        -lcamera2ndk -llog -o $nativeOutput
+    if ($LASTEXITCODE -ne 0) { throw "Protocol probe JNI build failed for $abi" }
+}
 
 & (Join-Path $PSScriptRoot "build-manager.ps1") `
     -AndroidSdk $AndroidSdk `

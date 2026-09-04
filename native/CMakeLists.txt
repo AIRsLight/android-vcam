@@ -134,8 +134,8 @@ add_executable(vcam_control_daemon control_daemon.c)
 set_target_properties(vcam_control_daemon PROPERTIES OUTPUT_NAME vcamd)
 target_compile_options(vcam_control_daemon PRIVATE -Wall -Wextra -Werror)
 
-set(FFMPEG_ANDROID_ROOT "${AOSP_REF}/ffmpeg-android/arm64-v8a" CACHE PATH
-    "Pinned static FFmpeg SDK built for Android arm64-v8a")
+set(FFMPEG_ANDROID_ROOT "${AOSP_REF}/ffmpeg-android/${ANDROID_ABI}" CACHE PATH
+    "Pinned static FFmpeg SDK built for the selected Android ABI")
 set(FFMPEG_INCLUDE_DIR "${FFMPEG_ANDROID_ROOT}/include")
 set(FFMPEG_LIBRARY_DIR "${FFMPEG_ANDROID_ROOT}/lib")
 if(EXISTS "${FFMPEG_INCLUDE_DIR}/libavformat/avformat.h" AND

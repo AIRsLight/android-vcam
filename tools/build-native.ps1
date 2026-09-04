@@ -3,7 +3,7 @@ param(
     [string]$AndroidSdk = "D:\AndroidSdk",
     [string]$NdkVersion = "27.2.12479018",
     [string]$CmakeVersion = "3.22.1",
-    [ValidateSet("arm64-v8a")]
+    [ValidateSet("arm64-v8a", "x86_64")]
     [string]$Abi = "arm64-v8a",
     [int]$Api = 31
 )

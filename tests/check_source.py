@@ -807,6 +807,9 @@ def main() -> None:
     ksu_verify = (
         ROOT / "tools" / "avd" / "verify-aosp14-kernelsu.ps1"
     ).read_text(encoding="utf-8")
+    ksu_sepolicy_patch = (
+        ROOT / "tools" / "ci" / "kernelsu-avd14-sepolicy-init.patch"
+    ).read_text(encoding="utf-8")
     for required_symbol in (
         "7e35917775b8b3e3346a87f294e334e258bf15e6",
         "932014ab5b2c9b74a3d11e2ec4d17dd10fc9442e",
@@ -824,6 +827,11 @@ def main() -> None:
     ):
         if required_symbol not in ksu_verify:
             fail(f"KernelSU AVD verifier is missing: {required_symbol}")
+    for required_symbol in (
+        "sel_write_load", "apply_kernelsu_rules", "cache_sid", "setup_ksu_cred",
+    ):
+        if required_symbol not in ksu_sepolicy_patch:
+            fail(f"KernelSU AVD SELinux initialization patch is missing: {required_symbol}")
 
     for installer in (
         ROOT / "aidl-provider-module" / "customize.sh",
@@ -871,6 +879,26 @@ def main() -> None:
     ):
         if required_symbol not in unified_installer:
             fail(f"unified installer lacks: {required_symbol}")
+
+    portable_installer = (
+        ROOT / "portable-module" / "customize.sh"
+    ).read_text(encoding="utf-8")
+    portable_packager = (
+        ROOT / "tools" / "package-portable-bootstrap.ps1"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "aosp14-avd-api34-ue1a-r23", "x86_64",
+        "52fa175391f4bc753e5cddd6d541ceff4b4c83dd657aa0cc1e6edbe8deaec751",
+        "8869bad7a6fb174b00de3258ef131122c2d7d53cc895f1df072d149ef7a28e54",
+        "/data/adb/metamodule",
+    ):
+        if required_symbol not in portable_installer:
+            fail(f"portable installer lacks AVD exact-profile guard: {required_symbol}")
+    for required_symbol in (
+        'ValidateSet("nx769j", "aosp14-avd")', "ExpectedMachine", "profile.id",
+    ):
+        if required_symbol not in portable_packager:
+            fail(f"portable packager lacks target selection: {required_symbol}")
     for required_symbol in (
         "profile-service.sh", "provider-service.sh", "router-service.sh",
     ):

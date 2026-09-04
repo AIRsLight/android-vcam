@@ -5,13 +5,27 @@ ui_print "- Validating portable cameraserver bootstrap"
 sdk="$(getprop ro.build.version.sdk)"
 abi="$(getprop ro.product.cpu.abi)"
 fingerprint="$(getprop ro.build.fingerprint)"
-expected_fingerprint='nubia/NX769J/NX769J:14/UKQ1.230917.001/20240417.145608:user/release-keys'
-expected_cameraservice_hash='a26f8ee10002769428871e042c7993e87ad769703897dd75a2fb93a725c64438'
-expected_camera_client_hash='1cf518e86a2e5461e585d8dbd7a1dbc93e7ba2bcc95c3e254ebdcc72ee0433c5'
+target_profile="$(cat "$MODPATH/profile.id" 2>/dev/null)"
+case "$target_profile" in
+    aosp14-avd-api34-ue1a-r23)
+        expected_abi=x86_64
+        expected_fingerprint='Android/sdk_phone64_x86_64/emu64x:14/UE1A.230829.036.A1/11228894:userdebug/test-keys'
+        expected_cameraservice_hash='52fa175391f4bc753e5cddd6d541ceff4b4c83dd657aa0cc1e6edbe8deaec751'
+        expected_camera_client_hash='8869bad7a6fb174b00de3258ef131122c2d7d53cc895f1df072d149ef7a28e54'
+        ;;
+    '')
+        expected_abi=arm64-v8a
+        expected_fingerprint='nubia/NX769J/NX769J:14/UKQ1.230917.001/20240417.145608:user/release-keys'
+        expected_cameraservice_hash='a26f8ee10002769428871e042c7993e87ad769703897dd75a2fb93a725c64438'
+        expected_camera_client_hash='1cf518e86a2e5461e585d8dbd7a1dbc93e7ba2bcc95c3e254ebdcc72ee0433c5'
+        ;;
+    *) abort "! Unknown portable target profile: $target_profile" ;;
+esac
 [ "$sdk" = "34" ] || abort "! This prototype package is restricted to Android 14"
-[ "$abi" = "arm64-v8a" ] || abort "! This prototype package requires arm64-v8a"
+[ "$abi" = "$expected_abi" ] || \
+    abort "! This prototype package requires $expected_abi"
 [ "$fingerprint" = "$expected_fingerprint" ] || \
-    abort "! This router is restricted to the qualified NX769J build"
+    abort "! This router is restricted to its packaged target build"
 
 cameraservice_hash="$(sha256sum /system/lib64/libcameraservice.so 2>/dev/null | awk '{print $1}')"
 camera_client_hash="$(sha256sum /system/lib64/libcamera_client.so 2>/dev/null | awk '{print $1}')"
@@ -19,6 +33,15 @@ camera_client_hash="$(sha256sum /system/lib64/libcamera_client.so 2>/dev/null | 
     abort "! CameraService ABI mismatch: $cameraservice_hash"
 [ "$camera_client_hash" = "$expected_camera_client_hash" ] || \
     abort "! libcamera_client ABI mismatch: $camera_client_hash"
+[ -d /data/adb/metamodule ] || \
+    abort "! An active MetaModule must be installed first"
+[ ! -e /data/adb/metamodule/disable ] || \
+    abort "! The active MetaModule is disabled"
+meta_flag="$(sed -n 's/^metamodule=//p' /data/adb/metamodule/module.prop 2>/dev/null | head -n 1)"
+case "$meta_flag" in
+    1|true) ;;
+    *) abort "! /data/adb/metamodule is not a valid MetaModule" ;;
+esac
 
 live_cameraserver="/system/bin/cameraserver"
 launcher="$MODPATH/system/bin/cameraserver"

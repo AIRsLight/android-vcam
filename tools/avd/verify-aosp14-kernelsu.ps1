@@ -58,9 +58,9 @@ if ($ModuleZip) {
 }
 
 if ($RunBootEvents) {
-    # KernelSU 3.3's x86_64 manager handshake and second-stage-init capture do
-    # not work on the API 34 AVD baseline. Driving the official ksud events is
-    # the explicit, reproducible test-harness substitute.
+    # Diagnostic fallback for an unpatched kernel. The qualified harness kernel
+    # initializes KernelSU after SELinux policy load and runs these events
+    # automatically during a normal boot.
     Invoke-AdbShell "$Ksud post-fs-data"
     Invoke-AdbShell "$Ksud services"
     Invoke-AdbShell "$Ksud boot-completed"

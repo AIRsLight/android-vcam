@@ -3,6 +3,7 @@ set -euo pipefail
 
 kernel_root="${1:-/aosp/work/kernelsu-avd14}"
 config_source="${2:-}"
+sepolicy_patch_source="${3:-}"
 common_commit=7e35917775b8b3e3346a87f294e334e258bf15e6
 kernelsu_commit=932014ab5b2c9b74a3d11e2ec4d17dd10fc9442e
 kernelsu_version=v3.3.0
@@ -21,6 +22,10 @@ if [[ -z "$config_source" ]]; then
     config_source="$(cd "$(dirname "$0")" && pwd)/kernelsu-avd14-x86_64.config"
 fi
 config_source="$(realpath "$config_source")"
+if [[ -z "$sepolicy_patch_source" ]]; then
+    sepolicy_patch_source="$(cd "$(dirname "$0")" && pwd)/kernelsu-avd14-sepolicy-init.patch"
+fi
+sepolicy_patch_source="$(realpath "$sepolicy_patch_source")"
 
 [[ -d "$kernel_root/.repo" ]] || {
     echo "Kernel manifest workspace is missing: $kernel_root" >&2
@@ -28,6 +33,10 @@ config_source="$(realpath "$config_source")"
 }
 [[ -f "$config_source" ]] || {
     echo "KernelSU config fragment is missing: $config_source" >&2
+    exit 1
+}
+[[ -f "$sepolicy_patch_source" ]] || {
+    echo "KernelSU AVD SELinux initialization patch is missing: $sepolicy_patch_source" >&2
     exit 1
 }
 
@@ -64,6 +73,12 @@ if ! git -C KernelSU cat-file -e "$kernelsu_commit^{commit}" 2>/dev/null; then
 fi
 git -C KernelSU checkout --detach --force "$kernelsu_commit"
 
+# This exact AVD enters first-stage userspace through kernel_execve(), which
+# drops the syscall-trace marker before Android's second-stage init exec. Apply
+# KernelSU's own policy setup directly after the initial SELinux policy load.
+# This is a test-kernel integration patch and is never part of VCAM modules.
+git -C common apply --unidiff-zero "$sepolicy_patch_source"
+
 rm -f common/drivers/kernelsu common/kernelsu_defconfig
 ln -s ../../KernelSU/kernel common/drivers/kernelsu
 
@@ -80,6 +95,7 @@ tools/bazel build --config=fast \
 grep -R -q '^CONFIG_KSU=y$' out/cache/*/common/.config
 grep -R -q '^CONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER=y$' \
     out/cache/*/common/.config
+grep -q 'apply_kernelsu_rules();' common/security/selinux/selinuxfs.c
 prebuilts/clang/host/linux-x86/clang-r487747/bin/clang --version | \
     grep -q 'Android (9796371, based on r487747) clang version 17.0.0'
 

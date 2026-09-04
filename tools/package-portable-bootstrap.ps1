@@ -5,6 +5,8 @@ param(
     [string]$OutputDirectory = "dist",
     [ValidateSet("stock", "preflight", "passthrough", "physical-route")]
     [string]$BootstrapMode = "stock",
+    [ValidateSet("nx769j", "aosp14-avd")]
+    [string]$TargetProfile = "nx769j",
     [string]$Python = "python",
     [string]$Version = "0.5.0-dev.39"
 )
@@ -17,7 +19,7 @@ function Resolve-RepoInput([string]$Path) {
     return (Resolve-Path -LiteralPath $Path).ProviderPath
 }
 
-function Assert-Arm64Elf([string]$Path, [int64]$MinimumSize) {
+function Assert-TargetElf([string]$Path, [int64]$MinimumSize, [int]$ExpectedMachine) {
     $item = Get-Item -LiteralPath $Path
     if ($item.Length -lt $MinimumSize) { throw "ELF is unexpectedly small: $Path" }
     $header = New-Object byte[] 20
@@ -31,15 +33,16 @@ function Assert-Arm64Elf([string]$Path, [int64]$MinimumSize) {
     if (-not ($header[0] -eq 0x7f -and $header[1] -eq 0x45 -and
               $header[2] -eq 0x4c -and $header[3] -eq 0x46) -or
         $header[4] -ne 2 -or $header[5] -ne 1 -or
-        [BitConverter]::ToUInt16($header, 18) -ne 183) {
-        throw "Expected a little-endian AArch64 ELF64 file: $Path"
+        [BitConverter]::ToUInt16($header, 18) -ne $ExpectedMachine) {
+        throw "Expected a little-endian ELF64 machine $ExpectedMachine file: $Path"
     }
 }
 
 $launcherInput = Resolve-RepoInput $Launcher
 $routerInput = Resolve-RepoInput $Router
-Assert-Arm64Elf $launcherInput 8192
-Assert-Arm64Elf $routerInput 8192
+$expectedMachine = if ($TargetProfile -eq "aosp14-avd") { 62 } else { 183 }
+Assert-TargetElf $launcherInput 8192 $expectedMachine
+Assert-TargetElf $routerInput 8192 $expectedMachine
 
 $dist = Join-Path $repoRoot $OutputDirectory
 New-Item -ItemType Directory -Force $dist | Out-Null
@@ -58,6 +61,19 @@ $profilePropText = [IO.File]::ReadAllText($profileProp)
 $profilePropText = [Text.RegularExpressions.Regex]::Replace(
     $profilePropText, "(?m)^version=.*$", "version=$Version")
 [IO.File]::WriteAllText($profileProp, $profilePropText, [Text.UTF8Encoding]::new($false))
+if ($TargetProfile -eq "aosp14-avd") {
+    [IO.File]::WriteAllText(
+        (Join-Path $staging "profile.id"),
+        "aosp14-avd-api34-ue1a-r23`n",
+        [Text.UTF8Encoding]::new($false))
+    $profilePropText = [IO.File]::ReadAllText($profileProp)
+    $profilePropText = [Text.RegularExpressions.Regex]::Replace(
+        $profilePropText,
+        "(?m)^description=.*$",
+        "description=One-shot Android 14 API 34 x86_64 AVD CameraService bootstrap harness.")
+    [IO.File]::WriteAllText(
+        $profileProp, $profilePropText, [Text.UTF8Encoding]::new($false))
+}
 
 $launcherDestination = Join-Path $staging "system\bin\cameraserver"
 $routerDestination = Join-Path $staging "system\lib64\libvcam_cameraserver_router.so"
@@ -69,7 +85,8 @@ $modeDestination = Join-Path $staging "system\etc\android_vcam\bootstrap.mode"
 Get-ChildItem -LiteralPath $staging -Recurse -Filter .gitkeep | Remove-Item -Force
 
 $modeSuffix = if ($BootstrapMode -eq "stock") { "" } else { "-$BootstrapMode" }
-$zip = Join-Path $dist "android-vcam-portable-bootstrap-v$Version$modeSuffix.zip"
+$profileSuffix = if ($TargetProfile -eq "aosp14-avd") { "-aosp14-avd" } else { "" }
+$zip = Join-Path $dist "android-vcam-portable-bootstrap-v$Version$profileSuffix$modeSuffix.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 & $Python (Join-Path $PSScriptRoot "create-module-zip.py") $staging $zip
 if ($LASTEXITCODE -ne 0) { throw "Portable module ZIP creation failed" }

@@ -1,0 +1,25 @@
+diff --git a/security/selinux/selinuxfs.c b/security/selinux/selinuxfs.c
+index 13181698f1d0..5a24a79b8ebd 100644
+--- a/security/selinux/selinuxfs.c
++++ b/security/selinux/selinuxfs.c
+@@ -44,0 +45,6 @@
++#ifdef CONFIG_KSU
++extern void apply_kernelsu_rules(void);
++extern void cache_sid(void);
++extern void setup_ksu_cred(void);
++#endif
++
+@@ -668,0 +675,13 @@ static ssize_t sel_write_load(struct file *file, const char __user *buf,
++#ifdef CONFIG_KSU
++	/*
++	 * The API 34 x86_64 AVD enters userspace through kernel_execve(), so
++	 * KernelSU's syscall trace does not retain the marker needed to observe
++	 * Android's second-stage init. Apply the same built-in initialization
++	 * immediately after the initial policy load in this pinned test kernel.
++	 */
++	if (length > 0) {
++		apply_kernelsu_rules();
++		cache_sid();
++		setup_ksu_cred();
++	}
++#endif

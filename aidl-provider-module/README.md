@@ -1,11 +1,13 @@
 # One-shot Android 14 AIDL provider probe
 
 This fingerprint-locked KernelSU module qualifies stock CameraService discovery
-of a declared stable-AIDL v2 `vcam/0` provider on the NX769J Android 14 build.
-It is not a production release. It advertises zero cameras by default and can
-advertise the two test cameras for one explicitly armed boot.
+of a declared stable-AIDL v2 `vcam/0` provider. The default target remains the
+NX769J Android 14 build; the packager also has an explicit `aosp14-avd` target
+for the pinned API 34 x86_64 test harness. It is not a production release. It
+advertises zero cameras by default and can advertise the two test cameras for
+one explicitly armed boot.
 
-dev.38 packages the shared manager-independent backend: `vcamd`,
+The NX769J dev.39 package includes the shared manager-independent backend: `vcamd`,
 `vcamctl`, `provider-runner.sh`, `vcam-publisher` and the statically linked
 arm64 `vcam-streamer`. Provider metadata remains under
 `/data/adb/android_vcam/providers`, while frames remain under
@@ -13,6 +15,11 @@ arm64 `vcam-streamer`. Provider metadata remains under
 does not stop configured providers or remove their state. The installer checks
 the complete backend payload against `payload/backend.sha256` before enabling
 the module.
+
+The AVD engineering package contains only the x86_64 provider, matching AOSP
+camera HAL libraries, two JSON camera descriptions and the lifecycle scripts.
+Its built-in pattern source is sufficient for routing and frame-delivery tests;
+it deliberately does not claim image, video or RTSP backend support.
 
 Network-backed autostart providers retry for at most 18 rounds after
 `boot_completed`, with ten seconds between unsuccessful rounds, and stop as soon

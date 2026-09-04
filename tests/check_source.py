@@ -899,6 +899,35 @@ def main() -> None:
     ):
         if required_symbol not in portable_packager:
             fail(f"portable packager lacks target selection: {required_symbol}")
+
+    aidl_provider_installer = (
+        ROOT / "aidl-provider-module" / "customize.sh"
+    ).read_text(encoding="utf-8")
+    aidl_provider_packager = (
+        ROOT / "tools" / "package-aosp14-aidl-provider.ps1"
+    ).read_text(encoding="utf-8")
+    aidl_provider_policy = (
+        ROOT / "aidl-provider-module" / "sepolicy.rule"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "aosp14-avd-api34-ue1a-r23", "expected_fcm=7", "backend_required=0",
+        "52fa175391f4bc753e5cddd6d541ceff4b4c83dd657aa0cc1e6edbe8deaec751",
+    ):
+        if required_symbol not in aidl_provider_installer:
+            fail(f"AIDL provider installer lacks AVD guard: {required_symbol}")
+    for required_symbol in (
+        "type vcam_camera_data_file file_type",
+        "allow cameraserver vcam_camera_data_file dir",
+        "allow cameraserver vcam_camera_data_file file",
+    ):
+        if required_symbol not in aidl_provider_policy:
+            fail(f"AIDL provider policy lacks ordered data access: {required_symbol}")
+    for required_symbol in (
+        'ValidateSet("nx769j", "aosp14-avd")', "aosp14-provider-x86_64",
+        "Assert-TargetElf", "profile.id",
+    ):
+        if required_symbol not in aidl_provider_packager:
+            fail(f"AIDL provider packager lacks AVD target: {required_symbol}")
     for required_symbol in (
         "profile-service.sh", "provider-service.sh", "router-service.sh",
     ):

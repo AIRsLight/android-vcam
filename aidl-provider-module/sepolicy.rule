@@ -6,6 +6,8 @@ type vcam_camera_data_file file_type
 typeattribute vcam_camera_data_file data_file_type
 allow ksu vcam_camera_data_file dir { add_name create getattr open read remove_name search setattr write }
 allow ksu vcam_camera_data_file file { create getattr map open read rename setattr unlink write }
+allow cameraserver vcam_camera_data_file dir { search read open getattr }
+allow cameraserver vcam_camera_data_file file { open read getattr }
 allow hal_camera_default vcam_camera_data_file dir { getattr open read search }
 allow hal_camera_default vcam_camera_data_file file { getattr map open read }
 # A systemless secondary instance has no matching service_contexts entry when

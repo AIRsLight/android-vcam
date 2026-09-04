@@ -5,9 +5,26 @@ ui_print "- Validating Android 14 AIDL provider probe"
 sdk="$(getprop ro.build.version.sdk)"
 abi="$(getprop ro.product.cpu.abi)"
 fingerprint="$(getprop ro.build.fingerprint)"
-expected_fingerprint='nubia/NX769J/NX769J:14/UKQ1.230917.001/20240417.145608:user/release-keys'
-expected_cameraservice_hash='a26f8ee10002769428871e042c7993e87ad769703897dd75a2fb93a725c64438'
-expected_camera_client_hash='1cf518e86a2e5461e585d8dbd7a1dbc93e7ba2bcc95c3e254ebdcc72ee0433c5'
+target_profile="$(cat "$MODPATH/profile.id" 2>/dev/null)"
+case "$target_profile" in
+    aosp14-avd-api34-ue1a-r23)
+        expected_abi=x86_64
+        expected_fingerprint='Android/sdk_phone64_x86_64/emu64x:14/UE1A.230829.036.A1/11228894:userdebug/test-keys'
+        expected_cameraservice_hash='52fa175391f4bc753e5cddd6d541ceff4b4c83dd657aa0cc1e6edbe8deaec751'
+        expected_camera_client_hash='8869bad7a6fb174b00de3258ef131122c2d7d53cc895f1df072d149ef7a28e54'
+        expected_fcm=7
+        backend_required=0
+        ;;
+    '')
+        expected_abi=arm64-v8a
+        expected_fingerprint='nubia/NX769J/NX769J:14/UKQ1.230917.001/20240417.145608:user/release-keys'
+        expected_cameraservice_hash='a26f8ee10002769428871e042c7993e87ad769703897dd75a2fb93a725c64438'
+        expected_camera_client_hash='1cf518e86a2e5461e585d8dbd7a1dbc93e7ba2bcc95c3e254ebdcc72ee0433c5'
+        expected_fcm=8
+        backend_required=1
+        ;;
+    *) abort "! Unknown AIDL provider target profile: $target_profile" ;;
+esac
 vendor_sku="$(getprop ro.boot.product.vendor.sku)"
 vendor_manifest=/vendor/etc/vintf/manifest.xml
 
@@ -19,17 +36,17 @@ target_fcm="$(sed -n 's/.*target-level="\([0-9][0-9]*\)".*/\1/p' \
     "$vendor_manifest" 2>/dev/null | head -n 1)"
 
 [ "$sdk" = "34" ] || abort "! This probe is restricted to Android 14"
-[ "$abi" = "arm64-v8a" ] || abort "! This probe requires arm64-v8a"
+[ "$abi" = "$expected_abi" ] || abort "! This probe requires $expected_abi"
 [ "$fingerprint" = "$expected_fingerprint" ] || \
-    abort "! This development probe is restricted to the qualified NX769J build"
+    abort "! This development probe is restricted to its packaged target build"
 cameraservice_hash="$(sha256sum /system/lib64/libcameraservice.so 2>/dev/null | awk '{print $1}')"
 camera_client_hash="$(sha256sum /system/lib64/libcamera_client.so 2>/dev/null | awk '{print $1}')"
 [ "$cameraservice_hash" = "$expected_cameraservice_hash" ] || \
     abort "! CameraService ABI mismatch: $cameraservice_hash"
 [ "$camera_client_hash" = "$expected_camera_client_hash" ] || \
     abort "! libcamera_client ABI mismatch: $camera_client_hash"
-[ "$target_fcm" = "8" ] || \
-    abort "! This probe requires target FCM 8; found '${target_fcm:-unknown}'"
+[ "$target_fcm" = "$expected_fcm" ] || \
+    abort "! This probe requires target FCM $expected_fcm; found '${target_fcm:-unknown}'"
 [ -d /data/adb/metamodule ] || \
     abort "! An active MetaModule must be installed first"
 [ ! -e /data/adb/metamodule/disable ] || \
@@ -67,14 +84,7 @@ for required in \
     "$libdir/libprotobuf-cpp-full-21.7.so" \
     "$camera_config/emu_camera_back.json" \
     "$camera_config/emu_camera_front.json" \
-    "$backend_manifest" \
-    "$streamer" \
-    "$publisher" \
-    "$daemon" \
     "$fragment" \
-    "$MODPATH/vcamctl" \
-    "$MODPATH/provider-runner.sh" \
-    "$MODPATH/device-probe.sh" \
     "$MODPATH/provider-control.sh" \
     "$MODPATH/post-fs-data.sh" \
     "$MODPATH/service.sh" \
@@ -83,15 +93,32 @@ for required in \
     [ -f "$required" ] || abort "! Required probe file is missing: $required"
 done
 
-(cd "$MODPATH" && sha256sum -c payload/backend.sha256 >/dev/null) || \
-    abort "! Backend payload checksum verification failed"
+if [ "$backend_required" = 1 ]; then
+    for required in \
+        "$backend_manifest" \
+        "$streamer" \
+        "$publisher" \
+        "$daemon" \
+        "$MODPATH/vcamctl" \
+        "$MODPATH/provider-runner.sh" \
+        "$MODPATH/device-probe.sh"; do
+        [ -f "$required" ] || abort "! Required backend file is missing: $required"
+    done
+    (cd "$MODPATH" && sha256sum -c payload/backend.sha256 >/dev/null) || \
+        abort "! Backend payload checksum verification failed"
+fi
 
 mkdir -p "$empty_config"
 set_perm "$binary" 0 0 0755
 set_perm_recursive "$libdir" 0 0 0755 0644
-set_perm "$streamer" 0 2000 0755
-set_perm "$publisher" 0 2000 0755
-set_perm "$daemon" 0 0 0755
+if [ "$backend_required" = 1 ]; then
+    set_perm "$streamer" 0 2000 0755
+    set_perm "$publisher" 0 2000 0755
+    set_perm "$daemon" 0 0 0755
+    set_perm "$MODPATH/vcamctl" 0 0 0755
+    set_perm "$MODPATH/provider-runner.sh" 0 0 0755
+    set_perm "$MODPATH/device-probe.sh" 0 0 0755
+fi
 set_perm "$fragment" 0 0 0644
 for config_dir in "$vendor_etc" "$vintf_dir" "$manifest_dir"; do
     chcon u:object_r:vendor_configs_file:s0 "$config_dir" || \
@@ -100,9 +127,6 @@ done
 chcon u:object_r:vendor_configs_file:s0 "$fragment" || \
     abort "! Unable to label the VINTF fragment as vendor configuration"
 set_perm "$MODPATH/provider-control.sh" 0 0 0755
-set_perm "$MODPATH/vcamctl" 0 0 0755
-set_perm "$MODPATH/provider-runner.sh" 0 0 0755
-set_perm "$MODPATH/device-probe.sh" 0 0 0755
 set_perm "$MODPATH/post-fs-data.sh" 0 0 0755
 set_perm "$MODPATH/service.sh" 0 0 0755
 set_perm "$MODPATH/action.sh" 0 0 0755
@@ -118,6 +142,10 @@ else
     ui_print "- Boot defaults to zero cameras; arm-two is an explicit one-boot diagnostic"
     ui_print "- The following boot is disabled after the VINTF overlay is mounted"
 fi
-ui_print "- Includes the manager-independent image/video/RTSP backend"
+if [ "$backend_required" = 1 ]; then
+    ui_print "- Includes the manager-independent image/video/RTSP backend"
+else
+    ui_print "- AVD harness package contains the built-in pattern provider only"
+fi
 ui_print "- Failure recovery uses a full reboot and never restarts cameraserver"
 ui_print "- Reboot is required; KernelSU bootloop protection remains available"

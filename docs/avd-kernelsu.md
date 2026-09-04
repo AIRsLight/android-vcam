@@ -121,3 +121,36 @@ application passed Camera1, Camera2 and NDK access. On the second reboot, the
 module was disabled as designed, `/system/bin/cameraserver` returned to the
 recorded stock hash, no router mapping remained, and the same public API test
 passed again.
+
+## Systemless virtual-provider route
+
+The AIDL provider packager has a separate `aosp14-avd` target. It accepts only
+the same pinned x86_64 fingerprint, CameraService hashes and target FCM 7. The
+engineering archive contains the two built-in pattern devices but no ARM64
+media backend:
+
+```powershell
+pwsh -File tools/package-aosp14-aidl-provider.ps1 `
+  -TargetProfile aosp14-avd
+```
+
+The provider and `physical-route` bootstrap were installed together through
+KernelSU and OverlayFS MetaModule. Automatic topology discovery mapped public
+Camera2 ID `1` and Camera1 index `0` to internal pattern device `1000`. A global
+back-camera route completed six of six protocol rewrites, including Camera1,
+Camera2 and NDK calls. A normal Camera2 dual-stream preview then sustained
+approximately 30 fps and 570 analyzed YUV frames with `min=0`, `max=255`; the
+router recorded the first capture-request rewrite with no failure.
+
+This test also exposed a real module-ordering constraint: KernelSU loads each
+`sepolicy.rule` independently. The router module sorted before the provider
+that declares `vcam_camera_data_file`, so its data-access statements were
+initially skipped. The provider policy now grants the cameraserver read-only
+access in the same batch that declares the type, making the two-module harness
+independent of policy load order. The unified release already merges these
+rules into one file.
+
+Both engineering modules armed their next-boot disable markers. The recovery
+boot had only stock device `1`, no `vcam/0` service or router mapping, and the
+original cameraserver SHA-256. The public Camera1, Camera2 and NDK sequence
+passed once more after restoration.

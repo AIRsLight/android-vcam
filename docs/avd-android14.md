@@ -221,11 +221,12 @@ real frame delivery through a public ID. It also removes the relocated-
 executable, hard-coded public-ID and OEM camera-data-label assumptions from the
 portable architecture.
 
-It does not prove OEM compatibility, MetaModule behavior, non-pattern media
-sources on the AOSP provider, or third-party application breadth. Automatic
-AOSP capability detection is now packaged separately as a fail-closed probe.
-The same archive has also completed KernelSU's real x86_64 module installer and
-command-line lifecycle on a second disposable AVD; the AVD-specific limitations
-and reproducible kernel build are recorded in
+It does not prove OEM compatibility, non-pattern media sources on the AOSP
+provider, or third-party application breadth. Automatic AOSP capability
+detection is now packaged separately as a fail-closed probe. A second
+disposable AVD has completed KernelSU's real x86_64 lifecycle, OverlayFS
+MetaModule delivery, systemless provider registration, global pattern routing
+and automatic stock restoration; the AVD-specific limitations and reproducible
+kernel build are recorded in
 [the KernelSU AVD harness](avd-kernelsu.md). The next platform gate is an
 independently implemented Android 14 camera stack.

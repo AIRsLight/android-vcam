@@ -33,6 +33,7 @@ BASE_PROFILE = {
     ),
     "provider_transport": "hidl",
     "provider_instances": "legacy/0",
+    "declared_provider_instances": "legacy/0",
     "vcam_instance_conflict": "false",
     "oem_virtual_provider_present": "false",
     "cameraserver_arch": "arm64",
@@ -170,7 +171,8 @@ class CapabilityEvaluatorTest(unittest.TestCase):
     def test_oem_virtual_provider_is_reported_without_self_authorization(self):
         profile = dict(
             BASE_PROFILE,
-            provider_instances="legacy/0,virtual/0",
+            provider_instances="legacy/0",
+            declared_provider_instances="legacy/0,virtual/0",
             oem_virtual_provider_present="true",
             oplus_layout="true",
             oplus_partitions="my_product,my_manifest,my_region,my_carrier",

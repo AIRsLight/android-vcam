@@ -17,7 +17,8 @@ runtime CameraService/Provider topology:
 | `activation_policy` | `probe_only`, `exact_profile`, or `blocked` |
 | `routing_authorized` | True only for a committed exact profile |
 | `cameraserver_arch` / `cameraserver_bits` | ABI of the process that would be patched, derived from its ELF header |
-| `provider_instances` | All registered HIDL and AIDL Camera Provider instances |
+| `provider_instances` | All currently registered HIDL and AIDL Camera Provider instances |
+| `declared_provider_instances` | Provider instances declared by vendor/OEM VINTF, including disabled services |
 | `vcam_instance_conflict` | Whether the reserved project instance `vcam/0` already exists |
 | `oem_virtual_provider_present` | Whether the OEM already registers `virtual/0` |
 | `camera_service_transport` | Framework CameraService HIDL/AIDL registration family |

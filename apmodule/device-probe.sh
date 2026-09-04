@@ -114,6 +114,31 @@ elif [ "$transport" = aidl ]; then
 fi
 [ -n "$provider_version" ] || provider_version=unknown
 
+declared_provider_instances=""
+for manifest in \
+    /vendor/etc/vintf/manifest.xml \
+    /vendor/etc/vintf/manifest_*.xml \
+    /vendor/etc/vintf/manifest/*.xml \
+    /odm/etc/vintf/manifest.xml \
+    /odm/etc/vintf/manifest/*.xml \
+    /my_manifest/etc/vintf/manifest.xml \
+    /my_manifest/etc/vintf/manifest/*.xml \
+    /my_product/etc/vintf/manifest.xml \
+    /my_product/etc/vintf/manifest/*.xml; do
+    [ -r "$manifest" ] || continue
+    grep -q '<name>android.hardware.camera.provider</name>' "$manifest" || continue
+    manifest_instances="$(sed -n \
+        '/<name>android.hardware.camera.provider<\/name>/,/<\/hal>/ {
+            s/.*<instance>\([^<]*\)<\/instance>.*/\1/p
+            s#.*ICameraProvider/\([^<]*\)</fqname>.*#\1#p
+        }' "$manifest")"
+    [ -n "$manifest_instances" ] || continue
+    declared_provider_instances="$declared_provider_instances
+$manifest_instances"
+done
+declared_provider_instances="$(printf '%s\n' "$declared_provider_instances" | unique_csv)"
+[ -n "$declared_provider_instances" ] || declared_provider_instances=none
+
 for manifest in \
     /vendor/etc/vintf/manifest.xml \
     /vendor/etc/vintf/manifest_*.xml \
@@ -141,11 +166,11 @@ if [ "$transport" = aidl ] && [ "$provider_manifest" != none ]; then
     [ -n "$manifest_version" ] && provider_version="$manifest_version"
 fi
 
-case ",$hidl_provider_instances,$aidl_provider_instances," in
+case ",$all_provider_instances,$declared_provider_instances," in
     *,virtual/0,*) oem_virtual_provider_present=true ;;
     *) oem_virtual_provider_present=false ;;
 esac
-case ",$hidl_provider_instances,$aidl_provider_instances," in
+case ",$all_provider_instances,$declared_provider_instances," in
     *,vcam/0,*) vcam_instance_conflict=true ;;
     *) vcam_instance_conflict=false ;;
 esac
@@ -510,6 +535,7 @@ emit_profile() {
     field provider_version "$provider_version"
     field provider_instance "$provider_instance"
     field provider_instances "$all_provider_instances"
+    field declared_provider_instances "$declared_provider_instances"
     field hidl_provider_instances "$hidl_provider_instances"
     field hidl_provider_versions "$hidl_provider_versions"
     field aidl_provider_instances "$aidl_provider_instances"

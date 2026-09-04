@@ -20,9 +20,10 @@ frontend owns stream negotiation, buffer import, metadata and lifecycle, while
 all of them consume the same persistent providers, routes and source framing.
 `device-probe.sh` emits a normalized capability profile used to select a
 frontend or compatibility adapter. Schema 7 derives the running CameraService
-ABI from its ELF header, enumerates AIDL and HIDL Provider instances, records
-OPlus `my_*` partitions, and distinguishes an OEM `virtual/0` from a collision
-with the project's reserved `vcam/0`. Unsupported combinations fail closed.
+ABI from its ELF header, enumerates registered and VINTF-declared AIDL/HIDL
+Provider instances, records OPlus `my_*` partitions, and distinguishes an OEM
+`virtual/0` from a collision with the project's reserved `vcam/0`. Unsupported
+combinations fail closed.
 
 On Android 8-12, the standalone `camera.vcam` Camera3 module is wrapped by
 AOSP's `camera.device@3.4-impl`; this keeps FMQ, buffer-cache, fence and gralloc

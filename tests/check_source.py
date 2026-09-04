@@ -131,6 +131,14 @@ def main() -> None:
         ROOT / "tools" / "build-mbedtls-android.sh",
         ROOT / "tools" / "patches" / "ffmpeg-4.2.2-mbedtls3.patch",
         ROOT / "apmodule" / "tls-ca.sh",
+        ROOT / "oneplus-global-module" / "module.prop",
+        ROOT / "oneplus-global-module" / "customize.sh",
+        ROOT / "oneplus-global-module" / "post-mount.sh",
+        ROOT / "oneplus-global-module" / "service.sh",
+        ROOT / "oneplus-global-module" / "sepolicy.rule",
+        ROOT / "oneplus-global-module" / "uninstall.sh",
+        ROOT / "tests" / "check_oneplus_global_module.py",
+        ROOT / "tools" / "package-oneplus-global-module.ps1",
         ROOT / "THIRD_PARTY_NOTICES.md",
     ]
     for path in required:
@@ -252,6 +260,39 @@ def main() -> None:
             fail(f"APatch script uses CRLF: {shell_script.name}")
         if not raw.startswith(b"#!/system/bin/sh\n"):
             fail(f"invalid Android shell shebang: {shell_script.name}")
+
+    oneplus_module = ROOT / "oneplus-global-module"
+    oneplus_scripts = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in oneplus_module.glob("*.sh")
+    )
+    for required_symbol in (
+        "/data/adb/metamodule", "arm64-v8a", "29|30|31|32|33|34",
+        "/vendor/lib64/hw/camera.qcom.so",
+        "/vendor/lib64/hw/local_time.default.so", "route_scope=global",
+        "original_camera_hal_sha256", "shim_sha256", "mount.ok",
+        "touch \"$MODDIR/disable\"",
+    ):
+        if required_symbol not in oneplus_scripts:
+            fail(f"OnePlus global adapter safety contract is missing: {required_symbol}")
+    for shell_script in oneplus_module.glob("*.sh"):
+        raw = shell_script.read_bytes()
+        if b"\r\n" in raw:
+            fail(f"OnePlus global adapter script uses CRLF: {shell_script.name}")
+        if not raw.startswith(b"#!/system/bin/sh\n"):
+            fail(f"invalid OnePlus global adapter shebang: {shell_script.name}")
+    if (oneplus_module / "system" / "vendor" / "lib64" / "hw" /
+            "local_time.default.so").exists():
+        fail("OnePlus global adapter source tree must not contain an OEM HAL snapshot")
+    oneplus_packager = (
+        ROOT / "tools" / "package-oneplus-global-module.ps1"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "camera.qcom.so", "Assert-Arm64Elf", "check_oneplus_global_module.py",
+        "vcam-publisher", "vcam-streamer", "vcamd",
+    ):
+        if required_symbol not in oneplus_packager:
+            fail(f"OnePlus global adapter packager is missing: {required_symbol}")
 
     camera_map = (ROOT / "portable-module" / "camera-map.sh").read_text(
         encoding="utf-8"
@@ -544,6 +585,9 @@ def main() -> None:
         "hidl_provider_instances", "aidl_provider_instances",
         "vcam_instance_conflict", "oem_virtual_provider_present",
         "cameraserver_arch", "cameraserver_bits", "camera_service_transport",
+        "legacy_module_arch", "legacy_module_bits", "oneplus_global_shim_candidate",
+        "hidl|mixed)",
+        "oneplus-qcom-global-shim", "hmi_runtime_validation",
         "oplus_layout", "oplus_partitions",
     ):
         if required_symbol not in probe:

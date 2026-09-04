@@ -21,8 +21,15 @@
 #include <string>
 
 #include "vcam/VirtualCamera.h"
+#if defined(VCAM_EXPORT_CAMERA_MODULE_SHIM)
+#include "vcam/OriginalHal.h"
+#endif
 #include "vcam/RouteResolver.h"
 #include "vcam/VendorTags.h"
+
+#if defined(VCAM_EXPORT_CAMERA_MODULE_SHIM)
+extern "C" camera_module_t HAL_MODULE_INFO_SYM;
+#endif
 
 namespace {
 
@@ -74,7 +81,7 @@ ProxyDevice* findDevice(const camera3_device_t* device) {
     return nullptr;
 }
 
-std::string packageFrom(const camera_metadata_t* metadata) {
+[[maybe_unused]] std::string packageFrom(const camera_metadata_t* metadata) {
     if (metadata == nullptr) return {};
     camera_metadata_ro_entry_t entry{};
     if (find_camera_metadata_ro_entry(
@@ -162,7 +169,7 @@ int proxyVendorType(const vendor_tag_ops_t*, uint32_t tag) {
             : gOriginalVendorOps.get_tag_type(&gOriginalVendorOps, tag);
 }
 
-void proxyGetVendorTagOps(vendor_tag_ops_t* ops) {
+[[maybe_unused]] void proxyGetVendorTagOps(vendor_tag_ops_t* ops) {
     if (ops == nullptr) return;
     memset(ops, 0, sizeof(*ops));
     ops->get_tag_count = proxyVendorTagCount;
@@ -174,7 +181,7 @@ void proxyGetVendorTagOps(vendor_tag_ops_t* ops) {
 
 int (*gOriginalGetCameraInfo)(int, camera_info*) = nullptr;
 
-int augmentedGetCameraInfo(int id, camera_info* info) {
+[[maybe_unused]] int augmentedGetCameraInfo(int id, camera_info* info) {
     if (gOriginalGetCameraInfo == nullptr || info == nullptr) return -EINVAL;
     const int result = gOriginalGetCameraInfo(id, info);
     if (result != 0 || id < 0 || id >= static_cast<int>(kMaxCameras) ||
@@ -229,7 +236,13 @@ int proxyOpen(const hw_module_t* module, const char* id, hw_device_t** out) {
         return -EINVAL;
     }
     hw_device_t* physicalRaw = nullptr;
-    const int result = gOriginalModuleMethods.open(module, id, &physicalRaw);
+    // The injected adapter mutates the OEM module in place, while the portable
+    // shim exports its own HMI and loads the untouched OEM module from a
+    // snapshot. Always pass the OEM module to its open implementation; some
+    // CamX builds validate or retain this pointer.
+    const hw_module_t* originalModule = gModule == nullptr
+            ? module : &gModule->common;
+    const int result = gOriginalModuleMethods.open(originalModule, id, &physicalRaw);
     if (result != 0) return result;
     if (physicalRaw == nullptr || physicalRaw->version < CAMERA_DEVICE_API_VERSION_3_2) {
         if (physicalRaw != nullptr && physicalRaw->close != nullptr) physicalRaw->close(physicalRaw);
@@ -360,7 +373,11 @@ int proxyConfigure(const camera3_device_t* device,
                    camera3_stream_configuration_t* config) {
     ProxyDevice* state = findDevice(device);
     if (state == nullptr || config == nullptr) return -EINVAL;
+#if defined(VCAM_GLOBAL_ROUTE_ONLY)
+    const std::string packageName;
+#else
     const std::string packageName = packageFrom(config->session_parameters);
+#endif
     const vcam::ProviderSelection selection =
             vcam::RouteResolver::resolveProviderForPackage(
                     packageName, state->cameraId);
@@ -477,7 +494,24 @@ int proxyReconfigurationRequired(const camera3_device_t* device,
             : ops->is_reconfiguration_required(selected, oldParams, newParams);
 }
 
+#if defined(VCAM_EXPORT_CAMERA_MODULE_SHIM)
+int shimInitialize() {
+    // OriginalHal::load() invokes the OEM init hook exactly once before the
+    // exported HMI becomes visible to the Provider.
+    return gModule == nullptr ? -ENODEV : 0;
+}
+#endif
+
 __attribute__((constructor)) void bootstrapProxy() {
+#if defined(VCAM_EXPORT_CAMERA_MODULE_SHIM)
+    if (!vcam::OriginalHal::instance().load()) {
+        __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                            "unable to load OEM HAL snapshot: %s",
+                            vcam::OriginalHal::instance().error());
+        return;
+    }
+    auto* module = vcam::OriginalHal::instance().module();
+#else
     dlerror();
     auto* module = reinterpret_cast<camera_module_t*>(
             dlsym(RTLD_DEFAULT, HAL_MODULE_INFO_SYM_AS_STR));
@@ -488,6 +522,7 @@ __attribute__((constructor)) void bootstrapProxy() {
                             error == nullptr ? "invalid module" : error);
         return;
     }
+#endif
 
     gModule = module;
     gOriginalGetCameraInfo = module->get_camera_info;
@@ -500,12 +535,38 @@ __attribute__((constructor)) void bootstrapProxy() {
     gOriginalModuleMethods = *module->common.methods;
     gProxyModuleMethods = gOriginalModuleMethods;
     gProxyModuleMethods.open = proxyOpen;
+#if defined(VCAM_EXPORT_CAMERA_MODULE_SHIM)
+    HAL_MODULE_INFO_SYM = *module;
+    HAL_MODULE_INFO_SYM.common.methods = &gProxyModuleMethods;
+#if !defined(VCAM_GLOBAL_ROUTE_ONLY)
+    HAL_MODULE_INFO_SYM.get_camera_info = augmentedGetCameraInfo;
+    HAL_MODULE_INFO_SYM.get_vendor_tag_ops = proxyGetVendorTagOps;
+#endif
+    HAL_MODULE_INFO_SYM.init = shimInitialize;
+#else
     module->common.methods = &gProxyModuleMethods;
+#if !defined(VCAM_GLOBAL_ROUTE_ONLY)
     module->get_camera_info = augmentedGetCameraInfo;
     module->get_vendor_tag_ops = proxyGetVendorTagOps;
+#endif
+#endif
     __android_log_print(ANDROID_LOG_INFO, LOG_TAG,
-                        "installed OEM Camera HAL proxy tag=0x%08x",
+                        "installed OEM Camera HAL %s tag=0x%08x",
+#if defined(VCAM_EXPORT_CAMERA_MODULE_SHIM)
+                        "shim",
+#else
+                        "proxy",
+#endif
                         vcam::kOplusPackageNameTag);
 }
 
 }  // namespace
+
+#if defined(VCAM_EXPORT_CAMERA_MODULE_SHIM)
+extern "C" {
+// Constructors run before hw_get_module() resolves this symbol. Leaving the
+// fallback zero-initialized makes snapshot/load failures fail closed instead
+// of exposing a partially initialized camera module.
+camera_module_t HAL_MODULE_INFO_SYM __attribute__((visibility("default"))) = {};
+}
+#endif

@@ -33,6 +33,8 @@ TEXT_LIMIT = 16 * 1024 * 1024
 ELF_MAGIC = b"\x7fELF"
 PT_NOTE = 4
 NT_GNU_BUILD_ID = 3
+SHT_DYNSYM = 11
+SHN_UNDEF = 0
 
 
 class AnalysisError(RuntimeError):
@@ -233,6 +235,79 @@ def elf_identity(path: pathlib.Path, root: pathlib.Path) -> dict[str, Any]:
     return record
 
 
+def elf_defined_dynamic_symbols(path: pathlib.Path, wanted: set[str]) -> dict[str, int]:
+    """Return wanted defined ELF dynamic symbols and their declared byte sizes."""
+    if not wanted:
+        return {}
+    with path.open("rb") as stream:
+        header = stream.read(64)
+        if len(header) < 52 or header[:4] != ELF_MAGIC or header[5] != 1:
+            return {}
+        elf_class = header[4]
+        if elf_class == 2:
+            section_offset = struct.unpack_from("<Q", header, 40)[0]
+            section_entry_size = struct.unpack_from("<H", header, 58)[0]
+            section_count = struct.unpack_from("<H", header, 60)[0]
+            section_format, minimum = "<IIQQQQIIQQ", 64
+            symbol_format, symbol_minimum = "<IBBHQQ", 24
+        elif elf_class == 1:
+            section_offset = struct.unpack_from("<I", header, 32)[0]
+            section_entry_size = struct.unpack_from("<H", header, 46)[0]
+            section_count = struct.unpack_from("<H", header, 48)[0]
+            section_format, minimum = "<IIIIIIIIII", 40
+            symbol_format, symbol_minimum = "<IIIBBH", 16
+        else:
+            return {}
+        if section_entry_size < minimum or section_count == 0 or section_count > 65535:
+            return {}
+        file_size = path.stat().st_size
+        if section_offset > file_size or section_entry_size * section_count > file_size - section_offset:
+            return {}
+        sections: list[tuple[int, ...]] = []
+        for index in range(section_count):
+            stream.seek(section_offset + index * section_entry_size)
+            payload = stream.read(minimum)
+            if len(payload) != minimum:
+                return {}
+            sections.append(struct.unpack(section_format, payload))
+
+        found: dict[str, int] = {}
+        for section in sections:
+            if section[1] != SHT_DYNSYM:
+                continue
+            offset, size, string_index, entry_size = section[4], section[5], section[6], section[9]
+            if (string_index >= len(sections) or entry_size < symbol_minimum or
+                    offset > file_size or size > file_size - offset):
+                continue
+            strings_section = sections[string_index]
+            strings_offset, strings_size = strings_section[4], strings_section[5]
+            if strings_offset > file_size or strings_size > file_size - strings_offset:
+                continue
+            stream.seek(strings_offset)
+            strings = stream.read(strings_size)
+            for cursor in range(offset, offset + size, entry_size):
+                stream.seek(cursor)
+                payload = stream.read(symbol_minimum)
+                if len(payload) != symbol_minimum:
+                    break
+                fields = struct.unpack(symbol_format, payload)
+                if elf_class == 2:
+                    name_offset, info, _, section_index, _, symbol_size = fields
+                else:
+                    name_offset, _, symbol_size, info, _, section_index = fields
+                if section_index == SHN_UNDEF or (info >> 4) == 0 or name_offset >= len(strings):
+                    continue
+                terminator = strings.find(b"\0", name_offset)
+                if terminator < 0:
+                    continue
+                name = strings[name_offset:terminator].decode("ascii", errors="ignore")
+                if name in wanted:
+                    found[name] = symbol_size
+            if set(found) == wanted:
+                break
+        return found
+
+
 def is_camera_elf(path: pathlib.Path) -> bool:
     lowered = path.as_posix().lower()
     name = path.name.lower()
@@ -337,6 +412,21 @@ def analyze(root: pathlib.Path, label: str) -> dict[str, Any]:
 
     elf_paths = [path for path in files if is_camera_elf(path)]
     binaries = [elf_identity(path, root) for path in sorted(elf_paths)]
+    legacy_camera_modules = []
+    for path in sorted(files):
+        lowered = path.as_posix().lower()
+        if not re.search(r"/lib64/hw/camera\.[^/]+\.so$", lowered):
+            continue
+        identity = elf_identity(path, root)
+        exports = elf_defined_dynamic_symbols(path, {"HMI"})
+        identity["exports_hmi"] = "HMI" in exports
+        identity["hmi_symbol_size"] = exports.get("HMI", 0)
+        identity["portable_global_shim_candidate"] = (
+            identity["architecture"] == "arm64" and identity["bits"] == 64 and
+            identity["exports_hmi"] and identity["hmi_symbol_size"] == 344 and
+            identity["size"] > 65536
+        )
+        legacy_camera_modules.append(identity)
 
     camera_hals = [hal for record in vintf for hal in record["camera_hals"]]
     provided_hals = [
@@ -418,6 +508,7 @@ def analyze(root: pathlib.Path, label: str) -> dict[str, Any]:
         "camera_services": services,
         "selinux_camera_evidence": policy_evidence,
         "camera_binaries": binaries,
+        "legacy_camera_modules": legacy_camera_modules,
         "limitations": [
             "Static firmware cannot prove provider registration or frame delivery on hardware.",
             "Runtime camera IDs, caller attribution, buffer/fence behavior and resource conflicts are not observed.",

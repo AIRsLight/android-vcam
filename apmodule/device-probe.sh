@@ -177,6 +177,8 @@ esac
 
 legacy_module=""
 for candidate in \
+    /vendor/lib64/hw/camera.qcom.so \
+    /odm/lib64/hw/camera.qcom.so \
     /vendor/lib64/hw/camera.*.so \
     /odm/lib64/hw/camera.*.so \
     /system/vendor/lib64/hw/camera.*.so; do
@@ -185,6 +187,22 @@ for candidate in \
     legacy_module="$candidate"
     break
 done
+legacy_module_bits=unknown
+legacy_module_arch=unknown
+if [ -n "$legacy_module" ] && [ -r "$legacy_module" ]; then
+    legacy_elf_class="$(od -An -j 4 -N 1 -t u1 "$legacy_module" 2>/dev/null | tr -d '[:space:]')"
+    legacy_elf_machine="$(od -An -j 18 -N 2 -t u2 "$legacy_module" 2>/dev/null | tr -d '[:space:]')"
+    case "$legacy_elf_class" in
+        1) legacy_module_bits=32 ;;
+        2) legacy_module_bits=64 ;;
+    esac
+    case "$legacy_elf_machine" in
+        40) legacy_module_arch=arm ;;
+        62) legacy_module_arch=x86_64 ;;
+        183) legacy_module_arch=arm64 ;;
+        3) legacy_module_arch=x86 ;;
+    esac
+fi
 
 provider_service=""
 for candidate in \
@@ -335,6 +353,26 @@ proxy_slot_hash=none
 if [ -r "$proxy_slot_path" ]; then
     proxy_slot_hash="$(sha256sum "$proxy_slot_path" 2>/dev/null | awk '{print $1}')"
 fi
+manufacturer="$(prop ro.product.manufacturer)"
+brand="$(prop ro.product.brand)"
+oneplus_global_shim_candidate=false
+case "$(printf '%s:%s' "$manufacturer" "$brand" | tr '[:upper:]' '[:lower:]')" in
+    *oneplus*)
+        case "$(prop ro.build.version.sdk)" in
+            29|30|31|32|33|34)
+                case "$transport" in
+                    hidl|mixed)
+                        if [ "$legacy_module_arch" = arm64 ] && \
+                           [ "${legacy_module##*/}" = camera.qcom.so ] && \
+                           [ "$proxy_slot_hash" != none ]; then
+                            oneplus_global_shim_candidate=true
+                        fi
+                        ;;
+                esac
+                ;;
+        esac
+        ;;
+esac
 legacy_module_hash=none
 if [ -n "$legacy_module" ]; then
     legacy_module_hash="$(sha256sum "$legacy_module" 2>/dev/null | awk '{print $1}')"
@@ -465,6 +503,15 @@ if [ "$profile_status" = qualified ]; then
     activation_policy=exact_profile
     routing_authorized=true
     qualification_basis=committed_recipe
+elif [ "$oneplus_global_shim_candidate" = true ]; then
+    platform_family=oneplus-qcom-global-shim
+    platform_candidate_status=probe_required
+    platform_candidate_reason=oneplus_global_shim_runtime_qualification_required
+    recommended_route_scope=global_only
+    activation_policy=probe_only
+    routing_authorized=false
+    qualification_basis=runtime_probe_required
+    candidate_requirements=hmi_runtime_validation,metamodule_overlay,physical_passthrough,global_preview,reboot_recovery
 elif [ "$sdk" = 34 ]; then
     platform_family=android12-14-camera-service-64bit
     recommended_route_scope=global_only
@@ -524,7 +571,8 @@ emit_profile() {
     field release "$(prop ro.build.version.release)"
     field abi "$abi"
     field fingerprint "$fingerprint"
-    field manufacturer "$(prop ro.product.manufacturer)"
+    field manufacturer "$manufacturer"
+    field brand "$brand"
     field product_device "$(prop ro.product.device)"
     field board_platform "$(prop ro.board.platform)"
     field hardware "$(prop ro.hardware)"
@@ -549,6 +597,9 @@ emit_profile() {
     field adapter_hint "$adapter_hint"
     field legacy_module "${legacy_module:-none}"
     field legacy_module_hash "$legacy_module_hash"
+    field legacy_module_arch "$legacy_module_arch"
+    field legacy_module_bits "$legacy_module_bits"
+    field oneplus_global_shim_candidate "$oneplus_global_shim_candidate"
     field profile_camera_module_path "$([ "$profile_adapter" = oneplus7pro-oem-hal ] && printf '%s' "$oneplus_hal_path" || printf '%s' "${legacy_module:-none}")"
     field profile_camera_module_hash "$([ "$profile_adapter" = oneplus7pro-oem-hal ] && printf '%s' "$oneplus_hal_hash" || printf '%s' "$legacy_module_hash")"
     field proxy_slot_path "$proxy_slot_path"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import struct
 import tempfile
 import unittest
 
@@ -17,6 +18,31 @@ SPEC.loader.exec_module(MODULE)
 
 
 class FirmwareAnalyzerTest(unittest.TestCase):
+    @staticmethod
+    def create_minimal_arm64_camera_module(path: pathlib.Path) -> None:
+        strings = b"\0HMI\0"
+        symbols = bytes(24) + struct.pack("<IBBHQQ", 1, 0x11, 0, 1, 0x1000, 344)
+        strings_offset = 64
+        symbols_offset = strings_offset + len(strings)
+        section_offset = (symbols_offset + len(symbols) + 7) & ~7
+        header = struct.pack(
+            "<16sHHIQQQIHHHHHH",
+            b"\x7fELF\x02\x01\x01" + bytes(9),
+            3, 183, 1, 0, 0, section_offset, 0,
+            64, 56, 0, 64, 3, 0,
+        )
+        null_section = bytes(64)
+        string_section = struct.pack("<IIQQQQIIQQ", 0, 3, 0, 0, strings_offset,
+                                     len(strings), 0, 0, 1, 0)
+        symbol_section = struct.pack("<IIQQQQIIQQ", 0, 11, 0, 0, symbols_offset,
+                                     len(symbols), 1, 1, 8, 24)
+        payload = header + strings + symbols
+        payload += bytes(section_offset - len(payload))
+        payload += null_section + string_section + symbol_section
+        payload += bytes(max(0, 65537 - len(payload)))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+
     def create_fixture(self, root: pathlib.Path, transport: str = "hidl") -> None:
         system = root / "system"
         vendor = root / "vendor"
@@ -67,6 +93,19 @@ class FirmwareAnalyzerTest(unittest.TestCase):
             )
             self.assertEqual(report["camera_services"][0]["name"], "vendor.camera-provider")
             self.assertTrue(report["selinux_camera_evidence"])
+
+    def test_classifies_standard_arm64_hmi_module_for_global_shim(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            self.create_fixture(root)
+            module = root / "vendor" / "lib64" / "hw" / "camera.qcom.so"
+            self.create_minimal_arm64_camera_module(module)
+            report = MODULE.analyze(root, "fixture")
+            self.assertEqual(1, len(report["legacy_camera_modules"]))
+            candidate = report["legacy_camera_modules"][0]
+            self.assertTrue(candidate["exports_hmi"])
+            self.assertEqual(344, candidate["hmi_symbol_size"])
+            self.assertTrue(candidate["portable_global_shim_candidate"])
 
     def test_comparison_marks_transport_change_high_risk(self) -> None:
         with tempfile.TemporaryDirectory() as left_dir, tempfile.TemporaryDirectory() as right_dir:

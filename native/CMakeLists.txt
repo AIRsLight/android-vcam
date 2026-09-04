@@ -88,6 +88,49 @@ target_link_libraries(vcam_proxy PRIVATE
     ${log_library}
 )
 
+# Portable OnePlus/Qualcomm adapter. Unlike vcam_proxy, this is loaded directly
+# as camera.qcom.so and delegates to an untouched device-local HAL snapshot.
+# The same standard camera_module_t boundary is present in the surveyed
+# OnePlus Android 10-14 firmware, so the adapter itself has no OEM binary
+# dependency and can be built once with API 29 as its minimum runtime.
+add_library(camera_qcom_shim SHARED
+    proxy_bootstrap.cpp
+    "${VCAM_ROOT}/hal/src/FrameRenderer.cpp"
+    "${VCAM_ROOT}/hal/src/MetadataBuilder.cpp"
+    "${VCAM_ROOT}/hal/src/OriginalHal.cpp"
+    "${VCAM_ROOT}/hal/src/PatternGenerator.cpp"
+    "${VCAM_ROOT}/hal/src/RgbFrame.cpp"
+    "${VCAM_ROOT}/hal/src/RouteResolver.cpp"
+    "${VCAM_ROOT}/hal/src/VirtualCamera.cpp"
+)
+set_target_properties(camera_qcom_shim PROPERTIES
+    OUTPUT_NAME camera.qcom
+    PREFIX ""
+)
+target_compile_definitions(camera_qcom_shim PRIVATE
+    VCAM_EXPORT_CAMERA_MODULE_SHIM=1
+    VCAM_GLOBAL_ROUTE_ONLY=1
+)
+target_include_directories(camera_qcom_shim PRIVATE
+    "${VCAM_ROOT}/hal/include"
+    "${JPEG_DIR}"
+    ${PLATFORM_INCLUDE_DIRS}
+)
+target_compile_options(camera_qcom_shim PRIVATE
+    -Wall -Wextra -Werror -Wno-gnu-designator -fvisibility=hidden
+)
+target_link_options(camera_qcom_shim PRIVATE
+    "-Wl,-z,defs"
+    "-Wl,--exclude-libs,ALL"
+)
+target_link_libraries(camera_qcom_shim PRIVATE
+    vcam_jpeg
+    hardware_abi
+    camera_metadata_abi
+    dl
+    ${log_library}
+)
+
 add_library(camera_vcam SHARED
     "${VCAM_ROOT}/hal/src/FrameRenderer.cpp"
     "${VCAM_ROOT}/hal/src/MetadataBuilder.cpp"

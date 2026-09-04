@@ -123,6 +123,21 @@ valid_package() {
     [ "${#1}" -le 255 ]
 }
 
+configured_route_scope() {
+    scope=$(sed -n 's/^route_scope=//p' "$MODDIR/oneplus-profile.conf" 2>/dev/null | head -n 1)
+    [ -n "$scope" ] && printf '%s\n' "$scope" || printf 'per_app\n'
+}
+
+valid_route_package() {
+    [ "$1" = "*" ] || valid_package "$1"
+}
+
+route_package_allowed() {
+    package="$1"
+    valid_route_package "$package" || return 1
+    [ "$(configured_route_scope)" != global ] || [ "$package" = "*" ]
+}
+
 valid_base64() {
     case "$1" in
         *[!A-Za-z0-9+/=]*) return 1 ;;
@@ -789,7 +804,7 @@ set_route() {
     package="$1"
     target="$2"
     provider="$3"
-    valid_package "$package" || { echo "invalid package" >&2; return 2; }
+    route_package_allowed "$package" || { echo "route scope does not allow package" >&2; return 2; }
     case "$target" in 0|1) ;; *) echo "invalid target camera" >&2; return 2 ;; esac
     provider_exists "$provider" || { echo "provider not found" >&2; return 3; }
     prepare_dirs || return 4
@@ -809,7 +824,7 @@ save_routes() {
     package="$1"
     provider0="$2"
     provider1="$3"
-    valid_package "$package" || { echo "invalid package" >&2; return 2; }
+    route_package_allowed "$package" || { echo "route scope does not allow package" >&2; return 2; }
     for provider in "$provider0" "$provider1"; do
         [ -z "$provider" ] || provider_exists "$provider" || {
             echo "provider not found" >&2
@@ -832,7 +847,7 @@ save_routes() {
 remove_route() {
     package="$1"
     target="$2"
-    valid_package "$package" || return 2
+    route_package_allowed "$package" || return 2
     case "$target" in 0|1) ;; *) return 2 ;; esac
     prepare_dirs || return 3
     temporary="$ROUTES_FILE.new"
@@ -848,6 +863,7 @@ remove_route() {
 
 list_routes() {
     [ -r "$ROUTES_FILE" ] || { prepare_dirs || return 1; }
+    printf 'SCOPE\t%s\n' "$(configured_route_scope)"
     if [ -e "$ROUTING_DISABLED_FILE" ]; then
         printf 'ROUTING\tfalse\n'
     else
@@ -915,6 +931,7 @@ print_status() {
     echo "camera_devices=$camera_devices"
     echo "provider_count=$(provider_count)"
     echo "route_count=$(route_count)"
+    echo "route_scope=$(configured_route_scope)"
     [ -e "$ROUTING_DISABLED_FILE" ] && \
         echo "routing_enabled=false" || echo "routing_enabled=true"
     if [ -r /vendor/lib64/hw/camera.qcom.so ]; then
@@ -930,6 +947,9 @@ print_status() {
         [ -n "$router_state" ] || router_state=unknown
         [ -n "$router_profile" ] || router_profile=none
         [ -n "$router_protocol_verdict" ] || router_protocol_verdict=unavailable
+    elif [ -r "$MODDIR/oneplus-profile.conf" ] && [ -e "$STATE_DIR/mount.ok" ]; then
+        router_state=oem_proxy_ready
+        router_profile=oneplus-qcom-global-shim
     elif [ "${MODDIR##*/}" = android_vcam ] && [ -e "$STATE_DIR/mount.ok" ]; then
         router_state=oem_proxy_ready
         router_profile=oneplus7pro-p202303230244

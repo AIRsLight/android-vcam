@@ -75,7 +75,7 @@ new stack, the future promoted recipe remains global-only.
 
 The unified release installer still accepts only the two qualified exact
 profiles. It does not install a router or provider on an unknown candidate.
-Schema 6 is exposed through the existing backend capability command when a
+Schema 7 is exposed through the existing backend capability command when a
 development/profile package is present, and the root-free Manager labels an
 otherwise unknown API 34 device as requiring a probe rather than as certified.
 

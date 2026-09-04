@@ -3,7 +3,7 @@ param(
     [string]$AndroidSdk = "D:\AndroidSdk",
     [string]$NdkVersion = "27.2.12479018",
     [string]$CmakeVersion = "3.22.1",
-    [ValidateSet("arm64-v8a", "x86_64")]
+    [ValidateSet("armeabi-v7a", "arm64-v8a", "x86", "x86_64")]
     [string]$Abi = "arm64-v8a",
     [int]$Api = 31
 )
@@ -34,7 +34,7 @@ foreach ($required in @($cmake, $ninja, $toolchain)) {
     "-DCMAKE_BUILD_TYPE=RelWithDebInfo"
 if ($LASTEXITCODE -ne 0) { throw "CMake configure failed with exit code $LASTEXITCODE" }
 
-& $cmake --build $buildDir --target camera_vcam vcam_proxy vcam_frame_publisher vcam_streamer vcam_control_daemon
+& $cmake --build $buildDir --target camera_vcam vcam_proxy camera_qcom_shim vcam_frame_publisher vcam_streamer vcam_control_daemon
 if ($LASTEXITCODE -ne 0) { throw "Native build failed with exit code $LASTEXITCODE" }
 
 $output = Join-Path $buildDir "camera.vcam.so"
@@ -43,6 +43,7 @@ $publisher = Join-Path $buildDir "vcam-publisher"
 if (-not (Test-Path -LiteralPath $publisher)) { throw "Expected output missing: $publisher" }
 Write-Host "Built: $output"
 Write-Host "Built: $(Join-Path $buildDir 'libvcam_proxy.so')"
+Write-Host "Built: $(Join-Path $buildDir 'camera.qcom.so')"
 Write-Host "Built: $publisher"
 Write-Host "Built: $(Join-Path $buildDir 'vcam-streamer')"
 Write-Host "Built: $(Join-Path $buildDir 'vcamd')"

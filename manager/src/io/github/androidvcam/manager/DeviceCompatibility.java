@@ -48,10 +48,12 @@ final class DeviceCompatibility {
                     context.getString(R.string.profile_nx_candidate_detail),
                     false);
         }
-        if (Build.VERSION.SDK_INT == 31 && "OnePlus7Pro".equalsIgnoreCase(Build.DEVICE)) {
-            return new Profile("oneplus7pro-android12-candidate",
-                    context.getString(R.string.profile_oneplus_candidate_title),
-                    context.getString(R.string.profile_oneplus_candidate_detail),
+        boolean onePlus = "OnePlus".equalsIgnoreCase(Build.MANUFACTURER) ||
+                "OnePlus".equalsIgnoreCase(Build.BRAND);
+        if (onePlus && Build.VERSION.SDK_INT >= 29 && Build.VERSION.SDK_INT <= 34) {
+            return new Profile("oneplus-android10-14-global-candidate",
+                    context.getString(R.string.profile_oneplus_family_title),
+                    context.getString(R.string.profile_oneplus_family_detail),
                     false);
         }
         if (Build.VERSION.SDK_INT == 34) {

@@ -59,6 +59,41 @@ The original Qualcomm HAL is loaded once. Its ELF receives one `DT_NEEDED`
 entry for `libvcam_proxy.so`; the proxy constructor wraps the exported `HMI`
 module methods. This avoids loading the proprietary CamX stack twice.
 
+## Portable OnePlus global adapter
+
+The Android 10–14 firmware cohort exposes a narrower common boundary than the
+app-scoped adapter requires: every sample runs a 64-bit HIDL physical Provider,
+loads `/vendor/lib64/hw/camera.qcom.so`, and exports the standard Camera Module
+`HMI`. The portable global adapter therefore replaces neither CameraService nor
+its Binder protocol:
+
+```text
+64-bit OEM Camera Provider -> open camera.qcom.so (VCAM shim)
+                                  |
+                                  +-> load device-local OEM snapshot
+                                  +-> no global route: delegate physical HAL
+                                  `-> global route: VirtualCamera frame engine
+```
+
+The release archive contains only the API 29 ARM64 shim. At installation, the
+device's untouched HAL is copied into the module tree and exposed through the
+existing `local_time.default.so` mount slot. Both paths are MetaModule overlays;
+no partition file is changed, and removal restores the stock files on reboot.
+The shim copies the OEM `camera_module_t`, retaining camera count, auxiliary
+IDs, callbacks and vendor operations. In global-only builds it does not add the
+package-name vendor tag or modify CameraCharacteristics.
+
+This makes the 32-bit Android 10/11 CameraService irrelevant to global routing.
+Per-application routing remains a separate enhanced capability and still needs
+a version-pinned 32-bit CameraService adapter on those releases.
+
+The current prototype deliberately retains the proven OEM open order: it opens
+and initializes the requested physical device before `configure_streams`
+selects the virtual engine. Consequently a pop-up front camera can still move,
+and another client holding the physical camera can still block a globally
+routed session. Avoiding both requires a separately qualified lazy-open state
+machine; it is not claimed by the initial Android 10–14 compatibility gate.
+
 CameraService is patched to preserve the caller package in the OEM
 `com.oplus/is.sdk.camera.package` session tag. Static metadata advertises that
 tag as an available session/request key. At `configure_streams`, the proxy

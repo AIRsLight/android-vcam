@@ -24,6 +24,11 @@ All five releases launch the physical provider through
 physical-provider boundary therefore remains much more stable than the private
 OnePlus/OPlus extensions.
 
+All five also contain an ARM64 `/vendor/lib64/hw/camera.qcom.so` that defines
+the standard `HMI` Camera Module symbol, and all five retain the existing
+`/vendor/lib64/hw/local_time.default.so` snapshot slot. The firmware analyzer
+now emits `portable_global_shim_candidate=true` for every sample.
+
 The generated compatibility signatures are:
 
 | Sample | Signature |
@@ -38,15 +43,14 @@ The generated compatibility signatures are:
 
 The useful implementation split is not one recipe per OxygenOS release:
 
-1. **Android 12–14 form one ARM64 family.** The current generic engine can keep
-   the same integration boundary, while selecting a verified patch recipe by
-   CameraService build identity and runtime probes. OPlus private services are
-   capabilities to detect, not compile-time dependencies.
-2. **Android 10–11 require a separate ARM32 execution path.** The Camera Provider
-   is still 64-bit, but the process being patched (`cameraserver`) is 32-bit.
-   Supporting these releases requires an ARM32 patcher/trampoline, ARM32 media
-   dependencies and ABI-aware module payload selection; a profile change alone
-   is insufficient.
+1. **Global routing forms one Android 10–14 ARM64 Provider family.** The current
+   API 29 shim loads a device-local snapshot of the OEM Camera Module and wraps
+   only its standard `open`/Camera3 boundary. It does not patch CameraService,
+   ship a proprietary HAL or depend on OPlus private services.
+2. **App-scoped routing remains version-specific.** Android 10–11 run a 32-bit
+   `cameraserver`, so package-aware routing on those releases still requires an
+   ARM32 CameraService adapter. Android 12–14 can use the ARM64 protocol path.
+   This does not block the global adapter.
 3. **Android 14 needs provider-instance coexistence detection.** This sample
    declares `virtual/0` through `/odm/bin/hw/virtualcameraprovider` and
    `vendor.oplus.hardware.virtual_device.camera.manager@1.0`. Static inspection
@@ -62,19 +66,22 @@ The useful implementation split is not one recipe per OxygenOS release:
 ## Decision
 
 For OnePlus, manufacturer-private code is not currently the primary portability
-barrier. The major new work is ARM32 support for Android 10/11; Android 12–14
-mostly needs build-specific recipes behind one ARM64 runtime-probe framework.
+barrier. A common global adapter is now buildable for Android 10–14. The major
+remaining version-specific work is enhanced app-scoped routing: ARM32 for
+Android 10/11 and pinned ARM64 protocol profiles for Android 12–14.
 
 The OnePlus qualification sequence is now:
 
-1. **Implemented:** schema 7 reads the process ABI, all Provider instances,
-   CameraService AIDL/HIDL registrations and OPlus `my_*` partition layout;
-2. record OEM `virtual/0` as coexistence telemetry and reject only an existing
-   `vcam/0`;
-3. qualify another ARM64 OnePlus Android 13/14 device before treating the OPlus
-   path as a reusable family;
-4. implement ARM32 only if Android 10/11 remains a release requirement, then
-   qualify it separately from ARM64.
+1. **Implemented:** schema 7 reads both CameraService and legacy-module ABIs,
+   all Provider instances, OPlus partition layout and the common OnePlus global
+   shim candidacy signal;
+2. **Implemented:** the API 29 ARM64 shim loads a device-local OEM snapshot,
+   preserves original Camera Module metadata in global mode, and packages
+   without proprietary firmware;
+3. qualify physical pass-through, global color bars/media, auxiliary cameras,
+   provider restart and reboot recovery on one device for each Android major;
+4. add version-pinned app-scoped protocol adapters after the corresponding
+   global path passes hardware qualification.
 
 No proprietary library is linked into the project, and no firmware binary is
 disassembled at runtime. The survey uses declarative files and ELF metadata;

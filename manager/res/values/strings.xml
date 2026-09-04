@@ -79,6 +79,8 @@
     <string name="profile_nx_candidate_detail">This fingerprint is not in a verified recipe. Configuration can be read, but routing must remain stock until the Camera ABI is probed again.</string>
     <string name="profile_oneplus_candidate_title">OnePlus 7 Pro Android 12 · Unqualified build</string>
     <string name="profile_oneplus_candidate_detail">This fingerprint is not in a verified recipe. Configuration can be read, but the OEM HAL proxy must remain disabled until the Camera ABI is probed again.</string>
+    <string name="profile_oneplus_family_title">OnePlus Android 10–14 · Qualification required</string>
+    <string name="profile_oneplus_family_detail">A standard Qualcomm Camera Module was detected as a global-adapter candidate. Routing remains unqualified until stock fallback, frame output and reboot recovery pass on this build.</string>
     <string name="profile_android14_candidate_title">Android 14 · Probe required</string>
     <string name="profile_android14_candidate_detail">This build is eligible only for the non-authorizing global compatibility probe. Routing remains disabled until runtime evidence is reviewed and committed as a recipe.</string>
     <string name="profile_unknown_title">This device is not qualified</string>
@@ -165,6 +167,8 @@
     <string name="route_removed">App route deleted</string>
     <string name="route_target_default">Target physical camera %1$s (default)</string>
     <string name="route_source_unavailable_suffix"> (source unavailable)</string>
+    <string name="route_all_apps">All apps</string>
+    <string name="route_global_badge">Global</string>
     <string name="routing_master_title">Routing</string>
     <string name="routing_master_on">On · configured app routes are active</string>
     <string name="routing_master_off">Off · all apps use stock physical cameras</string>

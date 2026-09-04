@@ -116,6 +116,7 @@ public final class MainActivity extends Activity {
     private Switch routingEnabledSwitch;
     private TextView routingEnabledSummary;
     private boolean routingEnabled = true;
+    private String routeScope = "per_app";
     private boolean updatingRoutingSwitch;
     private final List<TextView> navigationItems = new ArrayList<>();
     private final Map<String, Drawable> appIcons = new HashMap<>();
@@ -381,6 +382,8 @@ public final class MainActivity extends Activity {
             statusRefreshInFlight = false;
             Map<String, String> values = parseProperties(latest.statusOutput);
             Map<String, String> capabilities = parseProperties(latest.capabilitiesOutput);
+            routeScope = values.getOrDefault("route_scope",
+                    capabilities.getOrDefault("recommended_route_scope", "per_app"));
             boolean healthy = "true".equals(values.get("module_enabled")) &&
                     "true".equals(values.get("mount_active"));
             statusText.setText(healthy ? R.string.status_healthy : R.string.status_needs_attention);
@@ -1298,10 +1301,11 @@ public final class MainActivity extends Activity {
                 latestProviders = parseProviders(providerResult.output);
             }
             return new RoutesResult(parseRoutes(routeResult.output), latestProviders,
-                    parseRoutingEnabled(routeResult.output));
+                    parseRoutingEnabled(routeResult.output), parseRouteScope(routeResult.output));
         }, result -> {
             RoutesResult latest = (RoutesResult) result;
             routes.clear(); routes.putAll(latest.routes);
+            routeScope = latest.routeScope;
             updateRoutingSwitch(latest.routingEnabled, true);
             if (latest.providers != null) {
                 providers.clear(); providers.addAll(latest.providers);
@@ -1370,11 +1374,12 @@ public final class MainActivity extends Activity {
         }
         for (String packageName : packages) {
             AppEntry app = appEntryForPackage(packageName);
+            boolean globalRoute = "*".equals(packageName);
             LinearLayout routeCard = card();
             LinearLayout top = horizontal();
             top.setGravity(Gravity.CENTER_VERTICAL);
             ImageView icon = new ImageView(this);
-            if (app.installed) {
+            if (app.installed && !globalRoute) {
                 Drawable drawable = appIcons.get(packageName);
                 if (drawable == null) {
                     try { drawable = getPackageManager().getApplicationIcon(packageName); }
@@ -1389,12 +1394,13 @@ public final class MainActivity extends Activity {
             TextView name = text(app.installed ? app.label : packageName, 15, 0xff111827);
             name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             identity.addView(name);
-            if (app.installed) identity.addView(text(packageName, 11, 0xff64748b));
+            if (app.installed && !globalRoute) identity.addView(text(packageName, 11, 0xff64748b));
             top.addView(identity, weightedMargins(12, 0, 8, 0));
-            top.addView(pill(getString(app.installed ? R.string.state_available
+            top.addView(pill(getString(globalRoute ? R.string.route_global_badge
+                            : app.installed ? R.string.state_available
                             : R.string.state_unavailable),
-                    app.installed ? 0xffecfdf5 : 0xfffff7ed,
-                    app.installed ? 0xff059669 : 0xffc2410c));
+                    globalRoute || app.installed ? 0xffecfdf5 : 0xfffff7ed,
+                    globalRoute || app.installed ? 0xff059669 : 0xffc2410c));
             routeCard.addView(top);
             LinearLayout mapping = vertical();
             mapping.setPadding(dp(12), dp(9), dp(12), dp(9));
@@ -1428,8 +1434,10 @@ public final class MainActivity extends Activity {
         AlertDialog loading = new AlertDialog.Builder(this).setTitle(R.string.route_add_title)
                 .setView(loadingBody).setNegativeButton(R.string.action_cancel, null).create();
         loading.show();
-        final boolean scanApps = appsDirty || allApps.isEmpty() ||
-                SystemClock.elapsedRealtime() - lastAppRefresh > 30_000;
+        final boolean globalOnly = "global".equals(routeScope) ||
+                "global_only".equals(routeScope);
+        final boolean scanApps = !globalOnly && (appsDirty || allApps.isEmpty() ||
+                SystemClock.elapsedRealtime() - lastAppRefresh > 30_000);
         final List<AppEntry> cachedApps = new ArrayList<>(allApps);
         runAsync(() -> {
             BackendClient.Result routeResult = BackendClient.controller("routes");
@@ -1438,18 +1446,30 @@ public final class MainActivity extends Activity {
             providerResult.requireSuccess();
             List<AppEntry> apps = scanApps ? scanInstalledApps() : cachedApps;
             return new RouteSetupResult(parseRoutes(routeResult.output),
-                    parseProviders(providerResult.output), apps);
+                    parseProviders(providerResult.output), apps,
+                    parseRouteScope(routeResult.output));
         }, result -> {
             if (!loading.isShowing()) return;
             loading.dismiss();
             RouteSetupResult setup = (RouteSetupResult) result;
             routes.clear(); routes.putAll(setup.routes);
+            routeScope = setup.routeScope;
             providers.clear(); providers.addAll(setup.providers);
             allApps.clear(); allApps.addAll(setup.apps);
             appsDirty = false;
             lastAppRefresh = lastProviderRefresh = lastRouteRefresh = SystemClock.elapsedRealtime();
             renderRoutes();
-            showAppPicker();
+            boolean setupGlobalOnly = "global".equals(setup.routeScope) ||
+                    "global_only".equals(setup.routeScope);
+            if (setupGlobalOnly) {
+                if (routePackages().contains("*")) {
+                    showRouteEditor(appEntryForPackage("*"));
+                } else {
+                    showRouteEditor(new AppEntry(getString(R.string.route_all_apps), "*", true));
+                }
+            } else {
+                showAppPicker();
+            }
         }, error -> {
             if (loading.isShowing()) loading.dismiss();
             showError(error);
@@ -1601,6 +1621,9 @@ public final class MainActivity extends Activity {
     }
 
     private AppEntry appEntryForPackage(String packageName) {
+        if ("*".equals(packageName)) {
+            return new AppEntry(getString(R.string.route_all_apps), packageName, true);
+        }
         for (AppEntry app : allApps) {
             if (packageName.equals(app.packageName)) return app;
         }
@@ -1673,6 +1696,16 @@ public final class MainActivity extends Activity {
             }
         }
         return true;
+    }
+
+    private String parseRouteScope(String output) {
+        for (String line : output.split("\\r?\\n")) {
+            String[] fields = line.split("\\t", -1);
+            if (fields.length == 2 && "SCOPE".equals(fields[0])) {
+                return fields[1];
+            }
+        }
+        return "per_app";
     }
 
     private Map<String, String> parseProperties(String output) {
@@ -2019,19 +2052,23 @@ public final class MainActivity extends Activity {
         final Map<String, String> routes;
         final List<Provider> providers;
         final boolean routingEnabled;
+        final String routeScope;
         RoutesResult(Map<String, String> routes, List<Provider> providers,
-                     boolean routingEnabled) {
+                     boolean routingEnabled, String routeScope) {
             super(0, "routes"); this.routes = routes; this.providers = providers;
-            this.routingEnabled = routingEnabled;
+            this.routingEnabled = routingEnabled; this.routeScope = routeScope;
         }
     }
     private static final class RouteSetupResult extends BackendClient.Result {
         final Map<String, String> routes;
         final List<Provider> providers;
         final List<AppEntry> apps;
-        RouteSetupResult(Map<String, String> routes, List<Provider> providers, List<AppEntry> apps) {
+        final String routeScope;
+        RouteSetupResult(Map<String, String> routes, List<Provider> providers,
+                         List<AppEntry> apps, String routeScope) {
             super(0, "route-setup");
             this.routes = routes; this.providers = providers; this.apps = apps;
+            this.routeScope = routeScope;
         }
     }
     private static final class AppEntry {

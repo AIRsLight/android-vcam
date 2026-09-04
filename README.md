@@ -27,8 +27,9 @@ Provider.
 | Android 13 AOSP HIDL/AIDL coexistence | Partial build integration |
 | Android 14 AOSP stable-AIDL v2 integration | Build-validated; AVD global route qualified under Enforcing |
 | Android 14 unknown-device read-only probe module | Implemented; routing always unauthorized |
-| Manufacturer-neutral global replacement mode | Planned; not yet enabled in release builds |
-| General Android 10 and Android 11 integration | Planned |
+| OnePlus Android 10–14 global replacement adapter | API 29 build and five-firmware S1 checks pass; hardware qualification pending |
+| Manufacturer-neutral global replacement mode | Partial; OnePlus Qualcomm module family implemented first |
+| Android 10 and Android 11 app-scoped routing | Planned; global mode no longer depends on the 32-bit CameraService |
 
 This is pre-release system software. Release modules accept only qualified
 fingerprints and camera-library identities and fail closed on unknown builds.
@@ -253,6 +254,8 @@ can still be produced for engineering diagnostics, but are not release files:
 ```powershell
 pwsh -File tools/package-aosp14-aidl-provider.ps1
 pwsh -File tools/package-portable-bootstrap.ps1 -BootstrapMode physical-route
+pwsh -File tools/build-native.ps1 -Api 29 -Abi arm64-v8a
+pwsh -File tools/package-oneplus-global-module.ps1
 pwsh -File tools/build-manager.ps1
 pwsh -File tools/build-testapp.ps1
 ```

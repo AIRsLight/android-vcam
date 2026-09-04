@@ -60,11 +60,15 @@ case "$abi" in
         target_arch=aarch64
         target_cpu=armv8-a
         target_triple=aarch64-linux-android
+        abi_configure_flags=()
         ;;
     x86_64)
         target_arch=x86_64
         target_cpu=x86-64
         target_triple=x86_64-linux-android
+        # Keep the AVD/CI build independent from a host NASM package. The
+        # production ARM64 build is unchanged; x86_64 is a test harness.
+        abi_configure_flags=(--disable-x86asm)
         ;;
 esac
 cc="$bin/${target_triple}${api}-clang"
@@ -130,7 +134,8 @@ fi
     --disable-lzma \
     --disable-symver \
     --extra-cflags='-fPIC' \
-    --extra-ldflags='-Wl,-z,max-page-size=16384'
+    --extra-ldflags='-Wl,-z,max-page-size=16384' \
+    "${abi_configure_flags[@]}"
 
 make -j"$jobs"
 make install

@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "cohort": "oneplus-android10-14",
+  "policy": {
+    "purpose": "Compare Camera stack contracts with the qualified OnePlus 7 Pro baseline without treating static analysis as device qualification.",
+    "admission": "Retail SKU with reproducible bootloader unlock and persistent su evidence; carrier-locked variants are excluded.",
+    "artifacts": "Firmware archives and extracted proprietary binaries remain on the analysis worker."
+  },
+  "samples": [
+    {
+      "id": "oneplus7pro-oos10-10.0.1-global",
+      "android": 10,
+      "device": "OnePlus 7 Pro",
+      "sku": "global retail",
+      "build": "OxygenOS 10.0.1 / 21.O.21",
+      "source_kind": "oem_cdn",
+      "url": "https://otafsg1.h2os.com/patch/amazone2/GLO/OnePlus7ProOxygen/OnePlus7ProOxygen_21.O.21_GLO_021_1910071446/OnePlus7ProOxygen_21.O.21_OTA_021_all_1910071446_6f7c731d5aa7dbe.zip",
+      "size": 2152140503,
+      "checksum": {
+        "algorithm": "md5",
+        "value": "020ab69e77fc699a3037a2b341737533"
+      },
+      "eligibility": "admitted",
+      "notes": "Same hardware family as the qualified Android 12 device; isolates the Android 10 framework/vendor contract."
+    },
+    {
+      "id": "oneplus8-oos11-11.0.0-global",
+      "android": 11,
+      "device": "OnePlus 8",
+      "sku": "global retail",
+      "build": "OxygenOS 11.0.0 / 15.O.30",
+      "source_kind": "community_mirror",
+      "url": "https://androidfilehost.com/?fid=10763459528675559581",
+      "expected_filename": "OnePlus8Oxygen_15.O.30_OTA_0300_all_2010031624_c5e68b42b3325.zip",
+      "size": 2920505734,
+      "checksum": {
+        "algorithm": "md5",
+        "value": "68a264539504612230d35bba03bf197b"
+      },
+      "eligibility": "admitted",
+      "notes": "The same-device OnePlus 7 Pro P.35 mirror matches its published MD5 but lacks a ZIP central directory, while later OEM links have expired. OnePlus 8 is the fallback pre-OPlus Android 11 sample."
+    },
+    {
+      "id": "oneplus7pro-oos12-h41-global",
+      "android": 12,
+      "device": "OnePlus 7 Pro",
+      "sku": "global retail",
+      "build": "OxygenOS 12 MP3 / H.41",
+      "source_kind": "oem_cdn",
+      "url": "https://gauss-otacostmanual-sg.allawnofs.com/remove-3c5b8c00b8ea6fc68e1738ceb3ef2467/ota/23/03/31/0aed83c2-3b6a-4c32-bfea-569f02f73f08.zip",
+      "size": 3335907935,
+      "checksum": {
+        "algorithm": "md5",
+        "value": "1ccb5dc4196b7979673ef1cf8338dd76"
+      },
+      "eligibility": "qualified_device_baseline",
+      "notes": "Exact family already qualified on a real device; static report should be correlated with the stored runtime profile."
+    },
+    {
+      "id": "oneplus9-oos13-f30-na",
+      "android": 13,
+      "device": "OnePlus 9",
+      "sku": "LE2115 North America retail",
+      "build": "OxygenOS 13.1 / F.30",
+      "source_kind": "oem_google_ota",
+      "url": "https://android.googleapis.com/packages/ota-api/package/2937d9d6e8a03973c33443f809287435e44858b8.zip",
+      "size": 5283934425,
+      "checksum": {
+        "algorithm": "md5",
+        "value": "7f497eba018cba18d4a57c720a2120eb"
+      },
+      "eligibility": "candidate",
+      "notes": "Modern OPlus-derived stack. Bootloader/SU evidence must be attached before the result can become a supported-device claim."
+    },
+    {
+      "id": "oneplus8t-oos14-kb2001-601-in",
+      "android": 14,
+      "device": "OnePlus 8T",
+      "sku": "KB2001 India retail",
+      "build": "OxygenOS 14.0.0.601 / H.24",
+      "source_kind": "oem_cdn",
+      "url": "https://gauss-componentotacostmanual-in.allawnofs.com/remove-77dcf81e074a4317fada13db236686fe/component-ota/24/06/17/36f7e3f9b49349098626fc2fa21a7f38.zip",
+      "size": 5542050619,
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "c57aa5be4914052edf7f6407dab661879996ec566f266a50687f17989d797542"
+      },
+      "eligibility": "admitted",
+      "notes": "Unlockable Snapdragon retail device on the OPlus-derived Android 14 stack. The OnePlus 11 sample remains useful later but its legacy CDN is too slow for the first cohort."
+    }
+  ]
+}

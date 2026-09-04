@@ -47,11 +47,12 @@ The useful implementation split is not one recipe per OxygenOS release:
    Supporting these releases requires an ARM32 patcher/trampoline, ARM32 media
    dependencies and ABI-aware module payload selection; a profile change alone
    is insufficient.
-3. **Android 14 needs provider-instance collision detection.** This sample
+3. **Android 14 needs provider-instance coexistence detection.** This sample
    already owns `virtual/0` through `/odm/bin/hw/virtualcameraprovider` and
    `vendor.oplus.hardware.virtual_device.camera.manager@1.0`. A generic module
-   must enumerate provider instances and choose a non-conflicting integration
-   path. The vendor virtual provider is an optional future fast path only after
+   must enumerate provider instances, flag the OEM virtual implementation for
+   review, and reject activation if the project's reserved `vcam/0` is already
+   owned. The vendor virtual provider is an optional future fast path only after
    its runtime control contract and policy access are qualified on hardware.
 4. **CameraService still varies per build.** Matching the same declared HIDL
    version does not make `libcameraservice.so` binary-compatible. Build IDs and
@@ -63,11 +64,11 @@ For OnePlus, manufacturer-private code is not currently the primary portability
 barrier. The major new work is ARM32 support for Android 10/11; Android 12–14
 mostly needs build-specific recipes behind one ARM64 runtime-probe framework.
 
-The next OnePlus qualification sequence should be:
+The OnePlus qualification sequence is now:
 
-1. add a read-only probe for process ABI, provider instances, CameraService
-   AIDL/HIDL registrations and OPlus `my_*` partition layout;
-2. reject or fall back safely when `virtual/0` is already registered;
+1. **Implemented:** schema 7 reads the process ABI, all Provider instances,
+   CameraService AIDL/HIDL registrations and OPlus `my_*` partition layout;
+2. flag OEM `virtual/0` for manual review and reject an existing `vcam/0`;
 3. qualify another ARM64 OnePlus Android 13/14 device before treating the OPlus
    path as a reusable family;
 4. implement ARM32 only if Android 10/11 remains a release requirement, then

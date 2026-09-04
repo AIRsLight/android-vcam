@@ -66,11 +66,20 @@ def evaluate(
             "routing_authorized",
             "qualification_basis",
             "candidate_requirements",
+            "provider_transport",
+            "provider_instances",
+            "vcam_instance_conflict",
+            "oem_virtual_provider_present",
+            "cameraserver_arch",
+            "cameraserver_bits",
+            "camera_service_transport",
+            "oplus_layout",
+            "oplus_partitions",
         ),
         "device profile",
     )
-    if profile["schema_version"] != "6":
-        raise ValueError("device profile: schema_version 6 required")
+    if profile["schema_version"] != "7":
+        raise ValueError("device profile: schema_version 7 required")
 
     report = {
         "schema_version": "1",
@@ -86,6 +95,15 @@ def evaluate(
         "routing_authorized": "false",
         "reason": profile["platform_candidate_reason"],
         "remaining_checks": profile["candidate_requirements"],
+        "provider_transport": profile["provider_transport"],
+        "provider_instances": profile["provider_instances"],
+        "vcam_instance_conflict": profile["vcam_instance_conflict"],
+        "oem_virtual_provider_present": profile["oem_virtual_provider_present"],
+        "cameraserver_arch": profile["cameraserver_arch"],
+        "cameraserver_bits": profile["cameraserver_bits"],
+        "camera_service_transport": profile["camera_service_transport"],
+        "oplus_layout": profile["oplus_layout"],
+        "oplus_partitions": profile["oplus_partitions"],
     }
 
     exact_profile = (
@@ -110,6 +128,19 @@ def evaluate(
         return report
 
     if profile["sdk"] != "34" or profile["platform_candidate_status"] != "probe_required":
+        return report
+
+    if profile["vcam_instance_conflict"] != "false":
+        report.update(
+            evidence_status="rejected",
+            reason="vcam_provider_instance_already_registered",
+        )
+        return report
+    if profile["cameraserver_arch"] not in ("arm64", "x86_64"):
+        report.update(
+            evidence_status="rejected",
+            reason="unsupported_runtime_abi",
+        )
         return report
 
     report.update(
@@ -231,6 +262,15 @@ def emit(report: Dict[str, str]) -> str:
         "routing_authorized",
         "reason",
         "remaining_checks",
+        "provider_transport",
+        "provider_instances",
+        "vcam_instance_conflict",
+        "oem_virtual_provider_present",
+        "cameraserver_arch",
+        "cameraserver_bits",
+        "camera_service_transport",
+        "oplus_layout",
+        "oplus_partitions",
     )
     return "".join(f"{key}={report[key]}\n" for key in order)
 

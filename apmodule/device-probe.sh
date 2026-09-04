@@ -33,55 +33,122 @@ run_bounded() {
 # Some OEM and AVD service managers can stall while enumerating a later Binder
 # entry. Preserve any early output, but never let a read-only profile refresh
 # hold a module service or Manager request indefinitely.
-camera_lshal="$(run_bounded 5 lshal 2>/dev/null | grep 'android.hardware.camera.provider@' || true)"
+lshal_output="$(run_bounded 5 lshal 2>/dev/null || true)"
+camera_lshal="$(printf '%s\n' "$lshal_output" | grep 'android.hardware.camera.provider@' || true)"
+service_list="$(run_bounded 5 service list 2>/dev/null || true)"
 camera_service_check="$(run_bounded 3 service check media.camera 2>/dev/null || true)"
 camera_service_binder=0
 case "$camera_service_check" in
     *': found'*) camera_service_binder=1 ;;
 esac
-aidl_service_line="$(run_bounded 5 service list 2>/dev/null | sed -n \
-    '/android\.hardware\.camera\.provider\.ICameraProvider\//{p;q;}' || true)"
+aidl_service_lines="$(printf '%s\n' "$service_list" | sed -n \
+    '/android\.hardware\.camera\.provider\.ICameraProvider\//p' || true)"
+aidl_service_line="$(printf '%s\n' "$aidl_service_lines" | sed -n '1p')"
+
+unique_csv() {
+    awk 'NF && !seen[$0]++ { value = value separator $0; separator = "," }
+         END { print value }'
+}
+
+hidl_provider_instances="$(printf '%s\n' "$camera_lshal" | sed -n \
+    's#.*::ICameraProvider/\([^[:space:]]*\).*#\1#p' | unique_csv)"
+hidl_provider_versions="$(printf '%s\n' "$camera_lshal" | sed -n \
+    's/.*android\.hardware\.camera\.provider@\([0-9.]*\)::ICameraProvider.*/\1/p' | unique_csv)"
+aidl_provider_instances="$(printf '%s\n' "$aidl_service_lines" | sed -n \
+    's#.*android\.hardware\.camera\.provider\.ICameraProvider/\([^: ]*\):.*#\1#p' | unique_csv)"
+[ -n "$hidl_provider_instances" ] || hidl_provider_instances=none
+[ -n "$hidl_provider_versions" ] || hidl_provider_versions=unknown
+[ -n "$aidl_provider_instances" ] || aidl_provider_instances=none
+
+framework_camera_aidl_lines="$(printf '%s\n' "$service_list" | sed -n \
+    '/android\.frameworks\.cameraservice\.service\.ICameraService\//p' || true)"
+framework_camera_hidl_lines="$(printf '%s\n' "$lshal_output" | \
+    grep 'android.frameworks.cameraservice.service@' || true)"
+camera_service_aidl_instances="$(printf '%s\n' "$framework_camera_aidl_lines" | sed -n \
+    's#.*android\.frameworks\.cameraservice\.service\.ICameraService/\([^: ]*\):.*#\1#p' | unique_csv)"
+camera_service_hidl_instances="$(printf '%s\n' "$framework_camera_hidl_lines" | sed -n \
+    's#.*::ICameraService/\([^[:space:]]*\).*#\1#p' | unique_csv)"
+[ -n "$camera_service_aidl_instances" ] || camera_service_aidl_instances=none
+[ -n "$camera_service_hidl_instances" ] || camera_service_hidl_instances=none
+if [ "$camera_service_aidl_instances" != none ] && \
+   [ "$camera_service_hidl_instances" != none ]; then
+    camera_service_transport=aidl+hidl
+elif [ "$camera_service_aidl_instances" != none ]; then
+    camera_service_transport=aidl
+elif [ "$camera_service_hidl_instances" != none ]; then
+    camera_service_transport=hidl
+elif [ "$camera_service_binder" = 1 ]; then
+    camera_service_transport=binder-only
+else
+    camera_service_transport=unknown
+fi
 
 transport=unknown
 provider_version=unknown
 provider_instance=unknown
 provider_manifest=none
-if [ -n "$aidl_service_line" ]; then
-    provider_instance="$(printf '%s\n' "$aidl_service_line" | sed -n \
-        's#.*android\.hardware\.camera\.provider\.ICameraProvider/\([^: ]*\):.*#\1#p')"
-    [ -n "$provider_instance" ] || provider_instance=unknown
+if [ "$aidl_provider_instances" != none ] && [ "$hidl_provider_instances" != none ]; then
+    transport=mixed
+elif [ "$aidl_provider_instances" != none ]; then
     transport=aidl
-    provider_version=1+
-    for manifest in \
-        /vendor/etc/vintf/manifest.xml \
-        /vendor/etc/vintf/manifest_*.xml \
-        /vendor/etc/vintf/manifest/*.xml \
-        /odm/etc/vintf/manifest.xml \
-        /odm/etc/vintf/manifest/*.xml; do
-        [ -r "$manifest" ] || continue
-        grep -q '<name>android.hardware.camera.provider</name>' "$manifest" || continue
-        grep -q "<instance>$provider_instance</instance>" "$manifest" || continue
-        manifest_version="$(sed -n \
-            '/<name>android.hardware.camera.provider<\/name>/,/<\/hal>/ {
-                s/.*<version>\([^<]*\)<\/version>.*/\1/p
-            }' "$manifest" | head -n 1)"
-        if [ -n "$manifest_version" ]; then
-            provider_version="$manifest_version"
-            provider_manifest="$manifest"
-            break
-        fi
-    done
-fi
-if [ "$transport" = unknown ] && [ -n "$camera_lshal" ]; then
+elif [ "$hidl_provider_instances" != none ]; then
     transport=hidl
-    provider_version="$(printf '%s\n' "$camera_lshal" | sed -n \
-        's/.*android\.hardware\.camera\.provider@\([0-9.]*\)::ICameraProvider.*/\1/p' | \
-        head -n 1)"
-    provider_instance="$(printf '%s\n' "$camera_lshal" | sed -n \
-        's#.*::ICameraProvider/\([^ ]*\).*#\1#p' | head -n 1)"
-    [ -n "$provider_version" ] || provider_version=unknown
-    [ -n "$provider_instance" ] || provider_instance=unknown
 fi
+
+all_provider_instances="$(printf '%s\n%s\n' \
+    "$hidl_provider_instances" "$aidl_provider_instances" | tr ',' '\n' | \
+    sed '/^none$/d' | unique_csv)"
+[ -n "$all_provider_instances" ] || all_provider_instances=none
+case ",$all_provider_instances," in
+    *,legacy/0,*) provider_instance=legacy/0 ;;
+    *,internal/0,*) provider_instance=internal/0 ;;
+    *,external/0,*) provider_instance=external/0 ;;
+    *) provider_instance="${all_provider_instances%%,*}" ;;
+esac
+[ -n "$provider_instance" ] && [ "$provider_instance" != none ] || provider_instance=unknown
+
+if [ "$transport" = hidl ] || [ "$transport" = mixed ]; then
+    provider_version="${hidl_provider_versions%%,*}"
+elif [ "$transport" = aidl ]; then
+    provider_version=1+
+fi
+[ -n "$provider_version" ] || provider_version=unknown
+
+for manifest in \
+    /vendor/etc/vintf/manifest.xml \
+    /vendor/etc/vintf/manifest_*.xml \
+    /vendor/etc/vintf/manifest/*.xml \
+    /odm/etc/vintf/manifest.xml \
+    /odm/etc/vintf/manifest/*.xml \
+    /my_manifest/etc/vintf/manifest.xml \
+    /my_manifest/etc/vintf/manifest/*.xml \
+    /my_product/etc/vintf/manifest.xml \
+    /my_product/etc/vintf/manifest/*.xml; do
+    [ -r "$manifest" ] || continue
+    grep -q '<name>android.hardware.camera.provider</name>' "$manifest" || continue
+    if [ "$provider_instance" != unknown ]; then
+        grep -q "<instance>$provider_instance</instance>" "$manifest" || \
+            grep -q "ICameraProvider/$provider_instance" "$manifest" || continue
+    fi
+    provider_manifest="$manifest"
+    break
+done
+if [ "$transport" = aidl ] && [ "$provider_manifest" != none ]; then
+    manifest_version="$(sed -n \
+        '/<name>android.hardware.camera.provider<\/name>/,/<\/hal>/ {
+            s/.*<version>\([^<]*\)<\/version>.*/\1/p
+        }' "$provider_manifest" | head -n 1)"
+    [ -n "$manifest_version" ] && provider_version="$manifest_version"
+fi
+
+case ",$hidl_provider_instances,$aidl_provider_instances," in
+    *,virtual/0,*) oem_virtual_provider_present=true ;;
+    *) oem_virtual_provider_present=false ;;
+esac
+case ",$hidl_provider_instances,$aidl_provider_instances," in
+    *,vcam/0,*) vcam_instance_conflict=true ;;
+    *) vcam_instance_conflict=false ;;
+esac
 
 legacy_module=""
 for candidate in \
@@ -173,15 +240,66 @@ camera_ids="$(printf '%s\n' "$camera_summary" | sed -n '2p')"
 api1_camera_ids="$(printf '%s\n' "$camera_summary" | sed -n '3p')"
 [ -n "$api1_camera_ids" ] || api1_camera_ids=none
 
+cameraserver_pid="$(pidof cameraserver 2>/dev/null | awk '{print $1}')"
+cameraserver_path=/system/bin/cameraserver
+if [ -n "$cameraserver_pid" ]; then
+    running_path="$(readlink "/proc/$cameraserver_pid/exe" 2>/dev/null)"
+    [ -n "$running_path" ] && cameraserver_path="$running_path"
+fi
+cameraserver_bits=unknown
+if [ -r "$cameraserver_path" ]; then
+    elf_class="$(od -An -j 4 -N 1 -t u1 "$cameraserver_path" 2>/dev/null | tr -d '[:space:]')"
+    case "$elf_class" in
+        1) cameraserver_bits=32 ;;
+        2) cameraserver_bits=64 ;;
+    esac
+fi
+
+abi="$(prop ro.product.cpu.abi)"
+cameraserver_arch=unknown
+case "$abi:$cameraserver_bits" in
+    arm64-v8a:64) cameraserver_arch=arm64 ;;
+    arm64-v8a:32|armeabi*:32) cameraserver_arch=arm ;;
+    x86_64:64) cameraserver_arch=x86_64 ;;
+    x86_64:32|x86:32) cameraserver_arch=x86 ;;
+esac
+
+oplus_partitions=""
+for partition in my_product my_manifest my_region my_carrier; do
+    [ -d "/$partition" ] || continue
+    if [ -n "$oplus_partitions" ]; then
+        oplus_partitions="$oplus_partitions,$partition"
+    else
+        oplus_partitions="$partition"
+    fi
+done
+if [ -n "$oplus_partitions" ]; then
+    oplus_layout=true
+else
+    oplus_layout=false
+    oplus_partitions=none
+fi
+
 cameraservice_hash=unknown
-if [ -r /system/lib64/libcameraservice.so ]; then
-    cameraservice_hash="$(sha256sum /system/lib64/libcameraservice.so 2>/dev/null | awk '{print $1}')"
+cameraservice_path=none
+if [ "$cameraserver_bits" = 32 ] && [ -r /system/lib/libcameraservice.so ]; then
+    cameraservice_path=/system/lib/libcameraservice.so
+elif [ -r /system/lib64/libcameraservice.so ]; then
+    cameraservice_path=/system/lib64/libcameraservice.so
+elif [ -r /system/lib/libcameraservice.so ]; then
+    cameraservice_path=/system/lib/libcameraservice.so
+fi
+if [ "$cameraservice_path" != none ]; then
+    cameraservice_hash="$(sha256sum "$cameraservice_path" 2>/dev/null | awk '{print $1}')"
 fi
 camera_client_path=none
 camera_client_hash=none
-for candidate in \
-    /system/lib64/libcamera_client.so \
-    /system_ext/lib64/libcamera_client.so; do
+if [ "$cameraserver_bits" = 32 ]; then
+    camera_client_candidates="/system/lib/libcamera_client.so /system_ext/lib/libcamera_client.so"
+else
+    camera_client_candidates="/system/lib64/libcamera_client.so /system_ext/lib64/libcamera_client.so"
+fi
+for candidate in $camera_client_candidates; do
     [ -r "$candidate" ] || continue
     camera_client_path="$candidate"
     camera_client_hash="$(sha256sum "$candidate" 2>/dev/null | awk '{print $1}')"
@@ -323,17 +441,21 @@ if [ "$profile_status" = qualified ]; then
     routing_authorized=true
     qualification_basis=committed_recipe
 elif [ "$sdk" = 34 ]; then
-    platform_family=android14-camera-service
+    platform_family=android12-14-camera-service-64bit
     recommended_route_scope=global_only
     activation_policy=probe_only
     qualification_basis=runtime_probe_required
     candidate_requirements=enforcing_provider_registration,pass_through_protocol,topology_maps,global_preview,reboot_recovery
-    case "$abi" in
-        arm64-v8a|x86_64)
+    [ "$oem_virtual_provider_present" = false ] || \
+        candidate_requirements="$candidate_requirements,oem_virtual_provider_review"
+    case "$cameraserver_arch" in
+        arm64|x86_64)
             if [ "$camera_service_binder" = 0 ]; then
                 platform_candidate_reason=media_camera_service_unavailable
             elif [ "$transport" = unknown ]; then
                 platform_candidate_reason=camera_provider_transport_unresolved
+            elif [ "$vcam_instance_conflict" = true ]; then
+                platform_candidate_reason=vcam_provider_instance_already_registered
             elif [ "$selinux_state" != Enforcing ]; then
                 platform_candidate_reason=selinux_enforcing_required
             else
@@ -345,10 +467,36 @@ elif [ "$sdk" = 34 ]; then
             platform_candidate_reason=unsupported_runtime_abi
             ;;
     esac
+elif [ "$sdk" = 31 ] || [ "$sdk" = 32 ] || [ "$sdk" = 33 ]; then
+    platform_family=android12-14-camera-service-64bit
+    recommended_route_scope=global_only
+    activation_policy=probe_only
+    qualification_basis=runtime_probe_required
+    candidate_requirements=version_specific_protocol_probe,topology_maps,global_preview,reboot_recovery
+    if [ "$cameraserver_arch" != arm64 ]; then
+        platform_candidate_reason=unsupported_runtime_abi
+    elif [ "$camera_service_binder" = 0 ]; then
+        platform_candidate_reason=media_camera_service_unavailable
+    elif [ "$transport" = unknown ]; then
+        platform_candidate_reason=camera_provider_transport_unresolved
+    elif [ "$vcam_instance_conflict" = true ]; then
+        platform_candidate_reason=vcam_provider_instance_already_registered
+    else
+        platform_candidate_status=probe_required
+        platform_candidate_reason=version_specific_runtime_qualification_required
+    fi
+elif [ "$sdk" = 29 ] || [ "$sdk" = 30 ]; then
+    platform_family=android10-11-camera-service-arm32
+    candidate_requirements=arm32_patcher,arm32_trampoline,arm32_media_dependencies,device_qualification
+    if [ "$cameraserver_arch" = arm ]; then
+        platform_candidate_reason=arm32_runtime_not_implemented
+    else
+        platform_candidate_reason=unexpected_android10_11_cameraserver_abi
+    fi
 fi
 
 emit_profile() {
-    field schema_version 6
+    field schema_version 7
     field sdk "$sdk"
     field release "$(prop ro.build.version.release)"
     field abi "$abi"
@@ -361,6 +509,13 @@ emit_profile() {
     field provider_transport "$transport"
     field provider_version "$provider_version"
     field provider_instance "$provider_instance"
+    field provider_instances "$all_provider_instances"
+    field hidl_provider_instances "$hidl_provider_instances"
+    field hidl_provider_versions "$hidl_provider_versions"
+    field aidl_provider_instances "$aidl_provider_instances"
+    field aidl_service_line "$aidl_service_line"
+    field vcam_instance_conflict "$vcam_instance_conflict"
+    field oem_virtual_provider_present "$oem_virtual_provider_present"
     field provider_manifest "$provider_manifest"
     field provider_service "${provider_service:-none}"
     field provider_init_service "$provider_init_service"
@@ -374,6 +529,11 @@ emit_profile() {
     field profile_camera_module_hash "$([ "$profile_adapter" = oneplus7pro-oem-hal ] && printf '%s' "$oneplus_hal_hash" || printf '%s' "$legacy_module_hash")"
     field proxy_slot_path "$proxy_slot_path"
     field proxy_slot_hash "$proxy_slot_hash"
+    field cameraserver_pid "${cameraserver_pid:-none}"
+    field cameraserver_path "$cameraserver_path"
+    field cameraserver_arch "$cameraserver_arch"
+    field cameraserver_bits "$cameraserver_bits"
+    field cameraservice_path "$cameraservice_path"
     field cameraservice_hash "$cameraservice_hash"
     field camera_client_path "$camera_client_path"
     field camera_client_hash "$camera_client_hash"
@@ -397,6 +557,11 @@ emit_profile() {
     field reported_physical_camera_count "$(prop ro.vendor.feature.camera_physical_count)"
     field under_screen_camera "$(prop ro.vendor.feature.camera_under_screen_sensor)"
     field camera_service_binder "$camera_service_binder"
+    field camera_service_transport "$camera_service_transport"
+    field camera_service_aidl_instances "$camera_service_aidl_instances"
+    field camera_service_hidl_instances "$camera_service_hidl_instances"
+    field oplus_layout "$oplus_layout"
+    field oplus_partitions "$oplus_partitions"
     field probe_uid "$(id -u 2>/dev/null)"
     field root_manager "$root_manager"
 }

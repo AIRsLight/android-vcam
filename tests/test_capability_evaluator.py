@@ -16,11 +16,11 @@ def properties(**values: str) -> str:
 
 
 BASE_PROFILE = {
-    "schema_version": "6",
+    "schema_version": "7",
     "sdk": "34",
     "profile_id": "none",
     "profile_status": "unsupported",
-    "platform_family": "android14-camera-service",
+    "platform_family": "android12-14-camera-service-64bit",
     "platform_candidate_status": "probe_required",
     "platform_candidate_reason": "requires_non_authorizing_runtime_qualification",
     "recommended_route_scope": "global_only",
@@ -31,6 +31,15 @@ BASE_PROFILE = {
         "enforcing_provider_registration,pass_through_protocol,topology_maps,"
         "global_preview,reboot_recovery"
     ),
+    "provider_transport": "hidl",
+    "provider_instances": "legacy/0",
+    "vcam_instance_conflict": "false",
+    "oem_virtual_provider_present": "false",
+    "cameraserver_arch": "arm64",
+    "cameraserver_bits": "64",
+    "camera_service_transport": "hidl",
+    "oplus_layout": "false",
+    "oplus_partitions": "none",
 }
 
 GOOD_ROUTER = {
@@ -150,6 +159,26 @@ class CapabilityEvaluatorTest(unittest.TestCase):
         result = self.run_evaluator(profile, GOOD_ROUTER, GOOD_TOPOLOGY)
         self.assertEqual("blocked", result["evidence_status"])
         self.assertEqual("selinux_enforcing_required", result["reason"])
+
+    def test_registered_vcam_instance_is_rejected(self):
+        profile = dict(BASE_PROFILE, vcam_instance_conflict="true")
+        result = self.run_evaluator(profile, GOOD_ROUTER, GOOD_TOPOLOGY)
+        self.assertEqual("rejected", result["evidence_status"])
+        self.assertEqual("vcam_provider_instance_already_registered", result["reason"])
+        self.assertEqual("false", result["routing_authorized"])
+
+    def test_oem_virtual_provider_is_reported_without_self_authorization(self):
+        profile = dict(
+            BASE_PROFILE,
+            provider_instances="legacy/0,virtual/0",
+            oem_virtual_provider_present="true",
+            oplus_layout="true",
+            oplus_partitions="my_product,my_manifest,my_region,my_carrier",
+        )
+        result = self.run_evaluator(profile, GOOD_ROUTER, GOOD_TOPOLOGY)
+        self.assertEqual("true", result["oem_virtual_provider_present"])
+        self.assertEqual("manual_review_required", result["evidence_status"])
+        self.assertEqual("false", result["routing_authorized"])
 
 
 if __name__ == "__main__":

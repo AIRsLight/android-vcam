@@ -6,7 +6,8 @@ runtime result can promote that build by itself.
 
 ## Classification
 
-`device-probe.sh` schema 6 emits two independent decisions:
+`device-probe.sh` schema 7 emits two independent decisions and records the
+runtime CameraService/Provider topology:
 
 | Field | Meaning |
 | --- | --- |
@@ -15,6 +16,12 @@ runtime result can promote that build by itself.
 | `recommended_route_scope` | `global_only` for an unknown API 34 candidate |
 | `activation_policy` | `probe_only`, `exact_profile`, or `blocked` |
 | `routing_authorized` | True only for a committed exact profile |
+| `cameraserver_arch` / `cameraserver_bits` | ABI of the process that would be patched, derived from its ELF header |
+| `provider_instances` | All registered HIDL and AIDL Camera Provider instances |
+| `vcam_instance_conflict` | Whether the reserved project instance `vcam/0` already exists |
+| `oem_virtual_provider_present` | Whether the OEM already registers `virtual/0` |
+| `camera_service_transport` | Framework CameraService HIDL/AIDL registration family |
+| `oplus_partitions` | Mounted OPlus `my_*` partitions relevant to camera contracts |
 
 An Enforcing API 34 device with a supported 64-bit ABI, a visible
 `media.camera` Binder and a discoverable camera-provider transport is classified
@@ -71,7 +78,7 @@ For an unknown Android 14 device, build the independent report-only module:
 pwsh -File tools/package-aosp14-capability-probe.ps1
 ```
 
-It writes its raw schema 6 profile and fail-closed result under
+It writes its raw schema 7 profile and fail-closed result under
 `/data/adb/android_vcam_capability_probe`. The archive has `skip_mount` and no
 partition overlay, native executable, Provider, CameraService replacement,
 router, SELinux rule or boot-time camera action. Its result always contains

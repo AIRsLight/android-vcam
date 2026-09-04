@@ -198,7 +198,7 @@ Before and after the service run, cameraserver retained PID 453,
 `52fa175391f4bc753e5cddd6d541ceff4b4c83dd657aa0cc1e6edbe8deaec751`,
 the two stock `internal/0` and `internal/1` AIDL Provider services were
 unchanged, and CameraService still exposed only public device `10`. No
-`/dev/vcam` or `/data/vendor/camera/vcam` path appeared. The generated schema 6
+`/dev/vcam` or `/data/vendor/camera/vcam` path appeared. The generated schema 7
 profile classified the AVD as `probe_required`; the module result remained
 `activation_policy=probe_only`, `routing_authorized=false` and
 `camera_mutation_performed=false`.

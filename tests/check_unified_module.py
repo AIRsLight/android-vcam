@@ -65,15 +65,15 @@ def main() -> None:
             probe = archive.read(prefix + "device-probe.sh").decode("utf-8")
             controller = archive.read(prefix + "vcamctl").decode("utf-8")
             for marker in (
-                "field schema_version 6",
+                "field schema_version 7",
                 "platform_candidate_status",
                 "recommended_route_scope",
                 "routing_authorized",
             ):
                 if marker not in probe:
                     fail(f"{profile} device probe lacks: {marker}")
-            if '"$profile_schema" != 6' not in controller:
-                fail(f"{profile} controller does not refresh schema 6")
+            if '"$profile_schema" != 7' not in controller:
+                fail(f"{profile} controller does not refresh schema 7")
 
         oneplus = "payload/profiles/oneplus7pro-p202303230244/"
         proxy = archive.read(oneplus + "vendor/lib64/libvcam_proxy.so")

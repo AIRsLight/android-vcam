@@ -138,7 +138,7 @@ Unknown Android 14 devices may instead use the separate compatibility probe:
 pwsh -File tools/package-aosp14-capability-probe.ps1
 ```
 
-That archive only produces a schema 6 report. It cannot mount camera files,
+That archive only produces a schema 7 report. It cannot mount camera files,
 register a Provider, replace CameraService or authorize routing, and it keeps
 its state separate from the published `android_vcam` module.
 

@@ -1,7 +1,9 @@
 # Android Virtual Camera Compatibility Probe
 
-This is a read-only Android 14 diagnostic module. It records the platform,
-camera Provider transport, public camera topology and exact-profile match in:
+This is a read-only Android 14 diagnostic module. Its schema 7 profile records
+the platform, all AIDL/HIDL Camera Provider instances, the running
+`cameraserver` ABI, CameraService registrations, OPlus partition layout, public
+camera topology and exact-profile match in:
 
 ```text
 /data/adb/android_vcam_capability_probe/device-profile.conf

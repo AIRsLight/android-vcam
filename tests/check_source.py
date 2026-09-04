@@ -536,10 +536,14 @@ def main() -> None:
         "provider_transport", "provider_version", "provider_instance", "adapter_hint",
         "aidl_service_line", "provider_service_hash", "legacy_module_hash",
         "cameraservice_hash", "camera_client_hash", "proxy_slot_hash",
-        "profile_status", "profile_adapter", "profile_camera_module_hash", "schema_version 6",
+        "profile_status", "profile_adapter", "profile_camera_module_hash", "schema_version 7",
         "platform_candidate_status", "recommended_route_scope",
         "activation_policy", "routing_authorized", "global_only",
         "nx769j-ukq1-20240417", "oneplus7pro-p202303230244", "root_manager",
+        "provider_instances", "hidl_provider_instances", "aidl_provider_instances",
+        "vcam_instance_conflict", "oem_virtual_provider_present",
+        "cameraserver_arch", "cameraserver_bits", "camera_service_transport",
+        "oplus_layout", "oplus_partitions",
     ):
         if required_symbol not in probe:
             fail(f"device probe is missing field: {required_symbol}")
@@ -550,8 +554,8 @@ def main() -> None:
     ):
         if required_symbol not in probe_helper:
             fail(f"device probe helper lacks capability evaluation: {required_symbol}")
-    if '"$profile_schema" != 6' not in controller:
-        fail("controller does not refresh the schema 6 capability profile")
+    if '"$profile_schema" != 7' not in controller:
+        fail("controller does not refresh the schema 7 capability profile")
     capability_evaluator = (
         ROOT / "tools" / "evaluate-aosp14-capability.py"
     ).read_text(encoding="utf-8")

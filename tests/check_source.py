@@ -416,6 +416,14 @@ def main() -> None:
     controller = (ROOT / "apmodule" / "vcamctl").read_text(encoding="utf-8")
     if 'start_error=$(start_provider "$id" 2>&1)' not in controller:
         fail("provider update must pass the provider ID when restarting a source")
+    for required_symbol in (
+        "VCAM_DATA_CONTEXT", "label_runtime_path",
+        "physical_provider_available", "TOPOLOGY_FILE",
+    ):
+        if required_symbol not in controller:
+            fail(f"controller lacks portable topology/data labeling: {required_symbol}")
+    if "provider_count() {\n    count=2" in controller:
+        fail("provider count still assumes two physical cameras")
     for slow_read_path in (
         'list_providers() {\n    prepare_dirs',
         'list_routes() {\n    prepare_dirs',

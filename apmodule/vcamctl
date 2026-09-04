@@ -8,6 +8,18 @@ PROVIDER_FRAME_DIR="$FRAME_DIR/providers"
 ROUTES_FILE="$FRAME_DIR/routes.tsv"
 ROUTING_DISABLED_FILE="$ROUTES_FILE.disabled"
 PROFILE_FILE="$STATE_DIR/device-profile.conf"
+TOPOLOGY_FILE="$FRAME_DIR/topology.conf"
+VCAM_DATA_CONTEXT=u:object_r:vcam_camera_data_file:s0
+
+label_runtime_path() {
+    chcon "$VCAM_DATA_CONTEXT" "$@" >/dev/null 2>&1 ||
+        restorecon "$@" >/dev/null 2>&1 || true
+}
+
+label_runtime_tree() {
+    chcon -R "$VCAM_DATA_CONTEXT" "$@" >/dev/null 2>&1 ||
+        restorecon -RF "$@" >/dev/null 2>&1 || true
+}
 
 find_publisher() {
     for candidate in \
@@ -66,10 +78,10 @@ prepare_dirs() {
     touch "$ROUTES_FILE"
     chown camera:camera "$ROUTES_FILE"
     chmod 0640 "$ROUTES_FILE"
-    restorecon "$FRAME_DIR" "$ROUTES_FILE" >/dev/null 2>&1
+    label_runtime_path "$FRAME_DIR" "$ROUTES_FILE"
     # Provider contents are labeled when created/published. Avoid recursively
     # relabeling cached media on every read-only list/status request.
-    restorecon "$PROVIDER_FRAME_DIR" >/dev/null 2>&1
+    label_runtime_path "$PROVIDER_FRAME_DIR"
 }
 
 valid_id() {
@@ -93,9 +105,22 @@ valid_base64() {
     return 0
 }
 
+physical_provider_available() {
+    slot=$1
+    [ -r "$TOPOLOGY_FILE" ] || return 0
+    case "$slot" in
+        0) key=back_camera2_id ;;
+        1) key=front_camera2_id ;;
+        *) return 1 ;;
+    esac
+    camera_id=$(sed -n "s/^${key}=//p" "$TOPOLOGY_FILE" | head -n 1)
+    [ -n "$camera_id" ] && [ "$camera_id" != none ]
+}
+
 provider_exists() {
     case "$1" in
-        physical-0|physical-1) return 0 ;;
+        physical-0) physical_provider_available 0; return $? ;;
+        physical-1) physical_provider_available 1; return $? ;;
     esac
     valid_id "$1" && [ -f "$PROVIDER_STATE_DIR/$1/meta" ] && \
         [ -d "$PROVIDER_FRAME_DIR/$1" ]
@@ -155,7 +180,7 @@ write_runtime_config() {
     printf '%s\n' "$view1" > "$runtime/view-1.cfg"
     chown camera:camera "$runtime/source.cfg" "$runtime/view-0.cfg" "$runtime/view-1.cfg"
     chmod 0640 "$runtime/source.cfg" "$runtime/view-0.cfg" "$runtime/view-1.cfg"
-    restorecon "$runtime/source.cfg" "$runtime/view-0.cfg" "$runtime/view-1.cfg" >/dev/null 2>&1
+    label_runtime_path "$runtime/source.cfg" "$runtime/view-0.cfg" "$runtime/view-1.cfg"
 }
 
 print_provider() {
@@ -168,10 +193,14 @@ list_providers() {
     if [ ! -d "$PROVIDER_STATE_DIR" ] || [ ! -d "$PROVIDER_FRAME_DIR" ]; then
         prepare_dirs || return 1
     fi
-    print_provider physical-0 physical UGh5c2ljYWwgY2FtZXJhIDA= '' false true \
-        15 1280 720 '0,1000,500,500' '0,1000,500,500'
-    print_provider physical-1 physical UGh5c2ljYWwgY2FtZXJhIDE= '' false true \
-        15 1280 720 '0,1000,500,500' '0,1000,500,500'
+    if physical_provider_available 0; then
+        print_provider physical-0 physical UGh5c2ljYWwgY2FtZXJhIDA= '' false true \
+            15 1280 720 '0,1000,500,500' '0,1000,500,500'
+    fi
+    if physical_provider_available 1; then
+        print_provider physical-1 physical UGh5c2ljYWwgY2FtZXJhIDE= '' false true \
+            15 1280 720 '0,1000,500,500' '0,1000,500,500'
+    fi
     for directory in "$PROVIDER_STATE_DIR"/*; do
         [ -d "$directory" ] || continue
         meta="$directory/meta"
@@ -248,7 +277,7 @@ add_provider() {
     } > "$PROVIDER_STATE_DIR/$id/meta"
     chown -R camera:camera "$PROVIDER_FRAME_DIR/$id"
     chmod 0750 "$PROVIDER_FRAME_DIR/$id"
-    restorecon -RF "$PROVIDER_FRAME_DIR/$id" >/dev/null 2>&1
+    label_runtime_tree "$PROVIDER_FRAME_DIR/$id"
     write_runtime_config "$id"
     echo "added"
 }
@@ -410,7 +439,7 @@ start_provider() {
             touch "$PROVIDER_FRAME_DIR/$id/enabled"
             chown camera:camera "$PROVIDER_FRAME_DIR/$id/enabled"
             chmod 0640 "$PROVIDER_FRAME_DIR/$id/enabled"
-            restorecon "$PROVIDER_FRAME_DIR/$id/enabled" >/dev/null 2>&1
+            label_runtime_path "$PROVIDER_FRAME_DIR/$id/enabled"
             echo "started"
             return 0
             ;;
@@ -424,7 +453,7 @@ start_provider() {
             touch "$PROVIDER_FRAME_DIR/$id/enabled"
             chown camera:camera "$PROVIDER_FRAME_DIR/$id/enabled"
             chmod 0640 "$PROVIDER_FRAME_DIR/$id/enabled"
-            restorecon "$PROVIDER_FRAME_DIR/$id/enabled" >/dev/null 2>&1
+            label_runtime_path "$PROVIDER_FRAME_DIR/$id/enabled"
             echo "started"
             return 0
             ;;
@@ -439,7 +468,7 @@ start_provider() {
     touch "$PROVIDER_FRAME_DIR/$id/enabled"
     chown camera:camera "$PROVIDER_FRAME_DIR/$id/enabled"
     chmod 0640 "$PROVIDER_FRAME_DIR/$id/enabled"
-    restorecon "$PROVIDER_FRAME_DIR/$id/enabled" >/dev/null 2>&1
+    label_runtime_path "$PROVIDER_FRAME_DIR/$id/enabled"
     nohup "$runner" "$id" > "$log" 2>&1 &
     pid=$!
     printf '%s\n' "$pid" > "$PROVIDER_STATE_DIR/$id/stream.pid"
@@ -497,7 +526,7 @@ preview_source() {
     mkdir -p "$preview_dir" || return 3
     chown camera:camera "$preview_dir"
     chmod 0750 "$preview_dir"
-    restorecon -RF "$preview_dir" >/dev/null 2>&1
+    label_runtime_tree "$preview_dir"
     preview_input="$source"
     if [ "$type" = https ]; then
         preview_input="$preview_dir/source.media"
@@ -506,7 +535,7 @@ preview_source() {
             --max-time 25 --output "$preview_input" "$source" || return 6
         chown camera:camera "$preview_input"
         chmod 0640 "$preview_input"
-        restorecon "$preview_input" >/dev/null 2>&1
+        label_runtime_path "$preview_input"
     fi
     run_privileged_tool "$streamer" \
         "$preview_input" "$frame" 1 576 324 --once || return 6
@@ -533,7 +562,7 @@ provider_frame() {
     mkdir -p "$preview_dir" || return 5
     chown camera:camera "$preview_dir"
     chmod 0750 "$preview_dir"
-    restorecon -RF "$preview_dir" >/dev/null 2>&1
+    label_runtime_tree "$preview_dir"
     "$publisher" --thumbnail "$frame" "$preview" 640 640 || {
         echo "provider preview thumbnail failed" >&2
         return 5
@@ -559,7 +588,7 @@ remove_provider() {
     mv -f "$temporary" "$ROUTES_FILE"
     chown camera:camera "$ROUTES_FILE"
     chmod 0640 "$ROUTES_FILE"
-    restorecon "$ROUTES_FILE" >/dev/null 2>&1
+    label_runtime_path "$ROUTES_FILE"
     rm -rf "$PROVIDER_STATE_DIR/$id" "$PROVIDER_FRAME_DIR/$id"
     echo "removed"
 }
@@ -584,8 +613,8 @@ publish_provider() {
         "$PROVIDER_FRAME_DIR/$id/enabled"
     chmod 0640 "$PROVIDER_FRAME_DIR/$id/frame.rgb" \
         "$PROVIDER_FRAME_DIR/$id/enabled"
-    restorecon "$PROVIDER_FRAME_DIR/$id/frame.rgb" \
-        "$PROVIDER_FRAME_DIR/$id/enabled" >/dev/null 2>&1
+    label_runtime_path "$PROVIDER_FRAME_DIR/$id/frame.rgb" \
+        "$PROVIDER_FRAME_DIR/$id/enabled"
     echo "published"
 }
 
@@ -605,7 +634,7 @@ publish_provider_stdin() {
     touch "$PROVIDER_FRAME_DIR/$id/enabled"
     chown camera:camera "$output" "$PROVIDER_FRAME_DIR/$id/enabled"
     chmod 0640 "$output" "$PROVIDER_FRAME_DIR/$id/enabled"
-    restorecon "$output" "$PROVIDER_FRAME_DIR/$id/enabled" >/dev/null 2>&1
+    label_runtime_path "$output" "$PROVIDER_FRAME_DIR/$id/enabled"
     echo "published"
 }
 
@@ -637,7 +666,7 @@ import_provider_media() {
     mv -f "$temporary" "$destination" || return 4
     chown camera:camera "$destination"
     chmod 0640 "$destination"
-    restorecon "$destination" >/dev/null 2>&1
+    label_runtime_path "$destination"
     echo "imported"
 }
 
@@ -713,7 +742,7 @@ publish_commit() {
     touch "$PROVIDER_FRAME_DIR/$id/enabled"
     chown camera:camera "$output" "$PROVIDER_FRAME_DIR/$id/enabled"
     chmod 0640 "$output" "$PROVIDER_FRAME_DIR/$id/enabled"
-    restorecon "$output" "$PROVIDER_FRAME_DIR/$id/enabled" >/dev/null 2>&1
+    label_runtime_path "$output" "$PROVIDER_FRAME_DIR/$id/enabled"
     echo "published"
 }
 
@@ -739,7 +768,7 @@ set_route() {
     mv -f "$temporary" "$ROUTES_FILE"
     chown camera:camera "$ROUTES_FILE"
     chmod 0640 "$ROUTES_FILE"
-    restorecon "$ROUTES_FILE" >/dev/null 2>&1
+    label_runtime_path "$ROUTES_FILE"
     echo "routed"
 }
 
@@ -763,7 +792,7 @@ save_routes() {
     mv -f "$temporary" "$ROUTES_FILE" || return 4
     chown camera:camera "$ROUTES_FILE"
     chmod 0640 "$ROUTES_FILE"
-    restorecon "$ROUTES_FILE" >/dev/null 2>&1
+    label_runtime_path "$ROUTES_FILE"
     echo "saved"
 }
 
@@ -780,7 +809,7 @@ remove_route() {
     mv -f "$temporary" "$ROUTES_FILE"
     chown camera:camera "$ROUTES_FILE"
     chmod 0640 "$ROUTES_FILE"
-    restorecon "$ROUTES_FILE" >/dev/null 2>&1
+    label_runtime_path "$ROUTES_FILE"
     echo "unrouted"
 }
 
@@ -803,9 +832,9 @@ disable_routing() {
     : > "$temporary" || return 2
     chown camera:camera "$temporary"
     chmod 0640 "$temporary"
-    restorecon "$temporary" >/dev/null 2>&1
+    label_runtime_path "$temporary"
     mv -f "$temporary" "$ROUTING_DISABLED_FILE" || return 3
-    restorecon "$ROUTING_DISABLED_FILE" >/dev/null 2>&1
+    label_runtime_path "$ROUTING_DISABLED_FILE"
     echo "disabled"
 }
 
@@ -816,7 +845,9 @@ enable_routing() {
 }
 
 provider_count() {
-    count=2
+    count=0
+    physical_provider_available 0 && count=$((count + 1))
+    physical_provider_available 1 && count=$((count + 1))
     if [ -d "$PROVIDER_STATE_DIR" ]; then
         for directory in "$PROVIDER_STATE_DIR"/*; do
             [ -f "$directory/meta" ] || continue

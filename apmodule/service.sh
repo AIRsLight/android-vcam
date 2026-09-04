@@ -8,7 +8,8 @@ chmod 0700 "$LOG_DIR"
 mkdir -p /data/vendor/camera/vcam
 chown camera:camera /data/vendor/camera/vcam
 chmod 0770 /data/vendor/camera/vcam
-restorecon -RF /data/vendor/camera/vcam
+chcon -R u:object_r:vcam_camera_data_file:s0 /data/vendor/camera/vcam \
+    >/dev/null 2>&1 || restorecon -RF /data/vendor/camera/vcam
 
 # Capture the immutable platform/camera-stack facts before deciding which
 # transport adapter can be used. The profile remains available even if the

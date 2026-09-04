@@ -154,3 +154,21 @@ Both engineering modules armed their next-boot disable markers. The recovery
 boot had only stock device `1`, no `vcam/0` service or router mapping, and the
 original cameraserver SHA-256. The public Camera1, Camera2 and NDK sequence
 passed once more after restoration.
+
+## Opaque physical-ID routing
+
+The follow-up dev.40 router was built from the same pinned r23 tree and loaded
+through the KernelSU/OverlayFS lifecycle. The AVD exposes Camera2 ID `1` while
+the manager-facing physical provider remains logical `physical-0`. A temporary
+global route to that provider resolved Camera2 back to ID `1` and Camera1 back
+to public index `0`; the complete protocol sequence passed with no rewrite
+failure. This confirms that physical providers no longer treat their logical
+slot as a literal Camera2 ID.
+
+The same run found that `restorecon` alone assigns `vendor_data_file` to newly
+replaced route files in this systemless AVD because its boot-time file-context
+table does not contain the product-only VCAM rule. The controller now first
+labels runtime routes and frames explicitly as `vcam_camera_data_file`, with
+`restorecon` retained only as a legacy-device fallback. Route add/remove kept
+the dedicated label. Topology-aware provider listing also exposed only
+`physical-0` on this back-camera-only AVD and rejected `physical-1` as absent.

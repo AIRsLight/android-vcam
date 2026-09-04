@@ -139,6 +139,13 @@ That archive only produces a schema 6 report. It cannot mount camera files,
 register a Provider, replace CameraService or authorize routing, and it keeps
 its state separate from the published `android_vcam` module.
 
+The report-only archive also runs through a pinned KernelSU 3.3 x86_64 AVD
+harness. This validates KernelSU's module installer and official `ksud`
+lifecycle independently of the stock AVD used for camera qualification. See
+[the KernelSU AVD harness](docs/avd-kernelsu.md); its x86 Manager/seccomp
+limitation is test-environment specific and is not treated as ARM64 device
+support evidence.
+
 ## Roadmap
 
 ### 1. Manufacturer-neutral global mode

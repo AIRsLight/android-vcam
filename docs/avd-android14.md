@@ -222,8 +222,10 @@ executable, hard-coded public-ID and OEM camera-data-label assumptions from the
 portable architecture.
 
 It does not prove OEM compatibility, MetaModule behavior, non-pattern media
-sources on the AOSP provider, or third-party application breadth. The next
-generic gate is to package automatic AOSP capability detection without treating
-one emulator fingerprint as a device certification, then repeat the same
-Enforcing sequence on another independently implemented Android 14 camera
-stack.
+sources on the AOSP provider, or third-party application breadth. Automatic
+AOSP capability detection is now packaged separately as a fail-closed probe.
+The same archive has also completed KernelSU's real x86_64 module installer and
+command-line lifecycle on a second disposable AVD; the AVD-specific limitations
+and reproducible kernel build are recorded in
+[the KernelSU AVD harness](avd-kernelsu.md). The next platform gate is an
+independently implemented Android 14 camera stack.

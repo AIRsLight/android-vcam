@@ -793,9 +793,37 @@ def main() -> None:
         "provider_manifest", "provider_init_service", "provider_service_context",
         "provider_process_context", "camera_ids", "api1_camera_ids",
         "under_screen_camera", "route_scope", "virtual_camera_ids", "profile_adapter",
+        "/data/adb/ksud",
     ):
         if required_symbol not in device_probe:
             fail(f"device compatibility probe is missing: {required_symbol}")
+
+    ksu_build = (
+        ROOT / "tools" / "ci" / "build-kernelsu-avd14-x86_64.sh"
+    ).read_text(encoding="utf-8")
+    ksu_config = (
+        ROOT / "tools" / "ci" / "kernelsu-avd14-x86_64.config"
+    ).read_text(encoding="utf-8")
+    ksu_verify = (
+        ROOT / "tools" / "avd" / "verify-aosp14-kernelsu.ps1"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "7e35917775b8b3e3346a87f294e334e258bf15e6",
+        "932014ab5b2c9b74a3d11e2ec4d17dd10fc9442e",
+        "clang-r487747", "kernel_x86_64_dist",
+    ):
+        if required_symbol not in ksu_build:
+            fail(f"KernelSU AVD build is not reproducibly pinned: {required_symbol}")
+    for required_symbol in (
+        "CONFIG_KSU=y", "CONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER=y",
+    ):
+        if required_symbol not in ksu_config:
+            fail(f"KernelSU AVD config is missing: {required_symbol}")
+    for required_symbol in (
+        "debug version", "module install", "post-fs-data", "boot-completed",
+    ):
+        if required_symbol not in ksu_verify:
+            fail(f"KernelSU AVD verifier is missing: {required_symbol}")
 
     for installer in (
         ROOT / "aidl-provider-module" / "customize.sh",

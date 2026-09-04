@@ -214,6 +214,17 @@ case "$root_context" in
         if [ -d /data/adb/ap ]; then root_manager=apatch; else root_manager=magisk; fi
         ;;
 esac
+if [ "$root_manager" = none ]; then
+    if [ -d /data/adb/ap ]; then
+        root_manager=apatch
+    elif [ -x /data/adb/ksud ] || [ -d /data/adb/ksu ]; then
+        # ADB-rooted AOSP/AVD builds use the su domain rather than the ksu
+        # domain, so the process context alone cannot identify KernelSU.
+        root_manager=ksu
+    elif [ -d /data/adb/magisk ]; then
+        root_manager=magisk
+    fi
+fi
 
 fingerprint="$(prop ro.build.fingerprint)"
 sdk="$(prop ro.build.version.sdk)"

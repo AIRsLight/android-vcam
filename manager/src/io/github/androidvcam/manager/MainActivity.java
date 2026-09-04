@@ -734,7 +734,7 @@ public final class MainActivity extends Activity {
         if (displayName.isEmpty()) displayName = typeLabels[session.type.getSelectedItemPosition()];
         String source = isNetworkType(code) ? session.source.getText().toString().trim()
                 : session.existing == null ? "" : session.existing.source;
-        if (isNetworkType(code) && !source.startsWith(protocolPrefix(code))) {
+        if (isNetworkType(code) && !sourceMatchesType(code, source)) {
             showFormError(session, getString(R.string.provider_prefix_error, protocolPrefix(code)));
             return;
         }
@@ -1733,8 +1733,16 @@ public final class MainActivity extends Activity {
 
     private String protocolPrefix(String type) {
         if ("https".equals(type)) return "https://";
+        if ("hls".equals(type)) return "https://";
         if ("rtsp".equals(type)) return "rtsp://";
         return "http://";
+    }
+
+    private boolean sourceMatchesType(String type, String source) {
+        if ("hls".equals(type)) {
+            return source.startsWith("https://") || source.startsWith("http://");
+        }
+        return source.startsWith(protocolPrefix(type));
     }
 
     private int typeIndex(String type) {

@@ -11,6 +11,7 @@ Options:
   --abi ABI           arm64-v8a or x86_64 (default: arm64-v8a)
   --source-root PATH  FFmpeg checkout (default: .reference/ffmpeg)
   --output-root PATH  SDK output root (default: .reference/ffmpeg-android/ABI)
+  --mbedtls-root PATH Mbed TLS SDK root (default: .reference/mbedtls-android/ABI)
   --api N             Android API level (default: 31)
   --jobs N            make parallelism (default: host CPU count)
   -h, --help          show this help
@@ -28,6 +29,7 @@ ndk_root=
 abi=arm64-v8a
 source_root="$repo_root/.reference/ffmpeg"
 output_root=
+mbedtls_root=
 api=31
 jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')
 ffmpeg_tag=n4.2.2
@@ -38,6 +40,7 @@ while (($#)); do
         --abi) (($# >= 2)) || fail "--abi requires a value"; abi=$2; shift 2 ;;
         --source-root) (($# >= 2)) || fail "--source-root requires a value"; source_root=$2; shift 2 ;;
         --output-root) (($# >= 2)) || fail "--output-root requires a value"; output_root=$2; shift 2 ;;
+        --mbedtls-root) (($# >= 2)) || fail "--mbedtls-root requires a value"; mbedtls_root=$2; shift 2 ;;
         --api) (($# >= 2)) || fail "--api requires a value"; api=$2; shift 2 ;;
         --jobs) (($# >= 2)) || fail "--jobs requires a value"; jobs=$2; shift 2 ;;
         -h|--help) usage; exit 0 ;;
@@ -77,6 +80,13 @@ cxx="$bin/${target_triple}${api}-clang++"
 if [[ -z "$output_root" ]]; then
     output_root="$repo_root/.reference/ffmpeg-android/$abi"
 fi
+if [[ -z "$mbedtls_root" ]]; then
+    mbedtls_root="$repo_root/.reference/mbedtls-android/$abi"
+fi
+mbedtls_root=$(cd -- "$mbedtls_root" && pwd)
+for required in include/mbedtls/ssl.h lib/libmbedtls.a lib/libmbedx509.a lib/libmbedcrypto.a; do
+    [[ -s "$mbedtls_root/$required" ]] || fail "Mbed TLS SDK file is missing: $mbedtls_root/$required"
+done
 
 if [[ ! -e "$source_root/.git" ]]; then
     [[ ! -e "$source_root" ]] || fail "source path exists but is not a Git checkout: $source_root"
@@ -87,19 +97,23 @@ fi
 source_root=$(cd -- "$source_root" && pwd)
 actual_tag=$(git -C "$source_root" describe --tags --exact-match 2>/dev/null || true)
 [[ "$actual_tag" == "$ffmpeg_tag" ]] || fail "FFmpeg checkout must be exactly $ffmpeg_tag (found $actual_tag)"
+compat_patch="$repo_root/tools/patches/ffmpeg-4.2.2-mbedtls3.patch"
+patched_source_root="$repo_root/.reference/ffmpeg-patched/$ffmpeg_tag"
+rm -rf -- "$patched_source_root"
+mkdir -p "$patched_source_root"
+git -C "$source_root" archive "$ffmpeg_tag" | tar -x -C "$patched_source_root"
+patch -d "$patched_source_root" -p1 < "$compat_patch" >/dev/null ||
+    fail "FFmpeg Mbed TLS compatibility patch does not apply cleanly"
 
 build_root="$repo_root/.reference/ffmpeg-build/android-${abi}-api${api}"
+rm -rf -- "$build_root"
 mkdir -p "$build_root" "$output_root"
 build_root=$(cd -- "$build_root" && pwd)
 output_parent=$(cd -- "$(dirname -- "$output_root")" && pwd)
 output_root="$output_parent/$(basename -- "$output_root")"
 
 cd "$build_root"
-if [[ -f Makefile ]]; then
-    make distclean >/dev/null
-fi
-
-"$source_root/configure" \
+"$patched_source_root/configure" \
     --prefix="$output_root" \
     --target-os=android \
     --arch="$target_arch" \
@@ -117,6 +131,8 @@ fi
     --enable-pic \
     --enable-small \
     --enable-network \
+    --enable-mbedtls \
+    --enable-version3 \
     --disable-programs \
     --disable-doc \
     --disable-debug \
@@ -133,8 +149,8 @@ fi
     --disable-bzlib \
     --disable-lzma \
     --disable-symver \
-    --extra-cflags='-fPIC' \
-    --extra-ldflags='-Wl,-z,max-page-size=16384' \
+    --extra-cflags="-fPIC -I$mbedtls_root/include" \
+    --extra-ldflags="-Wl,-z,max-page-size=16384 -L$mbedtls_root/lib" \
     "${abi_configure_flags[@]}"
 
 make -j"$jobs"
@@ -145,6 +161,8 @@ for archive in libavformat.a libavcodec.a libswscale.a libswresample.a libavutil
 done
 "$bin/llvm-nm" -g --defined-only "$output_root/lib/libavformat.a" | \
     grep 'ff_rtsp_demuxer' >/dev/null || fail "built libavformat does not contain the RTSP demuxer"
+"$bin/llvm-nm" -g --defined-only "$output_root/lib/libavformat.a" | \
+    grep 'ff_tls_protocol' >/dev/null || fail "built libavformat does not contain the TLS protocol"
 
 {
     printf 'ffmpeg_tag=%s\n' "$ffmpeg_tag"

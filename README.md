@@ -74,8 +74,10 @@ profile. See [Android 14 capability probing](docs/aosp14-capability-probe.md).
 - Provider intent is persisted separately from runtime state, allowing network
   sources that start before Wi-Fi routing is ready to retry after boot completes.
 - A self-contained, statically linked FFmpeg 4.2.2 decoder handles local,
-  HTTP, HTTP-HLS and RTSP input without relying on the ROM's reduced protocol
-  set. Network preview and provider startup both require a decoded first frame.
+  HTTP, HTTP/HTTPS-HLS and RTSP input without relying on the ROM's reduced
+  protocol set. HTTPS HLS uses a pinned Mbed TLS 3.6.7 LTS build and Android's
+  system CA store. Network preview and provider startup both require a decoded
+  first frame.
 - HTTPS video files are downloaded through a bundled `app_process` helper that
   uses Android's platform TLS implementation and trusted certificate store,
   then decoded in the background.
@@ -219,13 +221,19 @@ pwsh -File tools/fetch-platform-deps.ps1
 pwsh -File tools/package-supported-release.ps1
 ```
 
-Build the pinned static FFmpeg SDK once on Linux (the CI builder uses NDK
-r27d), then place its `arm64-v8a` output under
-`.reference/ffmpeg-android/arm64-v8a` before running `build-native.ps1`:
+Build the pinned static Mbed TLS and FFmpeg SDKs once on Linux (the CI builder
+uses NDK r27d), then place their `arm64-v8a` outputs under `.reference` before
+running `build-native.ps1`:
 
 ```bash
-tools/build-ffmpeg-android.sh --ndk-root /path/to/android-ndk-r27d
+tools/build-mbedtls-android.sh --ndk-root /path/to/android-ndk-r27d
+tools/build-ffmpeg-android.sh --ndk-root /path/to/android-ndk-r27d \
+  --mbedtls-root .reference/mbedtls-android/arm64-v8a
 ```
+
+The TLS-enabled FFmpeg configuration is LGPL v3-or-later. See
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for component versions,
+licenses, and source locations.
 
 Outputs:
 

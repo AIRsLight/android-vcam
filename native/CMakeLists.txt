@@ -138,12 +138,24 @@ set(FFMPEG_ANDROID_ROOT "${AOSP_REF}/ffmpeg-android/${ANDROID_ABI}" CACHE PATH
     "Pinned static FFmpeg SDK built for the selected Android ABI")
 set(FFMPEG_INCLUDE_DIR "${FFMPEG_ANDROID_ROOT}/include")
 set(FFMPEG_LIBRARY_DIR "${FFMPEG_ANDROID_ROOT}/lib")
+set(MBEDTLS_ANDROID_ROOT "${AOSP_REF}/mbedtls-android/${ANDROID_ABI}" CACHE PATH
+    "Pinned static Mbed TLS SDK built for the selected Android ABI")
 if(EXISTS "${FFMPEG_INCLUDE_DIR}/libavformat/avformat.h" AND
    EXISTS "${FFMPEG_LIBRARY_DIR}/libavformat.a")
     foreach(ffmpeg_library IN ITEMS avutil avcodec avformat swscale swresample)
         add_library("bundled_${ffmpeg_library}" STATIC IMPORTED)
         set_target_properties("bundled_${ffmpeg_library}" PROPERTIES
             IMPORTED_LOCATION "${FFMPEG_LIBRARY_DIR}/lib${ffmpeg_library}.a")
+    endforeach()
+    foreach(mbedtls_library IN ITEMS mbedtls mbedx509 mbedcrypto)
+        set(mbedtls_path "${MBEDTLS_ANDROID_ROOT}/lib/lib${mbedtls_library}.a")
+        if(NOT EXISTS "${mbedtls_path}")
+            message(FATAL_ERROR
+                "Pinned static Mbed TLS SDK missing: ${mbedtls_path}. Run tools/build-mbedtls-android.sh")
+        endif()
+        add_library("bundled_${mbedtls_library}" STATIC IMPORTED)
+        set_target_properties("bundled_${mbedtls_library}" PROPERTIES
+            IMPORTED_LOCATION "${mbedtls_path}")
     endforeach()
     add_executable(vcam_streamer stream_provider.c)
     set_target_properties(vcam_streamer PROPERTIES OUTPUT_NAME vcam-streamer)
@@ -152,7 +164,7 @@ if(EXISTS "${FFMPEG_INCLUDE_DIR}/libavformat/avformat.h" AND
     target_link_libraries(vcam_streamer PRIVATE
         "-Wl,--start-group"
         bundled_avformat bundled_avcodec bundled_swscale bundled_swresample
-        bundled_avutil
+        bundled_avutil bundled_mbedtls bundled_mbedx509 bundled_mbedcrypto
         "-Wl,--end-group"
         z m dl)
 else()

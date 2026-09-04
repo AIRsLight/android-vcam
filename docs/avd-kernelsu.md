@@ -199,3 +199,14 @@ TLS and trust store, permits only HTTPS redirects, and bounds downloads at 2
 GiB. A W3C-hosted HTTPS MP4 passed both source preview and routed Camera2
 playback. A self-signed endpoint was rejected by certificate validation and
 left no partial cache file.
+
+HTTPS HLS is qualified separately because a playlist performs multiple TLS
+requests after the initial manifest. The x86_64 streamer was rebuilt with
+Mbed TLS 3.6.7 LTS, populated its trust bundle from Android's Conscrypt CA
+store, and propagated certificate options to child HLS requests. An Apple
+HTTPS HLS media playlist produced continuously advancing `VCAMYUV1` frames;
+the ordinary test APK opened public camera `1`, which the router mapped to
+internal camera `1000`, and displayed the stream at 1280x720. A self-signed
+TLS endpoint failed the handshake and returned no preview. This run also found
+and fixed domain-name resolution: the post-root decoder now retains only the
+`inet` supplementary group required to access Android's DNS proxy.

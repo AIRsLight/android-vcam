@@ -62,6 +62,7 @@ require_equal "fingerprint" "$(getprop ro.build.fingerprint)" "$TARGET_FINGERPRI
 [ -f "$STREAM_PROVIDER" ] || abort "! Packaged stream provider is missing"
 [ -f "$CONTROL_DAEMON" ] || abort "! Packaged control daemon is missing"
 [ -f "$HTTPS_DOWNLOADER" ] || abort "! Packaged HTTPS downloader is missing"
+[ -f "$MODPATH/tls-ca.sh" ] || abort "! Packaged TLS CA helper is missing"
 
 actual_hash="$(sha256sum "$HAL_PATH" | awk '{print $1}')"
 if [ "$actual_hash" != "$TARGET_HAL_HASH" ] && [ "$actual_hash" != "$LEGACY_HAL_HASH" ]; then
@@ -116,3 +117,4 @@ set_perm "$MODPATH/action.sh" 0 0 0755
 set_perm "$MODPATH/vcamctl" 0 0 0755
 set_perm "$MODPATH/provider-runner.sh" 0 0 0755
 set_perm "$MODPATH/device-probe.sh" 0 0 0755
+set_perm "$MODPATH/tls-ca.sh" 0 0 0755

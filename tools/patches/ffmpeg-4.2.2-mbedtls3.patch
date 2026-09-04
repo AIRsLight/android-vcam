@@ -1,0 +1,91 @@
+diff --git a/libavformat/hls.c b/libavformat/hls.c
+index 8c12fce..e34556b 100644
+--- a/libavformat/hls.c
++++ b/libavformat/hls.c
+@@ -1651,7 +1651,8 @@ static int save_avio_options(AVFormatContext *s)
+ {
+     HLSContext *c = s->priv_data;
+     static const char * const opts[] = {
+-        "headers", "http_proxy", "user_agent", "cookies", "referer", "rw_timeout", NULL };
++        "headers", "http_proxy", "user_agent", "cookies", "referer", "rw_timeout",
++        "tls_verify", "ca_file", NULL };
+     const char * const * opt = opts;
+     uint8_t *buf;
+     int ret = 0;
+diff --git a/libavformat/tls_mbedtls.c b/libavformat/tls_mbedtls.c
+index 9b80a1e..e4c4fc0 100644
+--- a/libavformat/tls_mbedtls.c
++++ b/libavformat/tls_mbedtls.c
+@@ -19,7 +19,6 @@
+  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+  */
+
+-#include <mbedtls/certs.h>
+-#include <mbedtls/config.h>
++#include <mbedtls/mbedtls_config.h>
+ #include <mbedtls/ctr_drbg.h>
+ #include <mbedtls/entropy.h>
+@@ -27,6 +26,7 @@
+ #include <mbedtls/platform.h>
+ #include <mbedtls/ssl.h>
+ #include <mbedtls/x509_crt.h>
++#include <mbedtls/version.h>
+
+ #include "avformat.h"
+ #include "internal.h"
+@@ -129,8 +129,10 @@ static void handle_handshake_error(URLContext *h, int ret)
+ {
+     switch (ret) {
++#ifdef MBEDTLS_ERR_SSL_NO_USABLE_CIPHERSUITE
+     case MBEDTLS_ERR_SSL_NO_USABLE_CIPHERSUITE:
+         av_log(h, AV_LOG_ERROR, "None of the common ciphersuites is usable. Was the local certificate correctly set?\n");
+         break;
++#endif
+     case MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE:
+         av_log(h, AV_LOG_ERROR, "A fatal alert message was received from the peer, has the peer a correct certificate?\n");
+         break;
+@@ -178,6 +178,16 @@ static int tls_open(URLContext *h, const char *uri, int flags, AVDictionary **op
+     mbedtls_x509_crt_init(&tls_ctx->ca_cert);
+     mbedtls_pk_init(&tls_ctx->priv_key);
+
++    // Mbed TLS 3 requires an RNG when parsing private keys. Seed it before
++    // optional client-key loading so the same code supports 2.x and 3.x.
++    if ((ret = mbedtls_ctr_drbg_seed(&tls_ctx->ctr_drbg_context,
++                                     mbedtls_entropy_func,
++                                     &tls_ctx->entropy_context,
++                                     NULL, 0)) != 0) {
++        av_log(h, AV_LOG_ERROR, "mbedtls_ctr_drbg_seed returned %d\n", ret);
++        goto fail;
++    }
++
+     // load trusted CA
+     if (shr->ca_file) {
+         if ((ret = mbedtls_x509_crt_parse_file(&tls_ctx->ca_cert, shr->ca_file)) != 0) {
+@@ -198,21 +208,17 @@ static int tls_open(URLContext *h, const char *uri, int flags, AVDictionary **op
+     if (shr->key_file) {
+         if ((ret = mbedtls_pk_parse_keyfile(&tls_ctx->priv_key,
+                                             shr->key_file,
+-                                            tls_ctx->priv_key_pw)) != 0) {
++                                            tls_ctx->priv_key_pw
++#if MBEDTLS_VERSION_MAJOR >= 3
++                                            , mbedtls_ctr_drbg_random,
++                                            &tls_ctx->ctr_drbg_context
++#endif
++                                            )) != 0) {
+             handle_pk_parse_error(h, ret);
+             goto fail;
+         }
+     }
+
+-    // seed the random number generator
+-    if ((ret = mbedtls_ctr_drbg_seed(&tls_ctx->ctr_drbg_context,
+-                                     mbedtls_entropy_func,
+-                                     &tls_ctx->entropy_context,
+-                                     NULL, 0)) != 0) {
+-        av_log(h, AV_LOG_ERROR, "mbedtls_ctr_drbg_seed returned %d\n", ret);
+-        goto fail;
+-    }
+-
+     if ((ret = mbedtls_ssl_config_defaults(&tls_ctx->ssl_config,
+                                            shr->listen ? MBEDTLS_SSL_IS_SERVER : MBEDTLS_SSL_IS_CLIENT,
+                                            MBEDTLS_SSL_TRANSPORT_STREAM,

@@ -58,7 +58,7 @@ $libraries = @(
 )
 $configFiles = @("emu_camera_back.json", "emu_camera_front.json")
 $backendBinaries = @("vcam-streamer", "vcam-publisher", "vcamd")
-$backendScripts = @("vcamctl", "provider-runner.sh", "device-probe.sh")
+$backendScripts = @("vcamctl", "provider-runner.sh", "device-probe.sh", "tls-ca.sh")
 
 $required = @((Join-Path $artifactRootPath $binaryName))
 $required += $libraries | ForEach-Object {
@@ -113,6 +113,8 @@ if (Test-Path -LiteralPath $stagingRoot) {
 New-Item -ItemType Directory -Force -Path $stagingRoot | Out-Null
 Copy-Item -Path (Join-Path $templateRoot "*") -Destination $stagingRoot `
     -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $sourceRoot "THIRD_PARTY_NOTICES.md") `
+    -Destination $stagingRoot
 
 $moduleProp = Join-Path $stagingRoot "module.prop"
 $modulePropText = [System.IO.File]::ReadAllText($moduleProp)
@@ -158,7 +160,8 @@ $backendPayloads = @(
     "system/framework/vcam-https-downloader.jar",
     "vcamctl",
     "provider-runner.sh",
-    "device-probe.sh"
+    "device-probe.sh",
+    "tls-ca.sh"
 )
 if ($usingBackend) {
     $manifestLines = foreach ($relativePath in $backendPayloads) {

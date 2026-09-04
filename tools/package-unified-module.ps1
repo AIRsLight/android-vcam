@@ -41,7 +41,7 @@ function Copy-DirectoryContents([string]$Source, [string]$Destination) {
 }
 
 function Remove-ProfileMetadata([string]$ProfileRoot) {
-    foreach ($name in @("module.prop", "README.md", "skip_mount")) {
+    foreach ($name in @("module.prop", "README.md", "THIRD_PARTY_NOTICES.md", "skip_mount")) {
         $path = Join-Path $ProfileRoot $name
         if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
     }
@@ -124,6 +124,8 @@ $policyLines = $policyLines | Where-Object { $_ -ne $null } | Select-Object -Uni
 Remove-Item -LiteralPath $routerPolicy -Force
 
 Copy-DirectoryContents (Join-Path $repoRoot "unified-module") $stagingRoot
+Copy-Item -LiteralPath (Join-Path $repoRoot "THIRD_PARTY_NOTICES.md") `
+    -Destination $stagingRoot
 $profilesRoot = Join-Path $stagingRoot "payload/profiles"
 $oneplusProfile = Join-Path $profilesRoot "oneplus7pro-p202303230244"
 $nxProfile = Join-Path $profilesRoot "nx769j-ukq1-20240417"

@@ -128,6 +128,10 @@ def main() -> None:
         ROOT / "docs" / "device-profiles" / "nx769j-android14.md",
         ROOT / "docs" / "milestones.md",
         ROOT / "tools" / "build-ffmpeg-android.sh",
+        ROOT / "tools" / "build-mbedtls-android.sh",
+        ROOT / "tools" / "patches" / "ffmpeg-4.2.2-mbedtls3.patch",
+        ROOT / "apmodule" / "tls-ca.sh",
+        ROOT / "THIRD_PARTY_NOTICES.md",
     ]
     for path in required:
         if not path.is_file():
@@ -327,7 +331,8 @@ def main() -> None:
     ).read_text(encoding="utf-8")
     for required_symbol in (
         "NativeArtifactRoot", "vcam-streamer", "vcam-publisher", "vcamd",
-        "provider-runner.sh", "device-probe.sh", "backend.sha256",
+        "provider-runner.sh", "device-probe.sh", "tls-ca.sh", "backend.sha256",
+        "THIRD_PARTY_NOTICES.md",
     ):
         if required_symbol not in aidl_packager:
             fail(f"AIDL provider package lacks backend payload: {required_symbol}")
@@ -506,12 +511,19 @@ def main() -> None:
         "AV_PIX_FMT_YUV420P", "MAX_SOURCE_DIMENSION", "MAX_SOURCE_PIXELS",
         "MAX_PIXEL_RATE", "kYuvMagic", "avcodec_send_packet(codec, NULL)",
         "awaiting_keyframe", "live_keyframes_seen", "AV_FRAME_FLAG_CORRUPT",
+        "ANDROID_VCAM_CA_FILE", "tls_verify", "INET_AID",
     ):
         if required_symbol not in streamer:
             fail(f"stream provider lacks high-resolution YUV support: {required_symbol}")
     provider_runner = (
         ROOT / "apmodule" / "provider-runner.sh"
     ).read_text(encoding="utf-8")
+    tls_helper = (ROOT / "apmodule" / "tls-ca.sh").read_text(encoding="utf-8")
+    for required_symbol in (
+        "hls:https://*", "vcam_prepare_ca_bundle", "ANDROID_VCAM_CA_FILE",
+    ):
+        if required_symbol not in controller + provider_runner + tls_helper:
+            fail(f"HTTPS HLS backend is missing: {required_symbol}")
     for script_name, script_text in (
         ("vcamctl", controller), ("provider-runner.sh", provider_runner),
     ):
@@ -919,7 +931,7 @@ def main() -> None:
         ROOT / "aidl-provider-module" / "sepolicy.rule"
     ).read_text(encoding="utf-8")
     for required_symbol in (
-        "aosp14-avd-api34-ue1a-r23", "expected_fcm=7", "backend_required=0",
+        "aosp14-avd-api34-ue1a-r23", "expected_fcm=7", "backend_required=1",
         "52fa175391f4bc753e5cddd6d541ceff4b4c83dd657aa0cc1e6edbe8deaec751",
     ):
         if required_symbol not in aidl_provider_installer:

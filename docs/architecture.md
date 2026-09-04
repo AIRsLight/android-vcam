@@ -80,11 +80,12 @@ frames live at `/data/vendor/camera/vcam/providers/<id>/frame.rgb`; the
 presence of `enabled` activates that provider. Missing or disabled providers
 currently fall back to the target camera's physical source.
 
-Remote providers run one background `vcam-streamer` process. FFmpeg 4.2.2 is
-linked statically into that executable so RTSP/HTTP/HLS availability does not
-depend on a vendor `libavformat.so`. The runner enters APatch's `magisk` domain
-only to inherit Android's default-network routing; `vcam-streamer` immediately
-drops to the `camera` UID before opening a socket or parsing media. It scales
+Remote providers run one background `vcam-streamer` process. FFmpeg 4.2.2 and
+Mbed TLS 3.6.7 LTS are linked statically into that executable so
+RTSP/HTTP/HTTP-HLS/HTTPS-HLS availability does not depend on vendor media or
+TLS libraries. The runner enters the SU manager's network-capable domain and
+`vcam-streamer` immediately drops to the `camera` UID, retaining only Android's
+`inet` supplementary group for sockets and DNS, before parsing media. It scales
 to the configured source limit and atomically publishes planar `VCAMYUV1`
 frames. RGB frames from older managers remain readable. The YUV path halves
 the provider-frame payload and removes the redundant RGB-to-YUV conversion in
@@ -100,8 +101,12 @@ portable enough to make an in-process MediaCodec path a safe default. Such a
 service must always fall back to this software/YUV path when configuration or
 output-layout negotiation fails.
 HTTPS files use the module's small `app_process` helper and Android's platform
-TLS implementation before decoding, so the backend does not depend on a
-vendor-provided `curl` binary or ship a second certificate stack.
+TLS implementation before decoding. HTTPS HLS cannot be downloaded as one
+file, so its FFmpeg transport uses the bundled Mbed TLS stack with a PEM bundle
+generated from Android's read-only system CA directory. Certificate checking
+is forced on, and `tls_verify` plus `ca_file` are propagated from a master
+playlist to variant playlists, media segments, and keys. Neither path depends
+on a vendor-provided `curl` binary.
 
 Stopping a remote provider waits for its runner and decoder children to exit
 before removing transient state or starting a replacement. This prevents an old

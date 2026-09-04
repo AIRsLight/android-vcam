@@ -358,7 +358,7 @@ provider_update() {
     source=$(printf '%s' "$source_b64" | base64 -d 2>/dev/null) || return 2
     case "$type:$source" in
         pattern:|image:|video:*) ;;
-        https:https://*|http:http://*|hls:http://*|rtsp:rtsp://*) ;;
+        https:https://*|http:http://*|hls:http://*|hls:https://*|rtsp:rtsp://*) ;;
         *) echo "source URL does not match provider type" >&2; return 2 ;;
     esac
     backup="$meta.backup-$$"
@@ -531,7 +531,7 @@ preview_source() {
     }
     source=$(printf '%s' "$source_b64" | base64 -d 2>/dev/null) || return 2
     case "$type:$source" in
-        rtsp:rtsp://*|http:http://*|https:https://*|hls:http://*) ;;
+        rtsp:rtsp://*|http:http://*|https:https://*|hls:http://*|hls:https://*) ;;
         *) echo "source URL does not match provider type" >&2; return 2 ;;
     esac
 
@@ -559,6 +559,16 @@ preview_source() {
         chown camera:camera "$preview_input"
         chmod 0640 "$preview_input"
         label_runtime_path "$preview_input"
+    elif [ "$type" = hls ]; then
+        tls_helper="$MODDIR/tls-ca.sh"
+        [ -r "$tls_helper" ] || {
+            echo "TLS CA helper not found" >&2
+            return 6
+        }
+        . "$tls_helper"
+        ca_bundle="$preview_dir/ca-bundle.pem"
+        vcam_prepare_ca_bundle "$ca_bundle" || return 6
+        export ANDROID_VCAM_CA_FILE="$ca_bundle"
     fi
     run_privileged_tool "$streamer" \
         "$preview_input" "$frame" 1 576 324 --once || return 6

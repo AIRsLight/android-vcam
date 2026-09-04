@@ -22,6 +22,7 @@
 
 #define HEADER_SIZE 24
 #define CAMERA_AID 1006
+#define INET_AID 3003
 #define MAX_SOURCE_DIMENSION 4096
 #define MAX_SOURCE_PIXELS (4096ULL * 3072ULL)
 #define MAX_PIXEL_RATE (1920ULL * 1080ULL * 60ULL)
@@ -32,7 +33,9 @@ static volatile sig_atomic_t gRunning = 1;
 
 static int drop_to_camera(void) {
     if (getuid() == 0) {
-        if (setgroups(0, NULL) != 0 || setgid(CAMERA_AID) != 0 ||
+        const gid_t supplementary_groups[] = {INET_AID};
+        if (setgroups(1, supplementary_groups) != 0 ||
+            setgid(CAMERA_AID) != 0 ||
             setuid(CAMERA_AID) != 0) {
             fprintf(stderr, "vcam-streamer: unable to drop to camera uid: %s\n",
                     strerror(errno));
@@ -155,6 +158,16 @@ static int decode_source(const char* source, const char* output_path,
     av_dict_set(&options, "stimeout", "10000000", 0);
     av_dict_set(&options, "rtsp_transport", "tcp", 0);
     av_dict_set(&options, "user_agent", "android-vcam/0.3", 0);
+    const char* ca_file = getenv("ANDROID_VCAM_CA_FILE");
+    if (ca_file != NULL && ca_file[0] != '\0') {
+        av_dict_set(&options, "tls_verify", "1", 0);
+        av_dict_set(&options, "ca_file", ca_file, 0);
+    } else if (strncmp(source, "https://", 8) == 0) {
+        fprintf(stderr, "vcam-streamer: HTTPS requires an Android CA bundle\n");
+        result = AVERROR(EACCES);
+        av_dict_free(&options);
+        goto cleanup;
+    }
     result = avformat_open_input(&format, source, NULL, &options);
     av_dict_free(&options);
     if (result < 0) goto cleanup;

@@ -103,7 +103,8 @@ if [ "$backend_required" = 1 ]; then
         "$https_downloader" \
         "$MODPATH/vcamctl" \
         "$MODPATH/provider-runner.sh" \
-        "$MODPATH/device-probe.sh"; do
+        "$MODPATH/device-probe.sh" \
+        "$MODPATH/tls-ca.sh"; do
         [ -f "$required" ] || abort "! Required backend file is missing: $required"
     done
     (cd "$MODPATH" && sha256sum -c payload/backend.sha256 >/dev/null) || \
@@ -121,6 +122,7 @@ if [ "$backend_required" = 1 ]; then
     set_perm "$MODPATH/vcamctl" 0 0 0755
     set_perm "$MODPATH/provider-runner.sh" 0 0 0755
     set_perm "$MODPATH/device-probe.sh" 0 0 0755
+    set_perm "$MODPATH/tls-ca.sh" 0 0 0755
 fi
 set_perm "$fragment" 0 0 0644
 for config_dir in "$vendor_etc" "$vintf_dir" "$manifest_dir"; do

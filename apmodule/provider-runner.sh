@@ -62,6 +62,17 @@ run_streamer() {
     run_privileged_tool "$streamer" \
         "$1" "$frame" "$fps" "$max_width" "$max_height"
 }
+prepare_hls_tls() {
+    tls_helper="$MODDIR/tls-ca.sh"
+    [ -r "$tls_helper" ] || {
+        echo "TLS CA helper not found" >&2
+        return 69
+    }
+    . "$tls_helper"
+    ca_bundle="$FRAME_DIR/$id/ca-bundle.pem"
+    vcam_prepare_ca_bundle "$ca_bundle" || return 69
+    export ANDROID_VCAM_CA_FILE="$ca_bundle"
+}
 case "$type" in
     https)
         cache="$FRAME_DIR/$id/remote-video.cache"
@@ -86,7 +97,11 @@ case "$type" in
         fi
         run_streamer "$cache"
         ;;
-    http|hls|rtsp|video)
+    hls)
+        prepare_hls_tls || exit $?
+        run_streamer "$source"
+        ;;
+    http|rtsp|video)
         run_streamer "$source"
         ;;
     *)

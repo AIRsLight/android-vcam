@@ -65,6 +65,8 @@ if (Test-Path -LiteralPath $staging) {
     Remove-Item -LiteralPath $resolvedStaging -Recurse -Force
 }
 Copy-Item -LiteralPath (Join-Path $root "apmodule") -Destination $staging -Recurse
+Copy-Item -LiteralPath (Join-Path $root "THIRD_PARTY_NOTICES.md") `
+    -Destination $staging
 $profileProp = Join-Path $staging "module.prop"
 $profilePropText = [IO.File]::ReadAllText($profileProp)
 $profilePropText = [Text.RegularExpressions.Regex]::Replace(

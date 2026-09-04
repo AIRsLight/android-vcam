@@ -139,7 +139,7 @@
     <string name="provider_physical">Physical camera</string>
     <string-array name="provider_type_labels">
         <item>Built-in color bars</item><item>Still image</item><item>On-device video</item>
-        <item>HTTPS video file</item><item>HTTP video / stream</item><item>HLS (HTTP)</item><item>RTSP</item>
+        <item>HTTPS video file</item><item>HTTP video / stream</item><item>HLS</item><item>RTSP</item>
     </string-array>
     <string name="routes_not_loaded">Routes not loaded</string>
     <string name="routes_reading">Reading routes…</string>

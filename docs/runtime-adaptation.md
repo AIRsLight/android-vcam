@@ -411,6 +411,22 @@ receive this template. A candidate must still pass deterministic live Camera1,
 Camera2, metadata, listener and torch probes before a later activation stage
 can promote it; model or manufacturer names never authorize routing.
 
+## Runtime policy boundary
+
+Binary/protocol probing does not authorize broad SELinux permissions. Persistent
+routes and provider frames live under the project-owned
+`vcam_camera_data_file` type rather than an optional OEM camera-data type.
+CameraService and the provider receive read-only access; only the root-owned
+backend receives mutation rights. Failure to create or apply that label disables
+activation instead of falling back to a generic vendor-data label.
+
+For a product build, `service_contexts` maps the exact `vcam/0` provider instance
+to `hal_camera_service`. A systemless VINTF overlay is visible too late to alter
+servicemanager's boot-loaded table on the tested AOSP 14 image, where the new
+instance falls back to `default_android_service`. The systemless policy grants
+only the required add/find operations for that probed case. It does not use a
+wildcard service-manager allow and does not infer an OEM type name.
+
 ## Planned activation architecture
 
 The compatible path is deliberately split into three layers:

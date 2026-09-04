@@ -63,6 +63,11 @@ def main() -> None:
         ROOT / "tools" / "device-cameraserver-bootstrap-probe.sh",
         ROOT / "tools" / "fetch-aosp14-router-artifacts.ps1",
         ROOT / "tools" / "stage-cameraserver-bootstrap.ps1",
+        ROOT / "tools" / "avd" / "android-vcam-provider-enforcing.rc",
+        ROOT / "tools" / "avd" / "aosp14-enforcing-sepolicy.rule",
+        ROOT / "tools" / "avd" / "aosp14-sepolicy-boardconfig.patch",
+        ROOT / "tools" / "avd" / "aosp14-sepolicy-build-isolation.patch",
+        ROOT / "tools" / "avd" / "verify-aosp14-sepolicy.sh",
         ROOT / "tools" / "package-portable-bootstrap.ps1",
         ROOT / "tools" / "package-aosp14-hidl-provider.ps1",
         ROOT / "tools" / "package-aosp14-aidl-provider.ps1",
@@ -93,6 +98,8 @@ def main() -> None:
         ROOT / "aidl-provider-module" / "uninstall.sh",
         ROOT / "aidl-provider-module" / "sepolicy.rule",
         ROOT / "aidl-provider-module" / "README.md",
+        ROOT / "aosp" / "provider" / "sepolicy" /
+        "vcam_camera_data_file.te",
         ROOT / "aidl-provider-module" / "system" / "vendor" / "etc" / "vintf" /
         "manifest" / "android.hardware.camera.provider-service-vcam-v2.xml",
         ROOT / "tools" / "run-signal-quiescence-device-test.ps1",
@@ -591,6 +598,34 @@ def main() -> None:
     ).read_text(encoding="utf-8")
     if "android\\.hardware\\.camera\\.provider-service-vcam-v2" not in provider_file_contexts:
         fail("Android 14 provider executable lacks a hal_camera_default_exec mapping")
+    if "/data/vendor/camera/vcam(/.*)?" not in provider_file_contexts:
+        fail("VCAM runtime data lacks a product SELinux file-context mapping")
+    provider_data_policy = (
+        ROOT / "aosp" / "provider" / "sepolicy" /
+        "vcam_camera_data_file.te"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "type vcam_camera_data_file, file_type, data_file_type;",
+        "allow cameraserver vcam_camera_data_file:dir",
+        "allow hal_camera_default vcam_camera_data_file:file",
+    ):
+        if required_symbol not in provider_data_policy:
+            fail(f"VCAM product data policy is missing: {required_symbol}")
+    module_data_policy = (
+        ROOT / "aidl-provider-module" / "sepolicy.rule"
+    ).read_text(encoding="utf-8")
+    portable_policy = (
+        ROOT / "portable-module" / "sepolicy.rule"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "type vcam_camera_data_file",
+        "type vcam_camera_data_file file_type",
+        "allow ksu vcam_camera_data_file file",
+    ):
+        if required_symbol not in module_data_policy:
+            fail(f"VCAM systemless data policy is missing: {required_symbol}")
+    if "vendor_camera_data_file" in portable_policy:
+        fail("portable router still depends on an OEM camera-data type")
     cameraservice14_patch = (
         ROOT / "aosp" / "cameraservice" / "android-14" / "frameworks-av.patch"
     ).read_text(encoding="utf-8")

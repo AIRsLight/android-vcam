@@ -1,0 +1,9 @@
+type vcam_camera_data_file, file_type, data_file_type;
+
+# CameraService resolves only route metadata. The provider also consumes the
+# selected frame and per-camera view configuration, but neither component may
+# mutate backend-owned state.
+allow cameraserver vcam_camera_data_file:dir { getattr open read search };
+allow cameraserver vcam_camera_data_file:file { getattr open read };
+allow hal_camera_default vcam_camera_data_file:dir { getattr open read search };
+allow hal_camera_default vcam_camera_data_file:file { getattr map open read };

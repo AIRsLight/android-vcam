@@ -1,0 +1,14 @@
+diff --git a/core/tasks/tools/compatibility.mk b/core/tasks/tools/compatibility.mk
+index ecb27d063..3ef6fa018 100644
+--- a/core/tasks/tools/compatibility.mk
++++ b/core/tasks/tools/compatibility.mk
+@@ -70,4 +70,7 @@
+ # Include host shared libraries
+-host_shared_libs := $(call copy-many-files, $(COMPATIBILITY.$(test_suite_name).HOST_SHARED_LIBRARY.FILES))
+-
++# A policy-only build does not package compatibility suites. Keeping this copy
++# active with ALLOW_MISSING_DEPENDENCIES can manufacture host-root destinations
++# such as /lib/libbase.so before the SELinux target is reached.
++host_shared_libs :=
++
+ $(if $(strip $(host_shared_libs)),\

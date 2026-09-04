@@ -1,4 +1,4 @@
 allow cameraserver cameraserver_tmpfs dir { search read write add_name remove_name getattr }
 allow cameraserver cameraserver_tmpfs file { create open read write getattr unlink }
-allow cameraserver vendor_camera_data_file dir { search read open getattr }
-allow cameraserver vendor_camera_data_file file { open read getattr }
+allow cameraserver vcam_camera_data_file dir { search read open getattr }
+allow cameraserver vcam_camera_data_file file { open read getattr }

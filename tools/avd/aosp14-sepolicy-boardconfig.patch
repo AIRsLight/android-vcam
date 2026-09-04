@@ -1,0 +1,8 @@
+diff --git a/target/board/generic_x86_64/BoardConfig.mk b/target/board/generic_x86_64/BoardConfig.mk
+index e78831278..729a744f9 100755
+--- a/target/board/generic_x86_64/BoardConfig.mk
++++ b/target/board/generic_x86_64/BoardConfig.mk
+@@ -47 +47,3 @@
+ endif # !BUILDING_GSI
++
++BOARD_VENDOR_SEPOLICY_DIRS += vendor/android_vcam_policycheck/sepolicy

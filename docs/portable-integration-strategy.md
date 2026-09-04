@@ -1,7 +1,8 @@
 # Portable system integration strategy
 
-Status: AOSP Android 14 AVD bootstrap and pass-through qualified; production
-SELinux delivery and OEM requalification are pending.
+Status: AOSP Android 14 AVD bootstrap, global routing and SELinux Enforcing
+qualified; automatic systemless delivery and broader OEM requalification are
+pending.
 
 ## Decision
 
@@ -206,6 +207,14 @@ The expected maintained surface is:
 | Mount/recovery | APatch and KernelSU capability backends | Root implementation only |
 | SELinux/VINTF/init facts | Generated device profile plus small policy recipe | Yes, declarative |
 | Live code hook | Exact binary recipe | Yes, fallback only |
+
+Portable policy must not reference a camera-data type supplied by one OEM.
+VCAM owns `vcam_camera_data_file` for `/data/vendor/camera/vcam`, grants the
+backend scoped write access, and grants cameraserver/provider read-only access.
+An integrated product also installs the exact `vcam/0 -> hal_camera_service`
+service context. A systemless fragment cannot change servicemanager's already
+loaded context table, so the dynamic policy may need a narrowly scoped
+`default_android_service` fallback after capability probing.
 
 The transaction router must never infer an unknown Parcel layout. Each adapter
 is compiled against a pinned AOSP tag and validates the interface token,

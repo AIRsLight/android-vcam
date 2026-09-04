@@ -93,6 +93,8 @@ def main() -> None:
             fail("NX unified Provider mode is not persistent")
         for rule in (
             "allow ksu default_android_service service_manager { add find }",
+            "type vcam_camera_data_file",
+            "allow cameraserver vcam_camera_data_file file",
         ):
             if rule not in nx_policy:
                 fail(f"NX merged SELinux policy lacks: {rule}")

@@ -7,7 +7,7 @@ separate Android-version behavior from NX769J vendor behavior.
 
 | Field | Value |
 | --- | --- |
-| Qualification date | 2026-09-03 |
+| Qualification date | 2026-09-04 |
 | AVD | `vcam_aosp14_api34` |
 | System image | `system-images;android-34;default;x86_64` revision 4 |
 | Android / SDK | 14 / 34 |
@@ -55,7 +55,7 @@ With SELinux Enforcing, `stock` mode started this in-process CameraService,
 published `media.camera`, and enumerated device 10. The launcher hash was
 `8d6ed0073b6cb6bee9be775dfbe66d9e80e87af531c695f24044546c9ddb17e0`.
 
-## Router gates
+## Initial system-image staging gate
 
 Directly copying files into a writable AVD system image does not install the
 root module's `sepolicy.rule`. Under Enforcing, creation of the guarded marker
@@ -64,7 +64,8 @@ CameraService, kept `media.camera` available, did not map the router and left no
 pending marker. This is the expected safe-fallback result, not a router-policy
 qualification.
 
-SELinux was then made Permissive only for the disposable AVD functional test:
+SELinux was initially made Permissive only for the disposable AVD functional
+bring-up. This result was later superseded by the complete Enforcing gate below:
 
 1. `preflight` mapped the router, verified the original local CameraService
    Binder and cleared the pending marker without replacing the service;
@@ -136,8 +137,48 @@ advanced to 225 frames with full-range non-constant luminance (`min=0`,
 `max=255`), while CameraService logs showed internal device `1000`. The
 cameraserver and provider PIDs remained stable.
 
-After qualification, the test app and provider were stopped, the VINTF
-fragment and route files were removed, and the exact stock cameraserver
+## SELinux Enforcing qualification
+
+The final run kept the AVD Enforcing and launched the provider from init in
+`u:r:hal_camera_default:s0`; the same-process router remained in
+`u:r:cameraserver:s0`. A systemless VINTF fragment cannot retroactively update
+servicemanager's boot-time `service_contexts`, so the staged `vcam/0` instance
+was classified as `default_android_service`. The AVD-only live policy therefore
+needed only provider add/find and CameraService find access for that fallback
+label. A product build instead installs the repository's exact
+`hal_camera_service` mapping and does not use the fallback service label.
+
+The first AOSP attempt also exposed an OEM dependency in the module policy:
+`vendor_camera_data_file` is absent on this image. VCAM now owns the
+`vcam_camera_data_file` type and labels only `/data/vendor/camera/vcam`. The
+backend retains scoped write access, while cameraserver and the provider receive
+read-only access. The product form compiled successfully into
+`vendor_sepolicy.cil` against `android-14.0.0_r23`, including Android's policy
+versioning and neverallow checks.
+
+After a reboot cleared the prior live rules, the complete AVD policy file was
+applied in one operation. Before topology publication, Camera1 was rejected,
+Camera2 characteristics reported `Camera routing topology unavailable`, NDK
+enumeration returned zero devices, and no rewrite or open reached a physical
+camera. The map generator then published `10 -> target 0`, Camera1 index
+`0 -> target 0`, and internal indices `1000 -> 1`, `1001 -> 2`; every generated
+file retained the dedicated SELinux label.
+
+The repeated public-API probe reached `probe_compatible` with required, seen and
+valid masks all `0x0000000000000f6f`. Six rewrite attempts succeeded with zero
+failures. A subsequent public-ID `10` preview opened internal ID `1000`, rewrote
+its first capture request, and sustained about 30 fps. The YUV stream reached
+570 frames (`avg=127`, `min=0`, `max=255`) while the provider and cameraserver
+PIDs remained unchanged. No relevant AVC denial or application fatal exception
+was observed.
+
+The live loader used for this disposable-image test is not shipped by VCAM. It
+only supplies the same small dynamic rules that APatch/KernelSU would load for a
+systemless module; product integration uses the compiled policy above.
+
+After qualification, the test app and provider were stopped, the VINTF and init
+fragments, route data, custom libraries and router were removed, every replaced
+vendor library was restored from its pre-test copy, and the exact stock cameraserver
 (`b40500255b1b9d51ea59d0dce3ac6c00fba81f605226297741d4a95ab849df99`)
 was restored. After an Enforcing reboot, `media.camera` was present, only
 physical device `10` remained, and no `vcam` service was registered.
@@ -146,12 +187,15 @@ physical device `10` remained, and no `vcam` service was registered.
 
 The AVD proves that the same-process launcher, stable-AIDL v2 provider,
 internal-ID hiding and a global public-to-virtual route work together on a clean
-AOSP Android 14 stack. It covers Camera1, Camera2 and NDK clients and real frame
-delivery through a public ID. It also removes both the relocated-executable and
-hard-coded public-ID assumptions from the portable architecture.
+AOSP Android 14 stack under SELinux Enforcing. It covers Camera1, Camera2 and
+NDK clients, fail-closed topology publication, product-policy compilation and
+real frame delivery through a public ID. It also removes the relocated-
+executable, hard-coded public-ID and OEM camera-data-label assumptions from the
+portable architecture.
 
-It does not prove OEM compatibility, production SELinux policy installation,
-MetaModule behavior, or non-pattern media sources on the AOSP provider. The
-next generic gate is an Enforcing run with the complete module policy, followed
-by testing the generated topology against the NX769J and another independently
-implemented Android 14 camera stack.
+It does not prove OEM compatibility, MetaModule behavior, non-pattern media
+sources on the AOSP provider, or third-party application breadth. The next
+generic gate is to package automatic AOSP capability detection without treating
+one emulator fingerprint as a device certification, then repeat the same
+Enforcing sequence on another independently implemented Android 14 camera
+stack.

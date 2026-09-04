@@ -30,7 +30,12 @@ echo "backend lifecycle reached boot=${current_boot_id:-unknown}" >> "$BOOT_LOG"
 mkdir -p /data/vendor/camera/vcam/providers
 chown camera:camera /data/vendor/camera/vcam /data/vendor/camera/vcam/providers
 chmod 0770 /data/vendor/camera/vcam /data/vendor/camera/vcam/providers
-restorecon /data/vendor/camera/vcam /data/vendor/camera/vcam/providers >/dev/null 2>&1
+if ! chcon -R u:object_r:vcam_camera_data_file:s0 \
+        /data/vendor/camera/vcam; then
+    echo "unable to label VCAM data directory" >> "$BOOT_LOG"
+    touch "$MODDIR/disable"
+    exit 1
+fi
 
 stop_owned_daemon() {
     [ -s "$DAEMON_PID" ] || return 0

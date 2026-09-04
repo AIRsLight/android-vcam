@@ -1,4 +1,13 @@
 allow ksu hal_camera_service service_manager { add find }
+# Keep persistent routes and provider frames independent from OEM-specific
+# /data/vendor/camera labels. Some AOSP products do not define
+# vendor_camera_data_file at all.
+type vcam_camera_data_file file_type
+typeattribute vcam_camera_data_file data_file_type
+allow ksu vcam_camera_data_file dir { add_name create getattr open read remove_name search setattr write }
+allow ksu vcam_camera_data_file file { create getattr map open read rename setattr unlink write }
+allow hal_camera_default vcam_camera_data_file dir { getattr open read search }
+allow hal_camera_default vcam_camera_data_file file { getattr map open read }
 # A systemless secondary instance has no matching service_contexts entry when
 # servicemanager starts, so it is registered as default_android_service.  The
 # exact vcam/0 mapping belongs in product policy for a built-in integration;

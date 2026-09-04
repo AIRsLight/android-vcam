@@ -1,0 +1,13 @@
+# AVD-only service used by tools/test-aosp14-avd-enforcing.ps1.
+# Production builds use a normal Soong-installed service and do not need the
+# private library search path below.
+service vendor.camera-provider-vcam-test /vendor/bin/hw/android.hardware.camera.provider-service-vcam-v2
+    class hal
+    user system
+    group system
+    capabilities SYS_NICE
+    rlimit rtprio 10 10
+    task_profiles CameraServiceCapacity CameraServicePerformance
+    setenv LD_LIBRARY_PATH /vendor/lib64/android_vcam:/vendor/lib64:/system/lib64:/system_ext/lib64:/product/lib64
+    setenv ANDROID_VCAM_CONFIG_DIR /vendor/etc/android_vcam/
+    setenv ANDROID_VCAM_PROBE_TEST_PATTERN 1

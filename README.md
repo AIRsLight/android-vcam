@@ -25,7 +25,7 @@ Provider.
 | Unified APatch/KernelSU module with automatic exact-profile selection | Implemented |
 | Android 12 AOSP HIDL source integration | Build-validated, runtime qualification incomplete |
 | Android 13 AOSP HIDL/AIDL coexistence | Partial build integration |
-| Android 14 AOSP stable-AIDL v2 integration | Build-validated; provider path qualified on NX769J |
+| Android 14 AOSP stable-AIDL v2 integration | Build-validated; AVD global route qualified under Enforcing |
 | Manufacturer-neutral global replacement mode | Planned; not yet enabled in release builds |
 | General Android 10 and Android 11 integration | Planned |
 
@@ -169,6 +169,10 @@ generic compatibility rule.
 AVD and AOSP userdebug images provide platform-version gates. They verify the
 framework, Provider, manager and source pipeline but do not replace real-device
 qualification for OEM SELinux, linker, gralloc, lifecycle and camera metadata.
+The API 34 x86_64 baseline now also covers an Enforcing Camera1/Camera2/NDK
+global route and compiles the dedicated VCAM data label through the Android 14
+product policy toolchain; it remains platform evidence rather than an OEM
+certification.
 
 ### 3. Specification and privacy completion
 

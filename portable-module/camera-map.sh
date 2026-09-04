@@ -7,6 +7,13 @@ set -u
 
 DUMP_FILE=${1:-}
 OUTPUT_DIR=${2:-/data/vendor/camera/vcam}
+VCAM_DATA_CONTEXT=u:object_r:vcam_camera_data_file:s0
+
+label_vcam_path() {
+    # Host fixture tests do not run with Android SELinux mounted.
+    [ -e /sys/fs/selinux/enforce ] || return 0
+    chcon "$VCAM_DATA_CONTEXT" "$1"
+}
 
 if [ -z "$DUMP_FILE" ] || [ ! -r "$DUMP_FILE" ]; then
     echo "camera-map: readable CameraService dump required" >&2
@@ -14,9 +21,11 @@ if [ -z "$DUMP_FILE" ] || [ ! -r "$DUMP_FILE" ]; then
 fi
 
 mkdir -p "$OUTPUT_DIR" || exit 3
+label_vcam_path "$OUTPUT_DIR" || exit 3
 TEMP_DIR="$OUTPUT_DIR/.camera-map.$$"
 umask 077
 mkdir "$TEMP_DIR" || exit 3
+label_vcam_path "$TEMP_DIR" || exit 3
 trap 'rm -rf "$TEMP_DIR"' EXIT HUP INT TERM
 
 if ! awk \
@@ -138,7 +147,7 @@ for name in targets.tsv camera1-targets.tsv camera1-map.tsv topology.conf; do
     mv -f "$TEMP_DIR/$name" "$OUTPUT_DIR/$name" || exit 3
     chown camera:camera "$OUTPUT_DIR/$name" 2>/dev/null || true
     chmod 0640 "$OUTPUT_DIR/$name" || exit 3
-    restorecon "$OUTPUT_DIR/$name" >/dev/null 2>&1 || true
+    label_vcam_path "$OUTPUT_DIR/$name" || exit 3
 done
 
 printf 'camera-map: ready back=%s front=%s\n' \

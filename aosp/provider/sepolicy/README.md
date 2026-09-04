@@ -33,6 +33,9 @@ camera HAL domain can:
 - read provider configuration and frames under `/data/vendor/camera/vcam`;
 - use the product graphics mapper/gralloc service.
 
-Type names for `/data/vendor/camera` differ on some vendor policy forks. Add a
-narrow allow rule for that product's existing camera data type only when an
-actual AVC denial demonstrates it is required.
+`/data/vendor/camera/vcam` deliberately uses the project-owned
+`vcam_camera_data_file` type. Do not reuse an OEM camera-data type: the clean
+Android 14 AVD does not define `vendor_camera_data_file`, while several vendor
+policies do. CameraService and the camera HAL receive read-only access; the
+backend that publishes routes and frames should receive write access in its
+own product policy.

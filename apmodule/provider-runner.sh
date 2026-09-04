@@ -67,7 +67,9 @@ case "$type" in
         mv -f "$temporary" "$cache"
         chown camera:camera "$cache"
         chmod 0640 "$cache"
-        restorecon "$cache" >/dev/null 2>&1
+        if selinux_context=$(ls -Zd "$FRAME_DIR" 2>/dev/null | awk '{print $1}'); then
+            chcon "$selinux_context" "$cache" >/dev/null 2>&1 || true
+        fi
         run_streamer "$cache"
         ;;
     http|hls|rtsp|video)

@@ -437,9 +437,22 @@ protected:
                 const int physicalId =
                         ::vcam::RouteResolver::physicalIdFromProvider(
                                 route.providerId);
-                if (route.configured && physicalId >= 0 &&
-                    std::to_string(physicalId) != observation.cameraId) {
-                    replacementCameraId = std::to_string(physicalId);
+                if (route.configured && physicalId >= 0) {
+                    const std::string physicalCameraId =
+                            ::vcam::ScopedCameraRouter::
+                                    physicalCameraIdForProvider(
+                                            route.providerId);
+                    if (physicalCameraId.empty()) {
+                        gPhysicalRewriteFailures.fetch_add(
+                                1, std::memory_order_relaxed);
+                        ALOGE("Physical route has no topology mapping: provider=%s",
+                              route.providerId.c_str());
+                        return rejectCameraRequest(
+                                reply, "Physical camera source unavailable");
+                    }
+                    if (physicalCameraId != observation.cameraId) {
+                        replacementCameraId = physicalCameraId;
+                    }
                 }
             }
         }

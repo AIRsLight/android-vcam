@@ -27,6 +27,7 @@ int main() {
     const std::string targets = root + "/targets.tsv";
     const std::string camera1Targets = root + "/camera1-targets.tsv";
     const std::string camera1Map = root + "/camera1-map.tsv";
+    const std::string backOnlyTargets = root + "/back-only-targets.tsv";
     std::ofstream table(routes);
     assert(table.good());
     table << "com.example.virtual\t0\tmovie\n"
@@ -56,6 +57,11 @@ int main() {
                  << "1001\t2\n"
                  << "broken\tnot-an-index\n";
     camera1Table.close();
+
+    std::ofstream backOnlyTargetMap(backOnlyTargets);
+    assert(backOnlyTargetMap.good());
+    backOnlyTargetMap << "rear-main\t0\n";
+    backOnlyTargetMap.close();
 
     const auto back = vcam::ScopedCameraRouter::resolve(
             "com.example.virtual", "0", routes, providers);
@@ -132,6 +138,14 @@ int main() {
     assert(vcam::ScopedCameraRouter::visibleCameraId("1000", targets) == "10");
     assert(vcam::ScopedCameraRouter::visibleCameraId("1001", targets) ==
            "front-main");
+    assert(vcam::ScopedCameraRouter::physicalCameraIdForProvider(
+                   "physical-0", targets) == "10");
+    assert(vcam::ScopedCameraRouter::physicalCameraIdForProvider(
+                   "physical-1", targets) == "front-main");
+    assert(vcam::ScopedCameraRouter::physicalCameraIdForProvider(
+                   "movie", targets).empty());
+    assert(vcam::ScopedCameraRouter::physicalCameraIdForProvider(
+                   "physical-1", backOnlyTargets).empty());
     assert(vcam::ScopedCameraRouter::camera1IndexForId("10", camera1Map) ==
            "0");
     assert(vcam::ScopedCameraRouter::camera1IndexForId("1000", camera1Map) ==

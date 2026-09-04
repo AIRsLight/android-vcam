@@ -66,7 +66,7 @@ std::string visibleIdForSlot(int wantedSlot,
             return visibleId;
         }
     }
-    return wantedSlot == 0 ? "0" : "1";
+    return {};
 }
 
 bool isNonNegativeInteger(const std::string& value) {
@@ -129,6 +129,14 @@ std::string ScopedCameraRouter::visibleCameraId(
         return visibleIdForSlot(1, targetMapPath);
     }
     return cameraId;
+}
+
+std::string ScopedCameraRouter::physicalCameraIdForProvider(
+        const std::string& providerId,
+        const std::string& targetMapPath) {
+    const int physicalSlot = RouteResolver::physicalIdFromProvider(providerId);
+    if (physicalSlot < 0) return {};
+    return visibleIdForSlot(physicalSlot, targetMapPath);
 }
 
 std::string ScopedCameraRouter::camera1IndexForId(

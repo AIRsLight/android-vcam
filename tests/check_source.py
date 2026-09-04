@@ -453,6 +453,7 @@ def main() -> None:
     for required_symbol in (
         "1000", "1001", "configured", "available",
         "kDefaultTargetMapPath", "kDefaultCamera1TargetMapPath",
+        "physicalCameraIdForProvider",
         "kDefaultCamera1MapPath",
         "camera1IndexForId",
     ):

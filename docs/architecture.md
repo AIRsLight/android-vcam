@@ -71,7 +71,11 @@ may consult only `*`, never guess a package from ambiguous UID-only traffic.
 The manager must present global routing as a separate setting rather than as an
 installed application.
 
-Physical providers are fixed IDs `physical-0` and `physical-1`. User provider
+Physical providers use fixed logical IDs `physical-0` and `physical-1`; these
+mean the discovered primary back and front slots, not literal Camera2 IDs.
+The runtime resolves each physical provider through `targets.tsv`, so devices
+whose public IDs are swapped, nonzero or nonnumeric keep the same manager
+configuration. A configured route to an absent slot fails closed. User provider
 frames live at `/data/vendor/camera/vcam/providers/<id>/frame.rgb`; the
 presence of `enabled` activates that provider. Missing or disabled providers
 currently fall back to the target camera's physical source.

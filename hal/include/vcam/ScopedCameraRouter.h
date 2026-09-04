@@ -46,6 +46,12 @@ class ScopedCameraRouter final {
     static std::string visibleCameraId(
             const std::string& cameraId,
             const std::string& targetMapPath = kDefaultTargetMapPath);
+    // Physical provider IDs are logical front/back slots. Resolve them through
+    // the generated Camera2 target map instead of treating the slot as a
+    // device ID. An empty result means the requested physical slot is absent.
+    static std::string physicalCameraIdForProvider(
+            const std::string& providerId,
+            const std::string& targetMapPath = kDefaultTargetMapPath);
     // Camera1 connect() carries an integer index, not the Camera2 string ID.
     // The map is generated from CameraService's "Device N maps to ID" table
     // after the virtual provider has registered.

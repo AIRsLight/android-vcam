@@ -131,6 +131,7 @@ media backend. The packager rejects mixed-architecture provider or backend
 payloads before creating the archive:
 
 ```powershell
+pwsh -File tools/build-backend-java.ps1
 pwsh -File tools/package-aosp14-aidl-provider.ps1 `
   -TargetProfile aosp14-avd
 ```
@@ -190,3 +191,11 @@ HTTP, HLS, and RTSP frames at approximately 30 fps. Package attribution was
 verified, every physical rewrite succeeded, and no provider-unavailable or
 unsupported transaction was recorded. This qualifies the complete network
 path rather than only the FFmpeg decoder in isolation.
+
+The stock AOSP image has no `/system/bin/curl`, which invalidated the original
+HTTPS-file implementation. The module now includes a 3.5 KiB architecture-
+independent dex helper invoked through `app_process`; it uses Android's platform
+TLS and trust store, permits only HTTPS redirects, and bounds downloads at 2
+GiB. A W3C-hosted HTTPS MP4 passed both source preview and routed Camera2
+playback. A self-signed endpoint was rejected by certificate validation and
+left no partial cache file.

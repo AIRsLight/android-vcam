@@ -5,6 +5,7 @@ param(
     [string]$FramePublisher = "out\native\arm64-v8a\vcam-publisher",
     [string]$StreamProvider = "out\native\arm64-v8a\vcam-streamer",
     [string]$ControlDaemon = "out\native\arm64-v8a\vcamd",
+    [string]$HttpsDownloader = "out\backend-java\vcam-https-downloader.jar",
     [string]$CameraService = "out\device\libcameraservice.vcam.so",
     [string]$OutputDirectory = "dist",
     [string]$Python = "python",
@@ -43,6 +44,7 @@ $inputs = @{
     Publisher = Resolve-RepoInput $FramePublisher
     Streamer = Resolve-RepoInput $StreamProvider
     Daemon = Resolve-RepoInput $ControlDaemon
+    HttpsDownloader = Resolve-RepoInput $HttpsDownloader
     CameraService = Resolve-RepoInput $CameraService
 }
 Assert-Arm64Elf $inputs.Hal 65536
@@ -75,6 +77,7 @@ $destinations = @{
     Publisher = Join-Path $staging "vendor/bin/vcam-publisher"
     Streamer = Join-Path $staging "system/bin/vcam-streamer"
     Daemon = Join-Path $staging "system/bin/vcamd"
+    HttpsDownloader = Join-Path $staging "system/framework/vcam-https-downloader.jar"
     CameraService = Join-Path $staging "system/lib64/libcameraservice.so"
 }
 foreach ($destination in $destinations.Values) {
@@ -89,6 +92,7 @@ Copy-Item -LiteralPath $inputs.Proxy -Destination $destinations.Proxy -Force
 Copy-Item -LiteralPath $inputs.Publisher -Destination $destinations.Publisher -Force
 Copy-Item -LiteralPath $inputs.Streamer -Destination $destinations.Streamer -Force
 Copy-Item -LiteralPath $inputs.Daemon -Destination $destinations.Daemon -Force
+Copy-Item -LiteralPath $inputs.HttpsDownloader -Destination $destinations.HttpsDownloader -Force
 Copy-Item -LiteralPath $inputs.CameraService -Destination $destinations.CameraService -Force
 Get-ChildItem -LiteralPath $staging -Recurse -Filter .gitkeep | Remove-Item -Force
 

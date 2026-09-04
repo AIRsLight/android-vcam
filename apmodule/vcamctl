@@ -57,6 +57,31 @@ find_streamer() {
     return 1
 }
 
+find_https_downloader() {
+    for candidate in \
+        "$MODDIR/system/framework/vcam-https-downloader.jar" \
+        "$MODDIR/system/system/framework/vcam-https-downloader.jar"; do
+        [ -r "$candidate" ] && { echo "$candidate"; return 0; }
+    done
+    return 1
+}
+
+download_https() {
+    source_url="$1"
+    destination="$2"
+    downloader=$(find_https_downloader) || {
+        echo "HTTPS downloader not found" >&2
+        return 69
+    }
+    export CLASSPATH="$downloader"
+    run_privileged_tool /system/bin/app_process /system/bin \
+        io.github.androidvcam.backend.HttpsDownloader \
+        "$source_url" "$destination"
+    result=$?
+    unset CLASSPATH
+    return "$result"
+}
+
 run_privileged_tool() {
     context=$(cat /proc/self/attr/current 2>/dev/null)
     case "$context" in
@@ -384,7 +409,7 @@ stop_provider() {
         case "$pid" in ''|*[!0-9]*) ;;
             *)
                 if tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null | \
-                    grep -Eq 'provider-runner.sh|vcam-streamer|/system/bin/curl'; then
+                    grep -Eq 'provider-runner.sh|vcam-streamer|HttpsDownloader|/system/bin/curl'; then
                     children=$(pgrep -P "$pid" 2>/dev/null)
                     for child in $children; do
                         kill "$child" 2>/dev/null
@@ -403,13 +428,13 @@ stop_provider() {
                     done
                     if kill -0 "$pid" 2>/dev/null && \
                         tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null | \
-                        grep -Eq 'provider-runner.sh|vcam-streamer|/system/bin/curl'; then
+                        grep -Eq 'provider-runner.sh|vcam-streamer|HttpsDownloader|/system/bin/curl'; then
                         kill -9 "$pid" 2>/dev/null
                     fi
                     for child in $children; do
                         if kill -0 "$child" 2>/dev/null && \
                             tr '\000' ' ' < "/proc/$child/cmdline" 2>/dev/null | \
-                            grep -Eq 'vcam-streamer|/system/bin/curl'; then
+                            grep -Eq 'vcam-streamer|HttpsDownloader|/system/bin/curl'; then
                             kill -9 "$child" 2>/dev/null
                         fi
                     done
@@ -530,9 +555,7 @@ preview_source() {
     preview_input="$source"
     if [ "$type" = https ]; then
         preview_input="$preview_dir/source.media"
-        run_privileged_tool /system/bin/curl \
-            --location --fail --silent --show-error --connect-timeout 10 \
-            --max-time 25 --output "$preview_input" "$source" || return 6
+        download_https "$source" "$preview_input" || return 6
         chown camera:camera "$preview_input"
         chmod 0640 "$preview_input"
         label_runtime_path "$preview_input"

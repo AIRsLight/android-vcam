@@ -21,6 +21,7 @@ FRAME_PUBLISHER="$MODPATH/vendor/bin/vcam-publisher"
 [ -f "$FRAME_PUBLISHER" ] || FRAME_PUBLISHER="$MODPATH/system/vendor/bin/vcam-publisher"
 STREAM_PROVIDER="$MODPATH/system/bin/vcam-streamer"
 CONTROL_DAEMON="$MODPATH/system/bin/vcamd"
+HTTPS_DOWNLOADER="$MODPATH/system/framework/vcam-https-downloader.jar"
 INSTALLED_MODULE_DIR="/data/adb/modules/android_vcam"
 
 require_equal() {
@@ -60,6 +61,7 @@ require_equal "fingerprint" "$(getprop ro.build.fingerprint)" "$TARGET_FINGERPRI
 [ -f "$FRAME_PUBLISHER" ] || abort "! Packaged frame publisher is missing"
 [ -f "$STREAM_PROVIDER" ] || abort "! Packaged stream provider is missing"
 [ -f "$CONTROL_DAEMON" ] || abort "! Packaged control daemon is missing"
+[ -f "$HTTPS_DOWNLOADER" ] || abort "! Packaged HTTPS downloader is missing"
 
 actual_hash="$(sha256sum "$HAL_PATH" | awk '{print $1}')"
 if [ "$actual_hash" != "$TARGET_HAL_HASH" ] && [ "$actual_hash" != "$LEGACY_HAL_HASH" ]; then
@@ -106,6 +108,7 @@ set_perm "$MODULE_CAMERASERVICE" 0 0 0644 u:object_r:system_lib_file:s0
 set_perm "$FRAME_PUBLISHER" 0 0 0755 u:object_r:vendor_file:s0
 set_perm "$STREAM_PROVIDER" 0 2000 0755 u:object_r:system_file:s0
 set_perm "$CONTROL_DAEMON" 0 0 0755 u:object_r:system_file:s0
+set_perm "$HTTPS_DOWNLOADER" 0 0 0644 u:object_r:system_file:s0
 set_perm "$MODPATH/post-mount.sh" 0 0 0755
 set_perm "$MODPATH/service.sh" 0 0 0755
 set_perm "$MODPATH/boot-completed.sh" 0 0 0755

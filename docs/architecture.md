@@ -99,7 +99,9 @@ JavaVM for FFmpeg's MediaCodec bridge, and vendor byte-buffer layouts are not
 portable enough to make an in-process MediaCodec path a safe default. Such a
 service must always fall back to this software/YUV path when configuration or
 output-layout negotiation fails.
-HTTPS files still use the ROM's BoringSSL-enabled curl before decoding.
+HTTPS files use the module's small `app_process` helper and Android's platform
+TLS implementation before decoding, so the backend does not depend on a
+vendor-provided `curl` binary or ship a second certificate stack.
 
 Stopping a remote provider waits for its runner and decoder children to exit
 before removing transient state or starting a replacement. This prevents an old

@@ -18,6 +18,8 @@ $dist = Join-Path $repoRoot "dist"
 
 & (Join-Path $PSScriptRoot "build-native.ps1")
 if ($LASTEXITCODE -ne 0) { throw "Native build failed" }
+& (Join-Path $PSScriptRoot "build-backend-java.ps1")
+if ($LASTEXITCODE -ne 0) { throw "Backend Java build failed" }
 & (Join-Path $PSScriptRoot "build-manager.ps1") -Version $Version
 if ($LASTEXITCODE -ne 0) { throw "Manager APK build failed" }
 & (Join-Path $PSScriptRoot "build-testapp.ps1") -Version $Version

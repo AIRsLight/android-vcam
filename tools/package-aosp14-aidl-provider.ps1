@@ -2,6 +2,7 @@
 param(
     [string]$ArtifactRoot = "out/android14-provider-probe",
     [string]$NativeArtifactRoot = "out/native/arm64-v8a",
+    [string]$HttpsDownloader = "out/backend-java/vcam-https-downloader.jar",
     [string]$ConfigRoot = "",
     [string]$Output = "dist/android-vcam-aidl-provider-v0.5.0-dev.41.zip",
     [ValidateSet("nx769j", "aosp14-avd")]
@@ -34,6 +35,7 @@ if ([string]::IsNullOrWhiteSpace($ConfigRoot)) {
 }
 $artifactRootPath = Join-Path $sourceRoot $ArtifactRoot
 $nativeArtifactRootPath = Join-Path $sourceRoot $NativeArtifactRoot
+$httpsDownloaderPath = Join-Path $sourceRoot $HttpsDownloader
 $configRootPath = Join-Path $sourceRoot $ConfigRoot
 $outputPath = Join-Path $sourceRoot $Output
 $stagingRoot = Join-Path $sourceRoot "out/aidl-provider-package"
@@ -72,6 +74,7 @@ if ($usingBackend) {
     $required += $backendScripts | ForEach-Object {
         Join-Path (Join-Path $sourceRoot "apmodule") $_
     }
+    $required += $httpsDownloaderPath
 }
 foreach ($path in $required) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
@@ -123,9 +126,10 @@ $modulePropText = [Text.RegularExpressions.Regex]::Replace(
 $payloadBin = Join-Path $stagingRoot "payload/bin"
 $payloadLib = Join-Path $stagingRoot "payload/lib64"
 $systemBin = Join-Path $stagingRoot "system/bin"
+$systemFramework = Join-Path $stagingRoot "system/framework"
 $emptyConfig = Join-Path $stagingRoot "payload/empty-config"
 $cameraConfig = Join-Path $stagingRoot "payload/camera-config"
-New-Item -ItemType Directory -Force -Path $payloadBin, $payloadLib, $systemBin, $emptyConfig, $cameraConfig | Out-Null
+New-Item -ItemType Directory -Force -Path $payloadBin, $payloadLib, $systemBin, $systemFramework, $emptyConfig, $cameraConfig | Out-Null
 Copy-Item -LiteralPath (Join-Path $artifactRootPath $binaryName) -Destination $payloadBin
 foreach ($library in $libraries) {
     Copy-Item -LiteralPath (Join-Path (Join-Path $artifactRootPath "lib64") $library) `
@@ -139,6 +143,7 @@ if ($usingBackend) {
     Copy-Item -LiteralPath (Join-Path $nativeArtifactRootPath "vcam-streamer") -Destination $systemBin
     Copy-Item -LiteralPath (Join-Path $nativeArtifactRootPath "vcamd") -Destination $systemBin
     Copy-Item -LiteralPath (Join-Path $nativeArtifactRootPath "vcam-publisher") -Destination $systemBin
+    Copy-Item -LiteralPath $httpsDownloaderPath -Destination $systemFramework
     foreach ($script in $backendScripts) {
         Copy-Item -LiteralPath (Join-Path (Join-Path $sourceRoot "apmodule") $script) `
             -Destination $stagingRoot
@@ -150,6 +155,7 @@ $backendPayloads = @(
     "system/bin/vcam-streamer",
     "system/bin/vcamd",
     "system/bin/vcam-publisher",
+    "system/framework/vcam-https-downloader.jar",
     "vcamctl",
     "provider-runner.sh",
     "device-probe.sh"

@@ -252,7 +252,7 @@ function updateProviderForm() {
   ui.previewShell.classList.toggle("hidden", type !== "image" || !selectedImage);
   ui.providerOperation.textContent = type === "pattern" ? "彩条由 HAL 直接生成，不占用解码器。" :
     type === "image" ? "图片会转换为 576×324 RGB 帧并保存在该提供器中。" :
-    type === "https" ? "HTTPS 视频先由系统 curl 下载到模块私有缓存，再循环解码。" :
+    type === "https" ? "HTTPS 视频先通过 Android 系统 TLS 下载到模块私有缓存，再循环解码。" :
     "FFmpeg 在后台持续解码，断流后会自动重连。";
 }
 

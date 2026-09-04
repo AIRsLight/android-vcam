@@ -73,6 +73,7 @@ backend_manifest="$MODPATH/payload/backend.sha256"
 streamer="$MODPATH/system/bin/vcam-streamer"
 publisher="$MODPATH/system/bin/vcam-publisher"
 daemon="$MODPATH/system/bin/vcamd"
+https_downloader="$MODPATH/system/framework/vcam-https-downloader.jar"
 
 for required in \
     "$binary" \
@@ -99,6 +100,7 @@ if [ "$backend_required" = 1 ]; then
         "$streamer" \
         "$publisher" \
         "$daemon" \
+        "$https_downloader" \
         "$MODPATH/vcamctl" \
         "$MODPATH/provider-runner.sh" \
         "$MODPATH/device-probe.sh"; do
@@ -115,6 +117,7 @@ if [ "$backend_required" = 1 ]; then
     set_perm "$streamer" 0 2000 0755
     set_perm "$publisher" 0 2000 0755
     set_perm "$daemon" 0 0 0755
+    set_perm "$https_downloader" 0 0 0644
     set_perm "$MODPATH/vcamctl" 0 0 0755
     set_perm "$MODPATH/provider-runner.sh" 0 0 0755
     set_perm "$MODPATH/device-probe.sh" 0 0 0755

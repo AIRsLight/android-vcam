@@ -76,7 +76,8 @@ profile. See [Android 14 capability probing](docs/aosp14-capability-probe.md).
 - A self-contained, statically linked FFmpeg 4.2.2 decoder handles local,
   HTTP, HTTP-HLS and RTSP input without relying on the ROM's reduced protocol
   set. Network preview and provider startup both require a decoded first frame.
-- HTTPS video files are downloaded through the ROM's BoringSSL-enabled curl,
+- HTTPS video files are downloaded through a bundled `app_process` helper that
+  uses Android's platform TLS implementation and trusted certificate store,
   then decoded in the background.
 - A regular root-free Camera2 APK validates two-stream YUV preview and accepts
   launch extras for single-stream high-resolution output tests. Explicit

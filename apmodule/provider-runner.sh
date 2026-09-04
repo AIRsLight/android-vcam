@@ -37,6 +37,15 @@ find_streamer() {
     return 1
 }
 
+find_https_downloader() {
+    for candidate in \
+        "$MODDIR/system/framework/vcam-https-downloader.jar" \
+        "$MODDIR/system/system/framework/vcam-https-downloader.jar"; do
+        [ -r "$candidate" ] && { echo "$candidate"; return 0; }
+    done
+    return 1
+}
+
 streamer=$(find_streamer) || exit 69
 run_privileged_tool() {
     context=$(cat /proc/self/attr/current 2>/dev/null)
@@ -58,12 +67,17 @@ case "$type" in
         cache="$FRAME_DIR/$id/remote-video.cache"
         temporary="$cache.new"
         rm -f "$temporary"
-        if ! run_privileged_tool /system/bin/curl \
-            --location --fail --silent --show-error \
-            --connect-timeout 15 --retry 3 --output "$temporary" "$source"; then
+        downloader=$(find_https_downloader) || {
+            echo "HTTPS downloader not found" >&2
+            exit 69
+        }
+        export CLASSPATH="$downloader"
+        if ! run_privileged_tool /system/bin/app_process /system/bin \
+            io.github.androidvcam.backend.HttpsDownloader "$source" "$temporary"; then
             rm -f "$temporary"
             exit 69
         fi
+        unset CLASSPATH
         mv -f "$temporary" "$cache"
         chown camera:camera "$cache"
         chmod 0640 "$cache"

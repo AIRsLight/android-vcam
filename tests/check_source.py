@@ -59,6 +59,7 @@ def main() -> None:
         ROOT / "tools" / "sync-aosp14-build-deps.sh",
         ROOT / "tools" / "verify-vintf-snapshot.sh",
         ROOT / "tools" / "probe-device.ps1",
+        ROOT / "tools" / "evaluate-aosp14-capability.py",
         ROOT / "tools" / "probe-cameraserver-bootstrap.ps1",
         ROOT / "tools" / "device-cameraserver-bootstrap-probe.sh",
         ROOT / "tools" / "fetch-aosp14-router-artifacts.ps1",
@@ -68,6 +69,7 @@ def main() -> None:
         ROOT / "tools" / "avd" / "aosp14-sepolicy-boardconfig.patch",
         ROOT / "tools" / "avd" / "aosp14-sepolicy-build-isolation.patch",
         ROOT / "tools" / "avd" / "verify-aosp14-sepolicy.sh",
+        ROOT / "tests" / "test_capability_evaluator.py",
         ROOT / "tools" / "package-portable-bootstrap.ps1",
         ROOT / "tools" / "package-aosp14-hidl-provider.ps1",
         ROOT / "tools" / "package-aosp14-aidl-provider.ps1",
@@ -504,11 +506,32 @@ def main() -> None:
         "provider_transport", "provider_version", "provider_instance", "adapter_hint",
         "aidl_service_line", "provider_service_hash", "legacy_module_hash",
         "cameraservice_hash", "camera_client_hash", "proxy_slot_hash",
-        "profile_status", "profile_adapter", "profile_camera_module_hash", "schema_version 5",
+        "profile_status", "profile_adapter", "profile_camera_module_hash", "schema_version 6",
+        "platform_candidate_status", "recommended_route_scope",
+        "activation_policy", "routing_authorized", "global_only",
         "nx769j-ukq1-20240417", "oneplus7pro-p202303230244", "root_manager",
     ):
         if required_symbol not in probe:
             fail(f"device probe is missing field: {required_symbol}")
+    probe_helper = (ROOT / "tools" / "probe-device.ps1").read_text(encoding="utf-8")
+    for required_symbol in (
+        "EvaluationOutput", "evaluate-aosp14-capability.py",
+        "/dev/vcam/router.stats", "/data/vendor/camera/vcam/topology.conf",
+    ):
+        if required_symbol not in probe_helper:
+            fail(f"device probe helper lacks capability evaluation: {required_symbol}")
+    if '"$profile_schema" != 6' not in controller:
+        fail("controller does not refresh the schema 6 capability profile")
+    capability_evaluator = (
+        ROOT / "tools" / "evaluate-aosp14-capability.py"
+    ).read_text(encoding="utf-8")
+    for required_symbol in (
+        "KNOWN_EXACT_PROFILES", "generic_probe_must_remain_pass_through",
+        "manual_promotion_required", '"routing_authorized": "false"',
+        "runtime_evidence_cannot_self_authorize",
+    ):
+        if required_symbol not in capability_evaluator:
+            fail(f"capability evaluator lacks safety gate: {required_symbol}")
 
     provider = "\n".join(
         (ROOT / "aosp" / "provider" / "hidl" / name).read_text(encoding="utf-8")
@@ -671,6 +694,7 @@ def main() -> None:
         "ONEPLUS7PRO_PROFILE", "R.string.camera_label",
         "router_state", "profile_status", "openCameraTest",
         "routing-enable", "routing-disable", "parseRoutingEnabled",
+        "profile_android14_candidate_title", "platform_candidate_status",
     ):
         if required_symbol not in manager_sources + manager_resources:
             fail(f"manager lacks source preview support: {required_symbol}")

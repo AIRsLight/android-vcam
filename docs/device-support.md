@@ -14,12 +14,19 @@ pwsh -File tools/probe-device.ps1
 The profile records the Android version and ABI, SELinux state, Camera
 Provider transport/version/instance, VINTF fragment, init service and SELinux
 labels, Camera2 IDs, Camera1 mappings, provider executable, legacy camera module
-path and hashes. Schema 5 additionally hashes `libcameraservice.so`,
+path and hashes. Schema 6 additionally hashes `libcameraservice.so`,
 `libcamera_client.so` and the OnePlus proxy mount slot, then emits `profile_id`,
 `profile_status`, `profile_adapter`, `route_scope` and reserved virtual IDs for
 exact qualified recipes. The host helper uses an already-authorized ADB `su` context
 when available so vendor files hidden from the shell UID can still be hashed;
 the probe remains read-only.
+
+Schema 6 also emits a separate platform-candidate decision. An unknown
+Enforcing API 34 build may report `platform_candidate_status=probe_required`,
+`recommended_route_scope=global_only` and `activation_policy=probe_only`, while
+`routing_authorized` remains false. This distinction prevents runtime evidence
+from being mistaken for an exact device certification. See the
+[Android 14 capability probe](aosp14-capability-probe.md).
 `adapter_hint` selects the first integration candidate:
 
 | Hint | Intended frontend |

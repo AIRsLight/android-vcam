@@ -22,6 +22,7 @@ prop() {
 
 camera_lshal="$(lshal 2>/dev/null | grep 'android.hardware.camera.provider@' || true)"
 camera_services="$(service list 2>/dev/null | grep -i camera || true)"
+camera_service_binder="$(printf '%s' "$camera_services" | grep -c 'media\.camera: ')"
 aidl_service_line="$(printf '%s\n' "$camera_services" | sed -n \
     '/android\.hardware\.camera\.provider\.ICameraProvider\//{p;q;}')"
 
@@ -192,6 +193,9 @@ case "$root_context" in
 esac
 
 fingerprint="$(prop ro.build.fingerprint)"
+sdk="$(prop ro.build.version.sdk)"
+abi="$(prop ro.product.cpu.abi)"
+selinux_state="$(getenforce 2>/dev/null)"
 profile_id=none
 profile_status=unsupported
 profile_reason=no_qualified_recipe
@@ -264,17 +268,62 @@ case "$fingerprint" in
         ;;
 esac
 
+# A platform candidate is diagnostic only. It describes whether the common
+# Android 14 qualification sequence is meaningful on this build; it never
+# promotes an unknown fingerprint into a routing-authorized recipe.
+platform_family=unsupported
+platform_candidate_status=blocked
+platform_candidate_reason=android_version_not_supported_by_this_probe
+recommended_route_scope=unavailable
+activation_policy=blocked
+routing_authorized=false
+qualification_basis=none
+candidate_requirements=none
+
+if [ "$profile_status" = qualified ]; then
+    platform_family=exact-device-profile
+    platform_candidate_status=qualified
+    platform_candidate_reason=exact_profile_and_camera_abi_verified
+    recommended_route_scope="$profile_route_scope"
+    activation_policy=exact_profile
+    routing_authorized=true
+    qualification_basis=committed_recipe
+elif [ "$sdk" = 34 ]; then
+    platform_family=android14-camera-service
+    recommended_route_scope=global_only
+    activation_policy=probe_only
+    qualification_basis=runtime_probe_required
+    candidate_requirements=enforcing_provider_registration,pass_through_protocol,topology_maps,global_preview,reboot_recovery
+    case "$abi" in
+        arm64-v8a|x86_64)
+            if [ "$camera_service_binder" = 0 ]; then
+                platform_candidate_reason=media_camera_service_unavailable
+            elif [ "$transport" = unknown ]; then
+                platform_candidate_reason=camera_provider_transport_unresolved
+            elif [ "$selinux_state" != Enforcing ]; then
+                platform_candidate_reason=selinux_enforcing_required
+            else
+                platform_candidate_status=probe_required
+                platform_candidate_reason=requires_non_authorizing_runtime_qualification
+            fi
+            ;;
+        *)
+            platform_candidate_reason=unsupported_runtime_abi
+            ;;
+    esac
+fi
+
 emit_profile() {
-    field schema_version 5
-    field sdk "$(prop ro.build.version.sdk)"
+    field schema_version 6
+    field sdk "$sdk"
     field release "$(prop ro.build.version.release)"
-    field abi "$(prop ro.product.cpu.abi)"
+    field abi "$abi"
     field fingerprint "$fingerprint"
     field manufacturer "$(prop ro.product.manufacturer)"
     field product_device "$(prop ro.product.device)"
     field board_platform "$(prop ro.board.platform)"
     field hardware "$(prop ro.hardware)"
-    field selinux "$(getenforce 2>/dev/null)"
+    field selinux "$selinux_state"
     field provider_transport "$transport"
     field provider_version "$provider_version"
     field provider_instance "$provider_instance"
@@ -300,12 +349,20 @@ emit_profile() {
     field profile_adapter "$profile_adapter"
     field route_scope "$([ "$profile_status" = qualified ] && printf '%s' "$profile_route_scope" || printf unavailable)"
     field virtual_camera_ids "$([ "$profile_status" = qualified ] && printf '%s' "$profile_virtual_camera_ids" || printf none)"
+    field platform_family "$platform_family"
+    field platform_candidate_status "$platform_candidate_status"
+    field platform_candidate_reason "$platform_candidate_reason"
+    field recommended_route_scope "$recommended_route_scope"
+    field activation_policy "$activation_policy"
+    field routing_authorized "$routing_authorized"
+    field qualification_basis "$qualification_basis"
+    field candidate_requirements "$candidate_requirements"
     field camera_count "$camera_count"
     field camera_ids "$camera_ids"
     field api1_camera_ids "$api1_camera_ids"
     field reported_physical_camera_count "$(prop ro.vendor.feature.camera_physical_count)"
     field under_screen_camera "$(prop ro.vendor.feature.camera_under_screen_sensor)"
-    field camera_service_binder "$(printf '%s' "$camera_services" | grep -c 'media.camera')"
+    field camera_service_binder "$camera_service_binder"
     field probe_uid "$(id -u 2>/dev/null)"
     field root_manager "$root_manager"
 }

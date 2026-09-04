@@ -891,7 +891,7 @@ print_status() {
 
 print_capabilities() {
     profile_schema=$(sed -n 's/^schema_version=//p' "$PROFILE_FILE" 2>/dev/null | head -n 1)
-    if { [ ! -r "$PROFILE_FILE" ] || [ "$profile_schema" != 5 ]; } && \
+    if { [ ! -r "$PROFILE_FILE" ] || [ "$profile_schema" != 6 ]; } && \
        [ -x "$MODDIR/device-probe.sh" ]; then
         "$MODDIR/device-probe.sh" "$PROFILE_FILE" >/dev/null 2>&1 || true
     fi

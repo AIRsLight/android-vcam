@@ -10,6 +10,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_ZIP = ROOT / "dist" / "android-vcam-module-v0.5.0-dev.39.zip"
 PROFILES = {
     "oneplus7pro-p202303230244": {
+        "device-probe.sh",
+        "vcamctl",
         "install-profile.sh",
         "profile-service.sh",
         "post-mount.sh",
@@ -18,6 +20,8 @@ PROFILES = {
         "vendor/lib64/hw/local_time.default.so",
     },
     "nx769j-ukq1-20240417": {
+        "device-probe.sh",
+        "vcamctl",
         "install-provider.sh",
         "install-router.sh",
         "provider-service.sh",
@@ -58,6 +62,18 @@ def main() -> None:
             for relative_path in required_paths:
                 if prefix + relative_path not in names:
                     fail(f"{profile} lacks {relative_path}")
+            probe = archive.read(prefix + "device-probe.sh").decode("utf-8")
+            controller = archive.read(prefix + "vcamctl").decode("utf-8")
+            for marker in (
+                "field schema_version 6",
+                "platform_candidate_status",
+                "recommended_route_scope",
+                "routing_authorized",
+            ):
+                if marker not in probe:
+                    fail(f"{profile} device probe lacks: {marker}")
+            if '"$profile_schema" != 6' not in controller:
+                fail(f"{profile} controller does not refresh schema 6")
 
         oneplus = "payload/profiles/oneplus7pro-p202303230244/"
         proxy = archive.read(oneplus + "vendor/lib64/libvcam_proxy.so")

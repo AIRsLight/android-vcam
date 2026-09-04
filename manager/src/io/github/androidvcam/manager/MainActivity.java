@@ -424,6 +424,10 @@ public final class MainActivity extends Activity {
             compatibilityText.setText(deviceProfile.title + " · " +
                     getString(R.string.status_recipe_incomplete));
             compatibilityText.setTextColor(0xffb45309);
+        } else if ("probe_required".equals(
+                capabilities.get("platform_candidate_status"))) {
+            compatibilityText.setText(deviceProfile.title);
+            compatibilityText.setTextColor(0xffb45309);
         }
         String router = status.getOrDefault("router_state", "unknown");
         lastProtocolVerdict = status.getOrDefault(

@@ -79,6 +79,8 @@
     <string name="profile_nx_candidate_detail">This fingerprint is not in a verified recipe. Configuration can be read, but routing must remain stock until the Camera ABI is probed again.</string>
     <string name="profile_oneplus_candidate_title">OnePlus 7 Pro Android 12 · Unqualified build</string>
     <string name="profile_oneplus_candidate_detail">This fingerprint is not in a verified recipe. Configuration can be read, but the OEM HAL proxy must remain disabled until the Camera ABI is probed again.</string>
+    <string name="profile_android14_candidate_title">Android 14 · Probe required</string>
+    <string name="profile_android14_candidate_detail">This build is eligible only for the non-authorizing global compatibility probe. Routing remains disabled until runtime evidence is reviewed and committed as a recipe.</string>
     <string name="profile_unknown_title">This device is not qualified</string>
     <string name="profile_unknown_detail">Manager can edit backend configuration but will not mark an unknown device safe to enable. Generate and verify a device recipe first.</string>
     <string name="sources_reading">Reading sources…</string>

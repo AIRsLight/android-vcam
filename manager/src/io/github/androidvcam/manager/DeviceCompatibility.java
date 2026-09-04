@@ -54,6 +54,12 @@ final class DeviceCompatibility {
                     context.getString(R.string.profile_oneplus_candidate_detail),
                     false);
         }
+        if (Build.VERSION.SDK_INT == 34) {
+            return new Profile("android14-platform-candidate",
+                    context.getString(R.string.profile_android14_candidate_title),
+                    context.getString(R.string.profile_android14_candidate_detail),
+                    false);
+        }
         return new Profile("none", context.getString(R.string.profile_unknown_title),
                 context.getString(R.string.profile_unknown_detail),
                 false);

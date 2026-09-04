@@ -31,6 +31,9 @@ Provider.
 
 This is pre-release system software. Release modules accept only qualified
 fingerprints and camera-library identities and fail closed on unknown builds.
+Unknown API 34 devices now receive a separate, machine-readable probe
+classification, but the evaluator cannot authorize routing or install a generic
+profile. See [Android 14 capability probing](docs/aosp14-capability-probe.md).
 
 ## Implemented
 

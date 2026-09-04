@@ -16,10 +16,11 @@ does not stop configured providers or remove their state. The installer checks
 the complete backend payload against `payload/backend.sha256` before enabling
 the module.
 
-The AVD engineering package contains only the x86_64 provider, matching AOSP
-camera HAL libraries, two JSON camera descriptions and the lifecycle scripts.
-Its built-in pattern source is sufficient for routing and frame-delivery tests;
-it deliberately does not claim image, video or RTSP backend support.
+The AVD engineering package contains the x86_64 provider and media backend,
+matching AOSP camera HAL libraries, two JSON camera descriptions and the
+lifecycle scripts. Its built-in pattern source is sufficient for basic routing
+tests, while HTTP, HLS, RTSP, image, and video inputs exercise the complete
+manager-independent control plane.
 
 Network-backed autostart providers retry for at most 18 rounds after
 `boot_completed`, with ten seconds between unsuccessful rounds, and stop as soon

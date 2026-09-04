@@ -126,8 +126,9 @@ passed again.
 
 The AIDL provider packager has a separate `aosp14-avd` target. It accepts only
 the same pinned x86_64 fingerprint, CameraService hashes and target FCM 7. The
-engineering archive contains the two built-in pattern devices but no ARM64
-media backend:
+engineering archive contains the two built-in pattern devices and the x86_64
+media backend. The packager rejects mixed-architecture provider or backend
+payloads before creating the archive:
 
 ```powershell
 pwsh -File tools/package-aosp14-aidl-provider.ps1 `
@@ -172,3 +173,20 @@ labels runtime routes and frames explicitly as `vcam_camera_data_file`, with
 `restorecon` retained only as a legacy-device fallback. Route add/remove kept
 the dedicated label. Topology-aware provider listing also exposed only
 `physical-0` on this back-camera-only AVD and rejected `physical-1` as absent.
+
+## Network-source qualification
+
+The x86_64 backend was qualified with a generated 1280x720 H.264 source over
+three independent inputs: an HTTP MP4 file, an HLS media playlist, and a live
+RTSP publisher. Each input produced a valid `VCAMYUV1` frame with the expected
+1,382,400-byte YUV420 payload. All three providers then ran concurrently under
+the manager-independent controller and continuously advanced their frame
+sequence numbers.
+
+The provider was switched from its built-in pattern diagnostic to routed-source
+mode. The root-free Camera2 test application opened public camera ID `1`; the
+router resolved it to internal device `1000` and successively displayed the
+HTTP, HLS, and RTSP frames at approximately 30 fps. Package attribution was
+verified, every physical rewrite succeeded, and no provider-unavailable or
+unsupported transaction was recorded. This qualifies the complete network
+path rather than only the FFmpeg decoder in isolation.

@@ -30,7 +30,8 @@ case "$boot_mode" in
         if [ "$UNIFIED_MODULE" = 1 ]; then boot_mode=route; else boot_mode=zero; fi
         ;;
 esac
-echo "bootstrap 0.5.0-dev.39 started mode=$boot_mode unified=$UNIFIED_MODULE" >> "$BOOT_LOG"
+module_version="$(sed -n 's/^version=//p' "$MODDIR/module.prop" 2>/dev/null | head -n 1)"
+echo "bootstrap ${module_version:-unknown} started mode=$boot_mode unified=$UNIFIED_MODULE" >> "$BOOT_LOG"
 
 disable_next_boot() {
     touch "$MODDIR/disable"

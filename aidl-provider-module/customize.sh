@@ -13,7 +13,7 @@ case "$target_profile" in
         expected_cameraservice_hash='52fa175391f4bc753e5cddd6d541ceff4b4c83dd657aa0cc1e6edbe8deaec751'
         expected_camera_client_hash='8869bad7a6fb174b00de3258ef131122c2d7d53cc895f1df072d149ef7a28e54'
         expected_fcm=7
-        backend_required=0
+        backend_required=1
         ;;
     '')
         expected_abi=arm64-v8a
@@ -142,10 +142,6 @@ else
     ui_print "- Boot defaults to zero cameras; arm-two is an explicit one-boot diagnostic"
     ui_print "- The following boot is disabled after the VINTF overlay is mounted"
 fi
-if [ "$backend_required" = 1 ]; then
-    ui_print "- Includes the manager-independent image/video/RTSP backend"
-else
-    ui_print "- AVD harness package contains the built-in pattern provider only"
-fi
+ui_print "- Includes the manager-independent image/video/network backend"
 ui_print "- Failure recovery uses a full reboot and never restarts cameraserver"
 ui_print "- Reboot is required; KernelSU bootloop protection remains available"

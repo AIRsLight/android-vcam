@@ -3,16 +3,18 @@ param(
     [string]$ArtifactRoot = "out/android14-provider-probe",
     [string]$NativeArtifactRoot = "out/native/arm64-v8a",
     [string]$ConfigRoot = "",
-    [string]$Output = "dist/android-vcam-aidl-provider-v0.5.0-dev.39.zip",
+    [string]$Output = "dist/android-vcam-aidl-provider-v0.5.0-dev.41.zip",
     [ValidateSet("nx769j", "aosp14-avd")]
     [string]$TargetProfile = "nx769j",
+    [string]$Version = "0.5.0-dev.41",
+    [int]$VersionCode = 53,
     [string]$Python = "python"
 )
 
 $ErrorActionPreference = "Stop"
 $sourceRoot = Split-Path -Parent $PSScriptRoot
 $templateRoot = Join-Path $sourceRoot "aidl-provider-module"
-$usingBackend = $TargetProfile -eq "nx769j"
+$usingBackend = $true
 if ($TargetProfile -eq "aosp14-avd") {
     if (-not $PSBoundParameters.ContainsKey("ArtifactRoot")) {
         $ArtifactRoot = "out/aosp14-provider-x86_64"
@@ -20,8 +22,11 @@ if ($TargetProfile -eq "aosp14-avd") {
     if (-not $PSBoundParameters.ContainsKey("ConfigRoot")) {
         $ConfigRoot = "out/android14-provider-probe/config"
     }
+    if (-not $PSBoundParameters.ContainsKey("NativeArtifactRoot")) {
+        $NativeArtifactRoot = "out/native/x86_64"
+    }
     if (-not $PSBoundParameters.ContainsKey("Output")) {
-        $Output = "dist/android-vcam-aidl-provider-v0.5.0-dev.39-aosp14-avd.zip"
+        $Output = "dist/android-vcam-aidl-provider-v0.5.0-dev.41-aosp14-avd.zip"
     }
 }
 if ([string]::IsNullOrWhiteSpace($ConfigRoot)) {
@@ -93,6 +98,11 @@ function Assert-TargetElf([string]$Path, [int]$ExpectedMachine) {
 
 $expectedMachine = if ($TargetProfile -eq "aosp14-avd") { 62 } else { 183 }
 Assert-TargetElf (Join-Path $artifactRootPath $binaryName) $expectedMachine
+if ($usingBackend) {
+    foreach ($backendBinary in $backendBinaries) {
+        Assert-TargetElf (Join-Path $nativeArtifactRootPath $backendBinary) $expectedMachine
+    }
+}
 
 if (Test-Path -LiteralPath $stagingRoot) {
     Remove-Item -LiteralPath $stagingRoot -Recurse -Force
@@ -100,6 +110,15 @@ if (Test-Path -LiteralPath $stagingRoot) {
 New-Item -ItemType Directory -Force -Path $stagingRoot | Out-Null
 Copy-Item -Path (Join-Path $templateRoot "*") -Destination $stagingRoot `
     -Recurse -Force
+
+$moduleProp = Join-Path $stagingRoot "module.prop"
+$modulePropText = [System.IO.File]::ReadAllText($moduleProp)
+$modulePropText = [Text.RegularExpressions.Regex]::Replace(
+    $modulePropText, "(?m)^version=.*$", "version=$Version")
+$modulePropText = [Text.RegularExpressions.Regex]::Replace(
+    $modulePropText, "(?m)^versionCode=.*$", "versionCode=$VersionCode")
+[System.IO.File]::WriteAllText(
+    $moduleProp, $modulePropText, [System.Text.UTF8Encoding]::new($false))
 
 $payloadBin = Join-Path $stagingRoot "payload/bin"
 $payloadLib = Join-Path $stagingRoot "payload/lib64"
@@ -144,17 +163,17 @@ if ($usingBackend) {
     $manifestText = ($manifestLines -join "`n") + "`n"
     [System.IO.File]::WriteAllText(
         $backendManifest, $manifestText, [System.Text.UTF8Encoding]::new($false))
-} else {
+}
+if ($TargetProfile -eq "aosp14-avd") {
     [System.IO.File]::WriteAllText(
         (Join-Path $stagingRoot "profile.id"),
         "aosp14-avd-api34-ue1a-r23`n",
         [System.Text.UTF8Encoding]::new($false))
-    $moduleProp = Join-Path $stagingRoot "module.prop"
     $modulePropText = [System.IO.File]::ReadAllText($moduleProp)
     $modulePropText = [Text.RegularExpressions.Regex]::Replace(
         $modulePropText,
         "(?m)^description=.*$",
-        "description=One-shot Android 14 API 34 x86_64 AVD stable-AIDL pattern provider harness.")
+        "description=One-shot Android 14 API 34 x86_64 AVD stable-AIDL provider and media backend harness.")
     [System.IO.File]::WriteAllText(
         $moduleProp, $modulePropText, [System.Text.UTF8Encoding]::new($false))
 }

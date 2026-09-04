@@ -23,7 +23,9 @@ frontend or compatibility adapter. Schema 7 derives the running CameraService
 ABI from its ELF header, enumerates registered and VINTF-declared AIDL/HIDL
 Provider instances, records OPlus `my_*` partitions, and distinguishes an OEM
 `virtual/0` from a collision with the project's reserved `vcam/0`. Unsupported
-combinations fail closed.
+combinations fail closed. An OEM `virtual/0` is a peer provider and is retained
+as telemetry only; it neither blocks qualification nor grants routing support.
+Only ownership of the exact `vcam/0` instance is a collision.
 
 On Android 8-12, the standalone `camera.vcam` Camera3 module is wrapped by
 AOSP's `camera.device@3.4-impl`; this keeps FMQ, buffer-cache, fence and gralloc

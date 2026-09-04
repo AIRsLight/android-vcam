@@ -48,12 +48,13 @@ The useful implementation split is not one recipe per OxygenOS release:
    dependencies and ABI-aware module payload selection; a profile change alone
    is insufficient.
 3. **Android 14 needs provider-instance coexistence detection.** This sample
-   already owns `virtual/0` through `/odm/bin/hw/virtualcameraprovider` and
-   `vendor.oplus.hardware.virtual_device.camera.manager@1.0`. A generic module
-   must enumerate provider instances, flag the OEM virtual implementation for
-   review, and reject activation if the project's reserved `vcam/0` is already
-   owned. The vendor virtual provider is an optional future fast path only after
-   its runtime control contract and policy access are qualified on hardware.
+   declares `virtual/0` through `/odm/bin/hw/virtualcameraprovider` and
+   `vendor.oplus.hardware.virtual_device.camera.manager@1.0`. Static inspection
+   shows that it is an independent, lazy cross-device camera provider rather
+   than a replacement for physical `legacy/0`; it therefore does not conflict
+   with the project's reserved `vcam/0`. A generic module must still enumerate
+   provider instances and reject activation if that exact `vcam/0` instance is
+   already owned. See [OnePlus 8T OEM virtual camera](oneplus8t-oem-virtual-camera.md).
 4. **CameraService still varies per build.** Matching the same declared HIDL
    version does not make `libcameraservice.so` binary-compatible. Build IDs and
    runtime invariants must continue to gate patch activation and fail closed.
@@ -68,7 +69,8 @@ The OnePlus qualification sequence is now:
 
 1. **Implemented:** schema 7 reads the process ABI, all Provider instances,
    CameraService AIDL/HIDL registrations and OPlus `my_*` partition layout;
-2. flag OEM `virtual/0` for manual review and reject an existing `vcam/0`;
+2. record OEM `virtual/0` as coexistence telemetry and reject only an existing
+   `vcam/0`;
 3. qualify another ARM64 OnePlus Android 13/14 device before treating the OPlus
    path as a reusable family;
 4. implement ARM32 only if Android 10/11 remains a release requirement, then

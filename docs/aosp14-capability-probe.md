@@ -20,7 +20,7 @@ runtime CameraService/Provider topology:
 | `provider_instances` | All currently registered HIDL and AIDL Camera Provider instances |
 | `declared_provider_instances` | Provider instances declared by vendor/OEM VINTF, including disabled services |
 | `vcam_instance_conflict` | Whether the reserved project instance `vcam/0` already exists |
-| `oem_virtual_provider_present` | Whether the OEM already registers `virtual/0` |
+| `oem_virtual_provider_present` | Whether the OEM declares or registers the independent `virtual/0` instance; telemetry only |
 | `camera_service_transport` | Framework CameraService HIDL/AIDL registration family |
 | `oplus_partitions` | Mounted OPlus `my_*` partitions relevant to camera contracts |
 
@@ -28,6 +28,12 @@ An Enforcing API 34 device with a supported 64-bit ABI, a visible
 `media.camera` Binder and a discoverable camera-provider transport is classified
 as `probe_required`. This is not a support claim. Missing service/transport,
 Permissive SELinux or an unsupported ABI remains blocked.
+
+An OEM `virtual/0` instance is not treated as a collision. Provider instance
+names are independent, and the project reserves only `vcam/0`. Activation is
+rejected only when that exact instance is already owned. The OEM signal is
+retained so coexistence tests can cover dynamic camera-ID and status updates
+without confusing them with the project's own devices.
 
 ## Evidence evaluator
 

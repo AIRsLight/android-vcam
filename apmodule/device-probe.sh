@@ -471,8 +471,6 @@ elif [ "$sdk" = 34 ]; then
     activation_policy=probe_only
     qualification_basis=runtime_probe_required
     candidate_requirements=enforcing_provider_registration,pass_through_protocol,topology_maps,global_preview,reboot_recovery
-    [ "$oem_virtual_provider_present" = false ] || \
-        candidate_requirements="$candidate_requirements,oem_virtual_provider_review"
     case "$cameraserver_arch" in
         arm64|x86_64)
             if [ "$camera_service_binder" = 0 ]; then

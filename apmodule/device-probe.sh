@@ -20,11 +20,27 @@ prop() {
     getprop "$1" 2>/dev/null
 }
 
-camera_lshal="$(lshal 2>/dev/null | grep 'android.hardware.camera.provider@' || true)"
-camera_services="$(service list 2>/dev/null | grep -i camera || true)"
-camera_service_binder="$(printf '%s' "$camera_services" | grep -c 'media\.camera: ')"
-aidl_service_line="$(printf '%s\n' "$camera_services" | sed -n \
-    '/android\.hardware\.camera\.provider\.ICameraProvider\//{p;q;}')"
+run_bounded() {
+    seconds="$1"
+    shift
+    if command -v timeout >/dev/null 2>&1; then
+        timeout "$seconds" "$@"
+    else
+        "$@"
+    fi
+}
+
+# Some OEM and AVD service managers can stall while enumerating a later Binder
+# entry. Preserve any early output, but never let a read-only profile refresh
+# hold a module service or Manager request indefinitely.
+camera_lshal="$(run_bounded 5 lshal 2>/dev/null | grep 'android.hardware.camera.provider@' || true)"
+camera_service_check="$(run_bounded 3 service check media.camera 2>/dev/null || true)"
+camera_service_binder=0
+case "$camera_service_check" in
+    *': found'*) camera_service_binder=1 ;;
+esac
+aidl_service_line="$(run_bounded 5 service list 2>/dev/null | sed -n \
+    '/android\.hardware\.camera\.provider\.ICameraProvider\//{p;q;}' || true)"
 
 transport=unknown
 provider_version=unknown
@@ -125,19 +141,26 @@ elif [ "$transport" = hidl ]; then
     adapter_hint=hidl-provider-service
 fi
 
-camera_summary="$(dumpsys media.camera 2>/dev/null | awk '
+camera_summary="$(run_bounded 8 dumpsys media.camera 2>/dev/null | awk '
     /Number of camera devices:/ && camera_count == "" {
         camera_count = $NF
     }
     /^== Camera device [^ ]+ dynamic info: ==$/ {
-        camera_ids = camera_ids camera_separator $4
-        camera_separator = ","
+        camera_id = $4
+        if (!(camera_id in seen_camera_ids)) {
+            camera_ids = camera_ids camera_separator camera_id
+            camera_separator = ","
+            seen_camera_ids[camera_id] = 1
+        }
     }
     /^[[:space:]]*Device [0-9][0-9]* maps to "/ {
         api1_id = $5
         gsub(/"/, "", api1_id)
-        api1_ids = api1_ids api1_separator api1_id
-        api1_separator = ","
+        if (!(api1_id in seen_api1_ids)) {
+            api1_ids = api1_ids api1_separator api1_id
+            api1_separator = ","
+            seen_api1_ids[api1_id] = 1
+        }
     }
     END {
         printf "%s\n%s\n%s\n", camera_count, camera_ids, api1_ids

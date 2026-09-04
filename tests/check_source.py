@@ -60,6 +60,7 @@ def main() -> None:
         ROOT / "tools" / "verify-vintf-snapshot.sh",
         ROOT / "tools" / "probe-device.ps1",
         ROOT / "tools" / "evaluate-aosp14-capability.py",
+        ROOT / "tools" / "package-aosp14-capability-probe.ps1",
         ROOT / "tools" / "probe-cameraserver-bootstrap.ps1",
         ROOT / "tools" / "device-cameraserver-bootstrap-probe.sh",
         ROOT / "tools" / "fetch-aosp14-router-artifacts.ps1",
@@ -70,6 +71,14 @@ def main() -> None:
         ROOT / "tools" / "avd" / "aosp14-sepolicy-build-isolation.patch",
         ROOT / "tools" / "avd" / "verify-aosp14-sepolicy.sh",
         ROOT / "tests" / "test_capability_evaluator.py",
+        ROOT / "tests" / "check_capability_probe_module.py",
+        ROOT / "capability-probe-module" / "module.prop",
+        ROOT / "capability-probe-module" / "skip_mount",
+        ROOT / "capability-probe-module" / "customize.sh",
+        ROOT / "capability-probe-module" / "run-probe.sh",
+        ROOT / "capability-probe-module" / "service.sh",
+        ROOT / "capability-probe-module" / "action.sh",
+        ROOT / "capability-probe-module" / "uninstall.sh",
         ROOT / "tools" / "package-portable-bootstrap.ps1",
         ROOT / "tools" / "package-aosp14-hidl-provider.ps1",
         ROOT / "tools" / "package-aosp14-aidl-provider.ps1",
@@ -532,6 +541,27 @@ def main() -> None:
     ):
         if required_symbol not in capability_evaluator:
             fail(f"capability evaluator lacks safety gate: {required_symbol}")
+
+    report_probe = "\n".join(
+        (ROOT / "capability-probe-module" / name).read_text(encoding="utf-8")
+        for name in ("module.prop", "customize.sh", "run-probe.sh", "service.sh",
+                     "action.sh", "uninstall.sh")
+    )
+    for required_symbol in (
+        "id=android_vcam_capability_probe",
+        "STATE_DIR=/data/adb/android_vcam_capability_probe",
+        "activation_policy=probe_only",
+        "routing_authorized=false",
+        "camera_mutation_performed=false",
+    ):
+        if required_symbol not in report_probe:
+            fail(f"report-only capability probe lacks safety marker: {required_symbol}")
+    for forbidden_symbol in (
+        "/data/vendor/camera", "setprop ctl.", "service call", "start-provider",
+        "physical-route",
+    ):
+        if forbidden_symbol in report_probe:
+            fail(f"report-only capability probe contains mutation: {forbidden_symbol}")
 
     provider = "\n".join(
         (ROOT / "aosp" / "provider" / "hidl" / name).read_text(encoding="utf-8")

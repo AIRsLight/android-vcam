@@ -183,6 +183,34 @@ vendor library was restored from its pre-test copy, and the exact stock camerase
 was restored. After an Enforcing reboot, `media.camera` was present, only
 physical device `10` remained, and no `vcam` service was registered.
 
+## Report-only module isolation
+
+The independent Android 14 capability-probe archive was validated to contain
+only module metadata, `skip_mount`, documentation and shell scripts. It has no
+partition overlay, native/ELF payload, SELinux rule, Provider, router or
+CameraService replacement. Because the AVD has no APatch/KernelSU module
+manager, its exact staged `service.sh` lifecycle was invoked from `/data` as
+root; this validates runtime behavior but not a specific root manager's install
+UI.
+
+Before and after the service run, cameraserver retained PID 453,
+`libcameraservice.so` retained SHA-256
+`52fa175391f4bc753e5cddd6d541ceff4b4c83dd657aa0cc1e6edbe8deaec751`,
+the two stock `internal/0` and `internal/1` AIDL Provider services were
+unchanged, and CameraService still exposed only public device `10`. No
+`/dev/vcam` or `/data/vendor/camera/vcam` path appeared. The generated schema 6
+profile classified the AVD as `probe_required`; the module result remained
+`activation_policy=probe_only`, `routing_authorized=false` and
+`camera_mutation_performed=false`.
+
+After the probe, the ordinary test APK opened device `10` and reported
+`Camera2 single-stream preview 1280x720 running`. An uninstall simulation
+removed the probe state while a sentinel under the release configuration path
+remained intact. All staged probe files and test state were then removed and
+adbd returned to non-root mode. Limiting potentially blocking `lshal`, service
+enumeration and CameraService dump queries reduced a subsequent profile run on
+this AVD from an unbounded wait to about 0.7 seconds.
+
 ## What this proves
 
 The AVD proves that the same-process launcher, stable-AIDL v2 provider,

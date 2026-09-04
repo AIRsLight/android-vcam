@@ -1,0 +1,6 @@
+id=android_vcam_capability_probe
+name=Android Virtual Camera Compatibility Probe
+version=0.5.0-dev.39
+versionCode=52
+author=android-vcam contributors
+description=Read-only Android 14 camera compatibility report. Does not mount files, register providers, replace CameraService, or enable routing.

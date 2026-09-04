@@ -26,6 +26,7 @@ Provider.
 | Android 12 AOSP HIDL source integration | Build-validated, runtime qualification incomplete |
 | Android 13 AOSP HIDL/AIDL coexistence | Partial build integration |
 | Android 14 AOSP stable-AIDL v2 integration | Build-validated; AVD global route qualified under Enforcing |
+| Android 14 unknown-device read-only probe module | Implemented; routing always unauthorized |
 | Manufacturer-neutral global replacement mode | Planned; not yet enabled in release builds |
 | General Android 10 and Android 11 integration | Planned |
 
@@ -127,6 +128,16 @@ are in [the device profile](docs/device-profiles/nx769j-android14.md).
 
 Do not install either pinned delivery on another device or ROM build. Unknown
 fingerprints and camera-library hashes must fail closed.
+
+Unknown Android 14 devices may instead use the separate compatibility probe:
+
+```powershell
+pwsh -File tools/package-aosp14-capability-probe.ps1
+```
+
+That archive only produces a schema 6 report. It cannot mount camera files,
+register a Provider, replace CameraService or authorize routing, and it keeps
+its state separate from the published `android_vcam` module.
 
 ## Roadmap
 

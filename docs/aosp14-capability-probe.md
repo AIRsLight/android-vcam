@@ -64,3 +64,23 @@ profiles. It does not install a router or provider on an unknown candidate.
 Schema 6 is exposed through the existing backend capability command when a
 development/profile package is present, and the root-free Manager labels an
 otherwise unknown API 34 device as requiring a probe rather than as certified.
+
+For an unknown Android 14 device, build the independent report-only module:
+
+```powershell
+pwsh -File tools/package-aosp14-capability-probe.ps1
+```
+
+It writes its raw schema 6 profile and fail-closed result under
+`/data/adb/android_vcam_capability_probe`. The archive has `skip_mount` and no
+partition overlay, native executable, Provider, CameraService replacement,
+router, SELinux rule or boot-time camera action. Its result always contains
+`activation_policy=probe_only`, `routing_authorized=false` and
+`camera_mutation_performed=false`. The action button only refreshes this
+report. Its uninstaller removes only the dedicated probe state and does not
+touch the release module or `/data/adb/android_vcam` configuration.
+
+This package establishes whether deeper qualification is worth attempting; it
+does not establish camera compatibility. Protocol pass-through, topology,
+global preview, reboot recovery and manual review remain separate promotion
+gates.

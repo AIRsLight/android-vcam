@@ -13,6 +13,7 @@ EXECUTABLE_NAMES = {
     "customize.sh",
     "post-mount.sh",
     "provider-runner.sh",
+    "run-probe.sh",
     "service.sh",
     "vcamctl",
     "vcam-publisher",

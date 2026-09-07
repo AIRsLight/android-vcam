@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "0.5.0-dev.39",
+    [string]$Version = "0.5.0-dev.43",
+    [int]$VersionCode = 63,
     [string]$OriginalCameraHal = "out\device\camera.qcom.original.so",
     [string]$PatchedCameraHal = "out\device\camera.qcom.vcam-proxy.so",
     [string]$AidlArtifactRoot = "out/android14-provider-probe",
@@ -17,11 +18,13 @@ $ErrorActionPreference = "Stop"
     -OriginalCameraHal $OriginalCameraHal `
     -PatchedCameraHal $PatchedCameraHal `
     -Version $Version `
+    -VersionCode $VersionCode `
     -SkipDeviceModule
 if ($LASTEXITCODE -ne 0) { throw "Common release packaging failed" }
 
 & (Join-Path $PSScriptRoot "package-unified-module.ps1") `
     -Version $Version `
+    -VersionCode $VersionCode `
     -CameraHal $PatchedCameraHal `
     -AidlArtifactRoot $AidlArtifactRoot `
     -NativeArtifactRoot $NativeArtifactRoot `

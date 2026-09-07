@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "0.5.0-dev.39",
+    [string]$Version = "0.5.0-dev.43",
+    [int]$VersionCode = 63,
     [string]$CameraHal = "out\device\camera.qcom.vcam-proxy.so",
     [string]$AidlArtifactRoot = "out/android14-provider-probe",
     [string]$NativeArtifactRoot = "out/native/arm64-v8a",
@@ -60,6 +61,8 @@ if ($LASTEXITCODE -ne 0) { throw "OnePlus profile packaging failed" }
 
 $aidlZip = Join-Path $profileZipRoot "nx-aidl-provider.zip"
 & (Join-Path $PSScriptRoot "package-aosp14-aidl-provider.ps1") `
+    -Version $Version `
+    -VersionCode $VersionCode `
     -ArtifactRoot $AidlArtifactRoot `
     -NativeArtifactRoot $NativeArtifactRoot `
     -Output ([IO.Path]::GetRelativePath($repoRoot, $aidlZip)) `
@@ -137,6 +140,8 @@ $profileProp = Join-Path $stagingRoot "module.prop"
 $profilePropText = [IO.File]::ReadAllText($profileProp)
 $profilePropText = [Text.RegularExpressions.Regex]::Replace(
     $profilePropText, "(?m)^version=.*$", "version=$Version")
+$profilePropText = [Text.RegularExpressions.Regex]::Replace(
+    $profilePropText, "(?m)^versionCode=.*$", "versionCode=$VersionCode")
 [IO.File]::WriteAllText($profileProp, $profilePropText, [Text.UTF8Encoding]::new($false))
 
 New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null

@@ -11,6 +11,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+& (Join-Path $PSScriptRoot "assert-dev-release-source.ps1") -Version $Version | Out-Null
+
 & (Join-Path $PSScriptRoot "package-release.ps1") `
     -OriginalCameraHal $OriginalCameraHal `
     -PatchedCameraHal $PatchedCameraHal `

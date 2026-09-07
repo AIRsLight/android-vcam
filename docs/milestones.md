@@ -288,6 +288,11 @@ Android versions below 10 and above 14 are out of scope for this roadmap.
 
 ## M5 — Device and vendor adapter qualification
 
+Release process: new development builds originate on `dev` and use the normal
+module/APK release layout. The standalone dev.42 community release was withdrawn.
+User/Issue testing precedes reviewed promotion of the tested revision to `main`;
+no automatic qualification or merge follows merely from publishing a dev build.
+
 **Status: In progress — exact-device profiles qualified; OnePlus Android 10–14
 Qualcomm cohort offline checks complete, new global adapter runtime gates pending**
 

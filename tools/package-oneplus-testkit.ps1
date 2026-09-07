@@ -5,6 +5,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+Write-Warning "Local engineering helper only. Public dev releases use package-supported-release.ps1 on dev."
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $dist = Join-Path $repoRoot "dist"
 $bundleRoot = Join-Path $repoRoot "out/oneplus-testkit"

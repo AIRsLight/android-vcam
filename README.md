@@ -16,6 +16,11 @@ Provider.
 
 ## Project status
 
+Development and test releases now use [`dev`](https://github.com/AIRsLight/android-vcam/tree/dev).
+Tested revisions are promoted to `main` after review. Public dev releases use
+the normal single-module ZIP and APK assets; the separate dev.42 community-kit
+release has been withdrawn. See [release workflow](docs/release-workflow.md).
+
 | Area | Status |
 | --- | --- |
 | OnePlus 7 Pro Android 12 scoped routing | Qualified on one exact firmware |
@@ -50,7 +55,7 @@ profile. See [Android 14 capability probing](docs/aosp14-capability-probe.md).
 
 Community device testing is tracked through the [testing guide](docs/community-testing.md)
 and [GitHub Issues](https://github.com/AIRsLight/android-vcam/issues/new/choose).
-The dev.42 engineering kit adds an Android 10+ manager and a reviewed, manually
+The development code includes an Android 10+ manager and a reviewed, manually
 exported diagnostic report. Community results remain device/ROM-specific reports
 until the runtime evidence has been reviewed; the new global adapter is experimental.
 

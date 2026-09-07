@@ -6,6 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$sourceCommit = & (Join-Path $PSScriptRoot "assert-dev-release-source.ps1") -Version $Version
 $dist = Join-Path $repoRoot $OutputDirectory
 $artifactNames = @(
     "android-vcam-manager-v$Version-debug.apk",
@@ -29,6 +30,8 @@ $artifacts = foreach ($name in $artifactNames) {
 $manifest = [ordered]@{
     schema = 2
     release = $Version
+    source_branch = "dev"
+    source_commit = $sourceCommit
     selection = "one root module auto-selects an exact fingerprint and camera ABI; unknown builds fail closed"
     common = [ordered]@{
         manager = "android-vcam-manager-v$Version-debug.apk"

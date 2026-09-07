@@ -1,5 +1,9 @@
 # OnePlus community test kit · 0.5.0-dev.42
 
+**Withdrawn on 2026-09-07.** GitHub release and uploaded assets removed at the
+user's request. The source tag and local artifacts remain for audit. This page
+is historical; follow the [dev release workflow](../release-workflow.md).
+
 Experimental **OnePlus Qualcomm Android 10–14 global camera replacement**.
 This is a community test build, not a claim that all OnePlus devices are supported.
 The existing dev.39 qualified release remains available for its exact-device profiles.

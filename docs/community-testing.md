@@ -1,5 +1,13 @@
 # Community testing / 社区测试
 
+Publication policy update: dev.42's separate community-kit release was withdrawn.
+Future public tests use ordinary dev releases built from `dev`: one installable
+module ZIP, manager APK, test APK and a manifest. The kit instructions below are
+retained for local engineering use only. See [release workflow](release-workflow.md).
+
+发布方式已调整：dev.42 独立测试套件已撤下，后续从 `dev` 分支发布常规 dev 版，
+测试通过后再同步到 `main`。下面的外层测试套件说明仅供本地开发使用。
+
 OnePlus Qualcomm Android 10–14 global replacement is experimental. The five
 offline firmware samples are compatibility candidates, not device certifications.
 The currently qualified exact-device release is separate from this engineering kit.

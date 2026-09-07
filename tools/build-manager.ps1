@@ -3,7 +3,7 @@ param(
     [string]$AndroidSdk = "D:\AndroidSdk",
     [string]$BuildToolsVersion = "35.0.0",
     [int]$CompileSdk = 35,
-    [int]$MinSdk = 31,
+    [int]$MinSdk = 29,
     [string]$JdkHome = "$env:LOCALAPPDATA\Programs\Microsoft\jdk-17.0.10.7-hotspot",
     [string]$AppDirectory = "manager",
     [string]$BuildDirectory = "out\manager",

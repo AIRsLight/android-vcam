@@ -272,6 +272,13 @@ runtime qualification. In particular, the post-mount disable flag affects a
 subsequent boot; current-boot automatic rollback has not been established.
 See the [offline validation checkpoint](firmware-reports/oneplus-offline-validation.md).
 
+The dev.42 community-testing checkpoint adds a minimum-API-29 manager, cached
+diagnostic export that excludes source URLs/media/app route lists, and GitHub
+bug/compatibility forms. The combined offline suite passes 32 tests. Device
+validation will be collected through user Issues and recorded per exact ROM;
+there are no community-qualified device results at this checkpoint. The OnePlus
+engineering test kit remains separate from the qualified unified release.
+
 For every version, the build gate covers CameraService, the selected Provider,
 VINTF fragments, init service definitions and SELinux policy. The runtime gate
 covers enumeration, both target cameras, scoped and unscoped apps, Camera1,

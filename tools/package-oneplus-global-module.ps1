@@ -4,7 +4,8 @@ param(
     [string]$HttpsDownloader = "out/backend-java/vcam-https-downloader.jar",
     [string]$OutputDirectory = "dist",
     [string]$Python = "python",
-    [string]$Version = "0.5.0-dev.41"
+    [string]$Version = "0.5.0-dev.42",
+    [int]$VersionCode = 62
 )
 
 $ErrorActionPreference = "Stop"
@@ -83,6 +84,8 @@ $moduleProp = Join-Path $staging "module.prop"
 $moduleText = [IO.File]::ReadAllText($moduleProp)
 $moduleText = [Text.RegularExpressions.Regex]::Replace(
     $moduleText, "(?m)^version=.*$", "version=$Version")
+$moduleText = [Text.RegularExpressions.Regex]::Replace(
+    $moduleText, "(?m)^versionCode=.*$", "versionCode=$VersionCode")
 [IO.File]::WriteAllText($moduleProp, $moduleText, [Text.UTF8Encoding]::new($false))
 
 $dist = Join-Path $repoRoot $OutputDirectory

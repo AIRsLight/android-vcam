@@ -77,6 +77,9 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity {
     private static final int REQUEST_IMAGE = 4101;
     private static final int REQUEST_VIDEO = 4102;
+    private static final int REQUEST_DIAGNOSTICS = 4103;
+    private String pendingDiagnosticReport;
+    private boolean diagnosticsInFlight;
     private static final int FRAME_WIDTH = 576;
     private static final int FRAME_HEIGHT = 324;
     private static final int MAX_SOURCE_DIMENSION = 4096;
@@ -159,6 +162,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        if (state != null) pendingDiagnosticReport = state.getString("diagnostic_report");
         typeLabels = getResources().getStringArray(R.array.provider_type_labels);
         deviceProfile = DeviceCompatibility.detect(this);
         loadTargetCameraSpecs();
@@ -468,8 +472,86 @@ public final class MainActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle(R.string.status_system_details)
                 .setMessage(details.toString())
+                .setNeutralButton(R.string.diagnostics_title, (dialog, which) -> collectDiagnostics())
                 .setPositiveButton(R.string.action_done, null)
                 .show();
+    }
+
+    private void collectDiagnostics() {
+        if (diagnosticsInFlight) return;
+        diagnosticsInFlight = true;
+        ProgressBar progress = new ProgressBar(this);
+        LinearLayout body = vertical();
+        body.setPadding(dp(24), dp(16), dp(24), dp(16));
+        body.addView(progress);
+        AlertDialog loading = new AlertDialog.Builder(this)
+                .setTitle(R.string.diagnostics_collecting).setView(body)
+                .setNegativeButton(R.string.action_cancel, null).create();
+        loading.show();
+        runAsync(() -> {
+            StringBuilder report = new StringBuilder("Android VCAM diagnostic report\nreport_schema=1\n");
+            report.append("generated_at_ms=").append(System.currentTimeMillis()).append('\n');
+            reportField(report, "manager_version", getPackageManager()
+                    .getPackageInfo(getPackageName(), 0).versionName);
+            reportField(report, "manufacturer", Build.MANUFACTURER);
+            reportField(report, "model", Build.MODEL);
+            reportField(report, "device", Build.DEVICE);
+            reportField(report, "fingerprint", Build.FINGERPRINT);
+            report.append("sdk=").append(Build.VERSION.SDK_INT).append('\n');
+            try {
+                BackendClient.Result backend = BackendClient.diagnostics();
+                if (backend.code == 0 && backend.output.startsWith("diagnostics_schema=1")) {
+                    report.append("backend=available\n").append(backend.output).append('\n');
+                } else {
+                    report.append("backend=diagnostics_unsupported_or_failed\n");
+                }
+            } catch (IOException error) {
+                // Raw errors can contain paths/URLs. The local report remains
+                // exportable when the backend is absent, old or unresponsive.
+                report.append("backend=unavailable\n");
+            }
+            return new BackendClient.Result(0, report.toString());
+        }, result -> {
+            diagnosticsInFlight = false;
+            if (!loading.isShowing() || isFinishing() || isDestroyed()) return;
+            loading.dismiss();
+            pendingDiagnosticReport = result.output + "\n";
+            TextView content = text(getString(R.string.diagnostics_privacy) + "\n\n"
+                    + pendingDiagnosticReport, 12, 0xff475569);
+            content.setTextIsSelectable(true);
+            content.setPadding(dp(20), dp(12), dp(20), dp(12));
+            ScrollView scroll = new ScrollView(this);
+            scroll.addView(content);
+            new AlertDialog.Builder(this).setTitle(R.string.diagnostics_title).setView(scroll)
+                    .setPositiveButton(R.string.diagnostics_save, (dialog, which) -> {
+                        Intent save = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                        save.addCategory(Intent.CATEGORY_OPENABLE);
+                        save.setType("text/plain");
+                        save.putExtra(Intent.EXTRA_TITLE, "android-vcam-diagnostics.txt");
+                        try { startActivityForResult(save, REQUEST_DIAGNOSTICS); }
+                        catch (Exception error) { showError(error); }
+                    })
+                    .setNeutralButton(R.string.diagnostics_issue, (dialog, which) -> {
+                        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(
+                                "https://github.com/AIRsLight/android-vcam/issues/new/choose"))); }
+                        catch (Exception error) { showError(error); }
+                    })
+                    .setNegativeButton(R.string.action_done, null).show();
+        }, error -> {
+            diagnosticsInFlight = false;
+            loading.dismiss();
+            if (!isFinishing() && !isDestroyed()) showError(error);
+        });
+    }
+
+    private static void reportField(StringBuilder report, String key, String value) {
+        String clean = value == null ? "unknown" : value.replaceAll("[\\r\\n\\t]", " ");
+        report.append(key).append('=').append(clean.substring(0, Math.min(clean.length(), 256))).append('\n');
+    }
+
+    @Override protected void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);
+        state.putString("diagnostic_report", pendingDiagnosticReport);
     }
 
     private String protocolVerdictName(String verdict) {
@@ -814,6 +896,19 @@ public final class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_DIAGNOSTICS) {
+            final String report = pendingDiagnosticReport;
+            if (resultCode != RESULT_OK || data == null || data.getData() == null || report == null) return;
+            final Uri destination = data.getData();
+            runAsync(() -> {
+                try (java.io.OutputStream output = getContentResolver().openOutputStream(destination, "wt")) {
+                    if (output == null) throw new IOException("Document unavailable");
+                    output.write(report.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                }
+                return new BackendClient.Result(0, "saved");
+            }, result -> toast(getString(R.string.diagnostics_saved)));
+            return;
+        }
         if (resultCode != RESULT_OK || data == null || data.getData() == null ||
                 activeAddSession == null) return;
         Uri uri = data.getData();

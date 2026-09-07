@@ -57,6 +57,10 @@ final class BackendClient {
         return request(null, 0, arguments);
     }
 
+    static Result diagnostics() throws IOException {
+        return requestWithTimeout(null, 0, 5_000, "diagnostics");
+    }
+
     static Result controller(byte[] input, String... arguments) throws IOException {
         return request(new ByteArrayInputStream(input), input.length, arguments);
     }
@@ -68,6 +72,11 @@ final class BackendClient {
 
     private static Result request(InputStream payload, long payloadLength, String... values)
             throws IOException {
+        return requestWithTimeout(payload, payloadLength, 45_000, values);
+    }
+
+    private static Result requestWithTimeout(InputStream payload, long payloadLength,
+                                            int timeoutMs, String... values) throws IOException {
         if (values.length == 0) throw new ClientException(Failure.MISSING_COMMAND);
         byte[] command = values[0].getBytes(StandardCharsets.UTF_8);
         LocalSocket socket = new LocalSocket();
@@ -77,7 +86,7 @@ final class BackendClient {
             } catch (IOException error) {
                 throw new ClientException(Failure.CONNECT, error);
             }
-            socket.setSoTimeout(45_000);
+            socket.setSoTimeout(timeoutMs);
             DataOutputStream output = new DataOutputStream(socket.getOutputStream());
             output.write(REQUEST_MAGIC);
             output.writeInt(command.length);

@@ -973,6 +973,41 @@ print_status() {
     fi
 }
 
+print_diagnostics() {
+    # Cached, allowlisted fields only: no probing, dumpsys, logcat, package
+    # enumeration or source metadata. Remains usable during camera failures.
+    printf 'diagnostics_schema=1\n'
+    [ -e "$MODDIR/disable" ] && printf 'module_enabled=false\n' || printf 'module_enabled=true\n'
+    [ -e "$STATE_DIR/mount.ok" ] && printf 'mount_marker_present=true\n' || printf 'mount_marker_present=false\n'
+    [ -e "$ROUTING_DISABLED_FILE" ] && printf 'routing_enabled=false\n' || printf 'routing_enabled=true\n'
+    [ -r "$PROFILE_FILE" ] && printf 'profile_cache_present=true\n' || printf 'profile_cache_present=false\n'
+    for entry in \
+        "module:$MODDIR/module.prop" \
+        "metamodule:/data/adb/metamodule/module.prop" \
+        "adapter:$MODDIR/oneplus-profile.conf" \
+        "device:$PROFILE_FILE"; do
+        prefix="${entry%%:*}"
+        file="${entry#*:}"
+        [ -r "$file" ] || continue
+        head -c 32768 "$file" | awk -v prefix="$prefix" '
+            BEGIN {
+                if (prefix == "module" || prefix == "metamodule") keys="id version versionCode"
+                else if (prefix == "adapter") keys="schema adapter route_scope sdk original_camera_hal_sha256 shim_sha256"
+                else keys="schema_version sdk release abi manufacturer brand product_device board_platform hardware selinux provider_transport provider_version provider_instance cameraserver_arch cameraserver_bits legacy_module_arch legacy_module_bits legacy_module_hash cameraservice_hash camera_client_hash profile_id profile_status profile_adapter route_scope platform_family platform_candidate_status platform_candidate_reason recommended_route_scope routing_authorized qualification_basis oneplus_global_shim_candidate"
+                split(keys, fields, " "); for (i in fields) allowed[fields[i]]=1
+            }
+            {
+                separator=index($0, "="); if (!separator) next
+                key=substr($0, 1, separator-1); value=substr($0, separator+1)
+                if (!(key in allowed) || seen[key]++) next
+                if (length(value)>160 || value !~ /^[A-Za-z0-9_.+, \/:@-]*$/) next
+                if (value ~ /:\/\// || value ~ /@/) next
+                print prefix "." key "=" value
+            }'
+    done
+    return 0
+}
+
 print_capabilities() {
     profile_schema=$(sed -n 's/^schema_version=//p' "$PROFILE_FILE" 2>/dev/null | head -n 1)
     if { [ ! -r "$PROFILE_FILE" ] || [ "$profile_schema" != 7 ]; } && \
@@ -989,6 +1024,7 @@ print_capabilities() {
 case "$1" in
     status) print_status ;;
     capabilities) print_capabilities ;;
+    diagnostics) print_diagnostics ;;
     providers) list_providers ;;
     provider-add) add_provider "$2" "$3" "$4" "$5" ;;
     provider-remove) remove_provider "$2" ;;

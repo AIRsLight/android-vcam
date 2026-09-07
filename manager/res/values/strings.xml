@@ -181,4 +181,10 @@
     <string name="error_media_ended">Media input ended early</string>
     <string name="error_invalid_response">Invalid backend response</string>
     <string name="error_response_too_large">Backend response is too large</string>
+    <string name="diagnostics_title">Diagnostic report</string>
+    <string name="diagnostics_collecting">Preparing report…</string>
+    <string name="diagnostics_privacy">Device and adapter status only. No source URLs, media or app route list. Review before attaching to a public issue.</string>
+    <string name="diagnostics_save">Save report</string>
+    <string name="diagnostics_saved">Report saved</string>
+    <string name="diagnostics_issue">Open Issues</string>
 </resources>

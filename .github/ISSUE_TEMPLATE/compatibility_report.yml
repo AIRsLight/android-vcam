@@ -1,0 +1,53 @@
+name: Compatibility result / 兼容性测试结果
+description: Report successful, partial or failed device testing.
+title: "[Compatibility] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        OnePlus Android 10–14 global support is experimental. Successful community reports
+        are recorded per device/ROM and do not automatically certify a whole device family.
+        支持中文。未执行的项目填“未测”，请勿提供私人源地址、密码或媒体。
+  - type: textarea
+    id: device
+    attributes:
+      label: Device, ROM and versions / 设备、ROM 与版本
+      description: "Exact model/SKU, chipset, Android/ROM build, module/manager versions, KSU/APatch and MetaModule versions."
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Overall result / 总体结果
+      options:
+        - "Works in tested scenarios / 已测场景通过"
+        - "Partially works / 部分通过"
+        - "Failed / 失败"
+    validations:
+      required: true
+  - type: textarea
+    id: matrix
+    attributes:
+      label: Test matrix / 测试矩阵
+      description: "Use pass / fail / not tested; report front and back separately. 每项填写通过、失败或未测，前后摄分别记录。"
+      value: |
+        Stock cameras before installation:
+        Physical passthrough with routes off:
+        Global color bars (front/back):
+        Image and local video (front/back):
+        HTTP / HTTPS / HLS / RTSP:
+        Camera1 / Camera2 / NDK:
+        Third-party apps (names and versions):
+        Stock camera app:
+        Camera reopen / source switching:
+        Reboot / module disable and stock recovery:
+        Stability duration and any heating/freezes:
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostic report and limitations / 诊断报告与限制
+      description: "Manager → System details → Diagnostic report → Save report. Review and attach the .txt file; note remaining failures."
+    validations:
+      required: true

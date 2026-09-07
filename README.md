@@ -27,7 +27,7 @@ Provider.
 | Android 13 AOSP HIDL/AIDL coexistence | Partial build integration |
 | Android 14 AOSP stable-AIDL v2 integration | Build-validated; AVD global route qualified under Enforcing |
 | Android 14 unknown-device read-only probe module | Implemented; routing always unauthorized |
-| OnePlus Qualcomm Android 10–14 global replacement adapter | dev.41 engineering build; five-firmware dependency audit and 29 offline tests pass; hardware qualification pending |
+| OnePlus Qualcomm Android 10–14 global replacement adapter | dev.42 community test kit; five-firmware dependency audit and 32 offline tests pass; hardware qualification pending |
 | Manufacturer-neutral global replacement mode | Partial; OnePlus Qualcomm module family implemented first |
 | Android 10 and Android 11 app-scoped routing | Planned; global mode no longer depends on the 32-bit CameraService |
 
@@ -47,6 +47,12 @@ classification, but the evaluator cannot authorize routing or install a generic
 profile. See [Android 14 capability probing](docs/aosp14-capability-probe.md).
 
 ## Implemented
+
+Community device testing is tracked through the [testing guide](docs/community-testing.md)
+and [GitHub Issues](https://github.com/AIRsLight/android-vcam/issues/new/choose).
+The dev.42 engineering kit adds an Android 10+ manager and a reviewed, manually
+exported diagnostic report. Community results remain device/ROM-specific reports
+until the runtime evidence has been reviewed; the new global adapter is experimental.
 
 - Physical cameras `physical-0` and `physical-1` are immutable providers and
   may both be used as sources or routing targets.

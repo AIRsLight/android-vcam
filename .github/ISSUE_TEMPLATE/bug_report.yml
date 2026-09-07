@@ -1,0 +1,65 @@
+name: Bug report / 故障报告
+description: Report installation, camera output, provider or manager failures.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        English or 中文均可。Please remove source URLs, passwords, tokens and personal media before posting.
+        管理器 → 系统详情 → 诊断报告 → 保存报告。后端无法连接时也可以导出本机信息。
+  - type: input
+    id: version
+    attributes:
+      label: Module and manager versions / 模块与管理器版本
+      placeholder: "Module dev.42, manager dev.42"
+    validations:
+      required: true
+  - type: textarea
+    id: device
+    attributes:
+      label: Device and ROM / 设备与系统
+      description: "Exact model/SKU, chipset, Android version, ROM build; stock or custom ROM. 具体型号、芯片、Android 与 ROM 版本。"
+    validations:
+      required: true
+  - type: input
+    id: root
+    attributes:
+      label: Root manager and MetaModule / Root 管理器与元模块
+      placeholder: "KernelSU or APatch + versions; MetaModule name/version"
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Failure stage / 故障阶段
+      options:
+        - "Installation / 安装"
+        - "Boot or camera service / 启动或相机服务"
+        - "Physical passthrough / 原相机透传"
+        - "Virtual frames / 虚拟画面"
+        - "Source or network / 提供器或网络"
+        - "Manager / 管理器"
+        - "Disable or recovery / 关闭或恢复"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction, expected and actual result / 复现步骤、预期与实际结果
+      description: "Include front/back, Camera1/Camera2/NDK if known, target app/version, source protocol/codec/resolution/FPS. Include no private source URL."
+    validations:
+      required: true
+  - type: textarea
+    id: baseline
+    attributes:
+      label: Stock and recovery comparison / 原厂与恢复对照
+      description: "Does it work with routes off? After disabling the module and rebooting? 全局路由关闭、模块禁用并重启后的结果。"
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostic report / 诊断报告
+      description: "Attach the reviewed .txt file, or explain why export is unavailable. No full logcat or personal images required."
+    validations:
+      required: true

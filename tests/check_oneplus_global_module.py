@@ -2,8 +2,17 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
+import pathlib
 import struct
+import tempfile
 import zipfile
+
+ANALYZER_PATH = pathlib.Path(__file__).resolve().parents[1] / "tools/firmware/analyze_firmware.py"
+SPEC = importlib.util.spec_from_file_location("firmware_analyzer", ANALYZER_PATH)
+assert SPEC and SPEC.loader
+ANALYZER = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(ANALYZER)
 
 
 REQUIRED = {
@@ -62,8 +71,12 @@ def main() -> int:
         ):
             check_elf64_arm64(archive.read(name), name)
         shim = archive.read("system/vendor/lib64/hw/camera.qcom.so")
-        if b"HMI\0" not in shim or b"camera.qcom.so\0" not in shim:
-            fail("camera shim does not export the expected Camera Module identity")
+        with tempfile.TemporaryDirectory(prefix="vcam-shim-check-") as temporary:
+            shim_path = pathlib.Path(temporary) / "camera.qcom.so"
+            shim_path.write_bytes(shim)
+            exports = ANALYZER.elf_defined_dynamic_symbols(shim_path, {"HMI"})
+        if exports.get("HMI") != 344:
+            fail("camera shim must export a visible 344-byte HMI OBJECT")
     print("OnePlus global module archive checks passed")
     return 0
 

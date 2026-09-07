@@ -1,6 +1,6 @@
 id=android_vcam_oneplus_global
 name=Android Virtual Camera · OnePlus Global
-version=0.5.0-dev.40
-versionCode=60
+version=0.5.0-dev.41
+versionCode=61
 author=android-vcam contributors
-description=Global virtual-camera adapter for qualified OnePlus Android 10-14 camera stacks.
+description=Engineering global Camera HAL adapter for OnePlus Qualcomm Android 10-14; hardware qualification pending.

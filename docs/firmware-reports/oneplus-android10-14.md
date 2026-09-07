@@ -86,3 +86,8 @@ The OnePlus qualification sequence is now:
 No proprietary library is linked into the project, and no firmware binary is
 disassembled at runtime. The survey uses declarative files and ELF metadata;
 actual support still requires staged S2/S3 device tests.
+
+The [offline validation checkpoint](oneplus-offline-validation.md) records the
+five-sample dependency audit and executable installer fault tests. All 107 strong
+shim imports have candidate exports in each firmware; actual linker namespace
+resolution and hardware operation remain unqualified.

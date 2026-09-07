@@ -8,6 +8,16 @@ MODULE_SNAPSHOT="$MODPATH/system/vendor/lib64/hw/local_time.default.so"
 PROFILE_FILE="$MODPATH/oneplus-profile.conf"
 INSTALLED_MODULE=/data/adb/modules/android_vcam_oneplus_global
 
+require_arm64_hal() {
+    candidate="$1"
+    [ -f "$candidate" ] || abort "! Camera HAL snapshot is missing: $candidate"
+    elf_prefix="$(od -An -N 6 -t x1 "$candidate" 2>/dev/null | tr -d '[:space:]')"
+    elf_machine="$(od -An -j 18 -N 2 -t u2 "$candidate" 2>/dev/null | tr -d '[:space:]')"
+    [ "$elf_prefix" = 7f454c460201 ] && [ "$elf_machine" = 183 ] || \
+        abort "! Camera HAL must be a little-endian AArch64 ELF64 module: $candidate"
+    [ "$(wc -c < "$candidate")" -gt 65536 ] || abort "! Camera HAL is unexpectedly small"
+}
+
 require_active_metamodule() {
     [ -d "$META_ROOT" ] || \
         abort "! Install and activate a MetaModule supported by the current root manager first"
@@ -44,11 +54,10 @@ for required in "$HAL_PATH" "$SNAPSHOT_SLOT" "$MODULE_HAL"; do
     [ -f "$required" ] || abort "! Required camera file is missing: $required"
 done
 
-elf_class="$(od -An -j 4 -N 1 -t u1 "$HAL_PATH" 2>/dev/null | tr -d '[:space:]')"
-elf_machine="$(od -An -j 18 -N 2 -t u2 "$HAL_PATH" 2>/dev/null | tr -d '[:space:]')"
-[ "$elf_class" = 2 ] && [ "$elf_machine" = 183 ] || \
-    abort "! camera.qcom.so is not an AArch64 ELF64 module"
-[ "$(wc -c < "$HAL_PATH")" -gt 65536 ] || abort "! camera.qcom.so is unexpectedly small"
+require_arm64_hal "$HAL_PATH"
+require_arm64_hal "$MODULE_HAL"
+fingerprint="$(getprop ro.build.fingerprint)"
+[ -n "$fingerprint" ] || abort "! Device fingerprint is unavailable"
 
 # During an in-place update the currently mounted camera.qcom.so can be our old
 # shim. Preserve the previous device-local snapshot instead of recursively
@@ -60,13 +69,31 @@ if [ -d /data/adb/modules/android_vcam ] && \
 fi
 
 snapshot_source="$HAL_PATH"
-if [ -f "$INSTALLED_MODULE/system/vendor/lib64/hw/camera.qcom.so" ] && \
-   [ -f "$INSTALLED_MODULE/system/vendor/lib64/hw/local_time.default.so" ]; then
-    mounted_hash="$(sha256sum "$HAL_PATH" | awk '{print $1}')"
+mounted_hash="$(sha256sum "$HAL_PATH" | awk '{print $1}')"
+# A disable marker takes effect on reboot, not immediately. Do not capture the
+# unified adapter's patched HAL while its overlay is still visible.
+for unified_hal in \
+    /data/adb/modules/android_vcam/vendor/lib64/hw/camera.qcom.so \
+    /data/adb/modules/android_vcam/system/vendor/lib64/hw/camera.qcom.so; do
+    [ -f "$unified_hal" ] || continue
+    [ "$mounted_hash" != "$(sha256sum "$unified_hal" | awk '{print $1}')" ] || \
+        abort "! The disabled unified camera overlay is still mounted; reboot before installing"
+done
+if [ -f "$INSTALLED_MODULE/system/vendor/lib64/hw/camera.qcom.so" ]; then
     installed_shim_hash="$(sha256sum \
         "$INSTALLED_MODULE/system/vendor/lib64/hw/camera.qcom.so" | awk '{print $1}')"
     if [ "$mounted_hash" = "$installed_shim_hash" ]; then
         snapshot_source="$INSTALLED_MODULE/system/vendor/lib64/hw/local_time.default.so"
+        require_arm64_hal "$snapshot_source"
+        installed_profile="$INSTALLED_MODULE/oneplus-profile.conf"
+        [ -r "$installed_profile" ] || abort "! Existing OEM snapshot profile is missing"
+        previous_fingerprint="$(sed -n 's/^fingerprint=//p' "$installed_profile" | head -n 1)"
+        previous_snapshot_hash="$(sed -n 's/^original_camera_hal_sha256=//p' "$installed_profile" | head -n 1)"
+        [ "$previous_fingerprint" = "$fingerprint" ] || \
+            abort "! Firmware changed; disable this module, reboot to stock and reinstall"
+        [ -n "$previous_snapshot_hash" ] && \
+            [ "$(sha256sum "$snapshot_source" | awk '{print $1}')" = "$previous_snapshot_hash" ] || \
+            abort "! Existing OEM snapshot failed integrity verification"
         ui_print "- Preserving the existing OEM Camera HAL snapshot"
     fi
 fi
@@ -82,7 +109,7 @@ schema=1
 adapter=oneplus-qcom-global-shim
 route_scope=global
 sdk=$sdk
-fingerprint=$(getprop ro.build.fingerprint)
+fingerprint=$fingerprint
 original_camera_hal_sha256=$snapshot_hash
 shim_sha256=$shim_hash
 EOF

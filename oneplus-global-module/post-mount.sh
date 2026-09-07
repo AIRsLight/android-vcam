@@ -17,6 +17,8 @@ rm -f "$MOUNT_OK"
 
 fail_closed() {
     echo "oneplus-global: $1" >> "$LOG_FILE"
+    # This flag prevents the next boot's activation; MetaModule has already
+    # mounted, so it does not undo overlays in the current boot.
     touch "$MODDIR/disable"
     exit 1
 }
@@ -25,6 +27,11 @@ for required in "$PROFILE_FILE" "$TARGET_HAL" "$TARGET_SNAPSHOT" \
                 "$MODULE_HAL" "$MODULE_SNAPSHOT"; do
     [ -f "$required" ] || fail_closed "required file missing: $required"
 done
+
+expected_fingerprint="$(sed -n 's/^fingerprint=//p' "$PROFILE_FILE" | head -n 1)"
+[ -n "$expected_fingerprint" ] && \
+    [ "$(getprop ro.build.fingerprint)" = "$expected_fingerprint" ] || \
+    fail_closed "firmware changed; reboot to stock and reinstall the adapter"
 
 expected_original="$(sed -n 's/^original_camera_hal_sha256=//p' "$PROFILE_FILE" | head -n 1)"
 expected_shim="$(sed -n 's/^shim_sha256=//p' "$PROFILE_FILE" | head -n 1)"

@@ -107,6 +107,39 @@ class FirmwareAnalyzerTest(unittest.TestCase):
             self.assertEqual(344, candidate["hmi_symbol_size"])
             self.assertTrue(candidate["portable_global_shim_candidate"])
 
+    def test_rejects_invalid_or_nonexported_hmi(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "camera.qcom.so"
+            self.create_minimal_arm64_camera_module(path)
+            original = path.read_bytes()
+            symbol = 64 + len(b"\0HMI\0") + 24
+            for label, offset, value in (
+                ("undefined", symbol + 6, 0),
+                ("local", symbol + 4, 0x01),
+                ("function", symbol + 4, 0x12),
+                ("hidden", symbol + 5, 2),
+                ("internal", symbol + 5, 1),
+            ):
+                with self.subTest(label=label):
+                    payload = bytearray(original)
+                    payload[offset] = value
+                    path.write_bytes(payload)
+                    self.assertEqual({}, MODULE.elf_defined_dynamic_symbols(path, {"HMI"}))
+            for length in (0, 20, 51, 52, 63, 100):
+                with self.subTest(truncated_length=length):
+                    path.write_bytes(original[:length])
+                    self.assertEqual({}, MODULE.elf_defined_dynamic_symbols(path, {"HMI"}))
+
+    def test_rejects_partial_dynamic_symbol_table(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "camera.qcom.so"
+            self.create_minimal_arm64_camera_module(path)
+            payload = bytearray(path.read_bytes())
+            section_offset = struct.unpack_from("<Q", payload, 40)[0]
+            struct.pack_into("<Q", payload, section_offset + 2 * 64 + 32, 47)
+            path.write_bytes(payload)
+            self.assertEqual({}, MODULE.elf_defined_dynamic_symbols(path, {"HMI"}))
+
     def test_comparison_marks_transport_change_high_risk(self) -> None:
         with tempfile.TemporaryDirectory() as left_dir, tempfile.TemporaryDirectory() as right_dir:
             left = pathlib.Path(left_dir)

@@ -76,3 +76,8 @@ service contract.
 It intentionally excludes runtime camera IDs, proprietary vendor-tag semantics,
 buffer/fence timing and camera resource conflicts. Those require a read-only
 runtime probe and then staged real-device qualification.
+
+For the OnePlus global shim, `tools/firmware/audit_oneplus_shim.py` additionally
+compares versioned native imports against candidate dependency exports without
+loading OEM libraries. See the [offline checkpoint](firmware-reports/oneplus-offline-validation.md)
+for reproducible commands, installer fault tests and the remaining runtime gaps.

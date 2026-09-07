@@ -245,6 +245,8 @@ def elf_defined_dynamic_symbols(path: pathlib.Path, wanted: set[str]) -> dict[st
             return {}
         elf_class = header[4]
         if elf_class == 2:
+            if len(header) < 64:
+                return {}
             section_offset = struct.unpack_from("<Q", header, 40)[0]
             section_entry_size = struct.unpack_from("<H", header, 58)[0]
             section_count = struct.unpack_from("<H", header, 60)[0]
@@ -277,11 +279,13 @@ def elf_defined_dynamic_symbols(path: pathlib.Path, wanted: set[str]) -> dict[st
                 continue
             offset, size, string_index, entry_size = section[4], section[5], section[6], section[9]
             if (string_index >= len(sections) or entry_size < symbol_minimum or
+                    size % entry_size != 0 or
                     offset > file_size or size > file_size - offset):
                 continue
             strings_section = sections[string_index]
             strings_offset, strings_size = strings_section[4], strings_section[5]
-            if strings_offset > file_size or strings_size > file_size - strings_offset:
+            if (strings_section[1] != 3 or strings_size > TEXT_LIMIT or
+                    strings_offset > file_size or strings_size > file_size - strings_offset):
                 continue
             stream.seek(strings_offset)
             strings = stream.read(strings_size)
@@ -292,16 +296,19 @@ def elf_defined_dynamic_symbols(path: pathlib.Path, wanted: set[str]) -> dict[st
                     break
                 fields = struct.unpack(symbol_format, payload)
                 if elf_class == 2:
-                    name_offset, info, _, section_index, _, symbol_size = fields
+                    name_offset, info, visibility, section_index, _, symbol_size = fields
                 else:
-                    name_offset, _, symbol_size, info, _, section_index = fields
-                if section_index == SHN_UNDEF or (info >> 4) == 0 or name_offset >= len(strings):
+                    name_offset, _, symbol_size, info, visibility, section_index = fields
+                if (section_index == SHN_UNDEF or (info >> 4) not in (1, 2) or
+                        (visibility & 3) not in (0, 3) or name_offset >= len(strings)):
                     continue
                 terminator = strings.find(b"\0", name_offset)
                 if terminator < 0:
                     continue
-                name = strings[name_offset:terminator].decode("ascii", errors="ignore")
+                name = strings[name_offset:terminator].decode("ascii", errors="replace")
                 if name in wanted:
+                    if name == "HMI" and (info & 15) != 1:
+                        continue
                     found[name] = symbol_size
             if set(found) == wanted:
                 break

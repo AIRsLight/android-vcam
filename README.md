@@ -27,9 +27,18 @@ Provider.
 | Android 13 AOSP HIDL/AIDL coexistence | Partial build integration |
 | Android 14 AOSP stable-AIDL v2 integration | Build-validated; AVD global route qualified under Enforcing |
 | Android 14 unknown-device read-only probe module | Implemented; routing always unauthorized |
-| OnePlus Android 10–14 global replacement adapter | API 29 build and five-firmware S1 checks pass; hardware qualification pending |
+| OnePlus Qualcomm Android 10–14 global replacement adapter | dev.41 engineering build; five-firmware dependency audit and 29 offline tests pass; hardware qualification pending |
 | Manufacturer-neutral global replacement mode | Partial; OnePlus Qualcomm module family implemented first |
 | Android 10 and Android 11 app-scoped routing | Planned; global mode no longer depends on the 32-bit CameraService |
+
+Latest development checkpoint (2026-09-07): the common API 29 ARM64 OnePlus
+shim has candidates for all six direct dependencies and all 107 strong imports
+in each of the five surveyed firmware samples. Executable installer fault tests
+now cover snapshot integrity, firmware changes and switching from a still-mounted
+adapter. See the [offline validation report](docs/firmware-reports/oneplus-offline-validation.md).
+Actual linker namespace resolution, HAL frame delivery and boot/recovery remain
+unqualified for this new adapter. The cohort does not establish support for
+every OnePlus chipset or ROM; dev.41 is an engineering package, not a new qualified release.
 
 This is pre-release system software. Release modules accept only qualified
 fingerprints and camera-library identities and fail closed on unknown builds.

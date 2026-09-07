@@ -262,6 +262,16 @@ It remains one 64-bit Provider/HAL adapter on Android 10–14 even where
 CameraService itself is 32-bit. Static firmware acceptance is not a release
 qualification; every Android major still needs the M5 runtime gates.
 
+As of 2026-09-07, the dev.41 OnePlus Qualcomm engineering adapter has completed
+the five-firmware offline dependency audit (six direct libraries and 107 strong
+imports per sample) and 29 Linux tests. Installer guards now reject missing or
+corrupt OEM snapshots, snapshots from another firmware and still-mounted unified
+adapter payloads. These checks are S1 evidence only: vendor linker namespace
+resolution, HAL loading/frame delivery and MetaModule boot/recovery still need
+runtime qualification. In particular, the post-mount disable flag affects a
+subsequent boot; current-boot automatic rollback has not been established.
+See the [offline validation checkpoint](firmware-reports/oneplus-offline-validation.md).
+
 For every version, the build gate covers CameraService, the selected Provider,
 VINTF fragments, init service definitions and SELinux policy. The runtime gate
 covers enumeration, both target cameras, scoped and unscoped apps, Camera1,
@@ -271,7 +281,8 @@ Android versions below 10 and above 14 are out of scope for this roadmap.
 
 ## M5 — Device and vendor adapter qualification
 
-**Status: Planned**
+**Status: In progress — exact-device profiles qualified; OnePlus Android 10–14
+Qualcomm cohort offline checks complete, new global adapter runtime gates pending**
 
 System-version support does not imply stock-device support. Tier-1 AOSP/ROM
 integration and tier-2 systemless OEM adapters remain separate deliverables.

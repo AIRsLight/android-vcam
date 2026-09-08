@@ -11,15 +11,15 @@ already merged into main before the branch split.
 2. Build with an explicit unused development version:
 
    ```powershell
-   pwsh -File tools/package-supported-release.ps1 -Version 0.5.0-dev.43
+   pwsh -File tools/package-supported-release.ps1 -Version 0.5.0-dev.44 -VersionCode 64
    ```
 
 3. Push the exact source commit to `origin/dev`.
 4. Publish the normal module ZIP, manager APK, test APK and source/hash manifest:
 
    ```powershell
-   pwsh -File tools/publish-dev-release.ps1 -Version 0.5.0-dev.43 -NotesFile path/to/notes.md -ValidateOnly
-   pwsh -File tools/publish-dev-release.ps1 -Version 0.5.0-dev.43 -NotesFile path/to/notes.md
+   pwsh -File tools/publish-dev-release.ps1 -Version 0.5.0-dev.44 -NotesFile docs/releases/supported-dev44.md -ValidateOnly
+   pwsh -File tools/publish-dev-release.ps1 -Version 0.5.0-dev.44 -NotesFile docs/releases/supported-dev44.md
    ```
 
 The build and manifest entry points reject main, detached HEAD and dirty source

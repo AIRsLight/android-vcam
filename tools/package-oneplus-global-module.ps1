@@ -4,8 +4,8 @@ param(
     [string]$HttpsDownloader = "out/backend-java/vcam-https-downloader.jar",
     [string]$OutputDirectory = "dist",
     [string]$Python = "python",
-    [string]$Version = "0.5.0-dev.42",
-    [int]$VersionCode = 62
+    [string]$Version = "0.5.0-dev.44",
+    [int]$VersionCode = 64
 )
 
 $ErrorActionPreference = "Stop"

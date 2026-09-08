@@ -16,6 +16,7 @@ SPEC.loader.exec_module(ANALYZER)
 
 
 REQUIRED = {
+    "detect.sh",
     "module.prop",
     "customize.sh",
     "post-mount.sh",

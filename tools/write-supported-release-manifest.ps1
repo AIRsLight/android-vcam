@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "0.5.0-dev.39",
+    [string]$Version = "0.5.0-dev.44",
     [string]$OutputDirectory = "dist"
 )
 
@@ -32,12 +32,21 @@ $manifest = [ordered]@{
     release = $Version
     source_branch = "dev"
     source_commit = $sourceCommit
-    selection = "one root module auto-selects an exact fingerprint and camera ABI; unknown builds fail closed"
+    selection = "exact device profiles first; eligible OnePlus Qualcomm API 29-34 firmware falls back to experimental global replacement; other layouts rejected"
     common = [ordered]@{
         manager = "android-vcam-manager-v$Version-debug.apk"
         test_app = "android-vcam-camera2-test-v$Version-debug.apk"
     }
     profiles = @(
+        [ordered]@{
+            id = "oneplus-qcom-global-shim"
+            priority = "fallback after exact profiles"
+            qualification = "experimental; offline validated, community hardware tests pending"
+            eligibility = "OnePlus; API 29-34; ARM64 camera.qcom.so and physical HIDL 2.4 service_64; local_time.default.so slot"
+            route_scope = "global"
+            root_delivery = "APatch or KernelSU with an active supported MetaModule"
+            modules = @("android-vcam-module-v$Version.zip")
+        },
         [ordered]@{
             id = "oneplus7pro-p202303230244"
             fingerprint = "OnePlus/OnePlus7Pro_CH/OnePlus7Pro:12/SKQ1.211113.001/P.202303230244:user/release-keys"

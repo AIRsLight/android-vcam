@@ -7,6 +7,9 @@ MODULE_HAL="$MODPATH/system/vendor/lib64/hw/camera.qcom.so"
 MODULE_SNAPSHOT="$MODPATH/system/vendor/lib64/hw/local_time.default.so"
 PROFILE_FILE="$MODPATH/oneplus-profile.conf"
 INSTALLED_MODULE=/data/adb/modules/android_vcam_oneplus_global
+if [ "$VCAM_UNIFIED_GLOBAL" = 1 ]; then
+    INSTALLED_MODULE=/data/adb/modules/android_vcam
+fi
 
 require_arm64_hal() {
     candidate="$1"
@@ -34,6 +37,8 @@ root_manager=unknown
 [ "$APATCH" = true ] && root_manager=APatch
 [ "$root_manager" != unknown ] || abort "! Only KernelSU and APatch are supported"
 require_active_metamodule
+. "$MODPATH/detect.sh"
+detect_oneplus_global || abort "! Unsupported OnePlus physical Camera HAL/provider layout"
 
 manufacturer="$(getprop ro.product.manufacturer | tr '[:upper:]' '[:lower:]')"
 brand="$(getprop ro.product.brand | tr '[:upper:]' '[:lower:]')"
@@ -61,10 +66,15 @@ fingerprint="$(getprop ro.build.fingerprint)"
 
 # During an in-place update the currently mounted camera.qcom.so can be our old
 # shim. Preserve the previous device-local snapshot instead of recursively
-# snapshotting the shim. An active unified module must be removed first because
-# two camera overlays cannot be ordered safely.
+# snapshotting the shim. Only a verified unified global profile may update
+# itself while active; a different overlay must be disabled and unmounted first.
+unified_global_update=0
+if [ "$VCAM_UNIFIED_GLOBAL" = 1 ] && \
+   [ "$(cat "$INSTALLED_MODULE/profile.id" 2>/dev/null)" = oneplus-qcom-global-shim ]; then
+    unified_global_update=1
+fi
 if [ -d /data/adb/modules/android_vcam ] && \
-   [ ! -e /data/adb/modules/android_vcam/disable ]; then
+   [ ! -e /data/adb/modules/android_vcam/disable ] && [ "$unified_global_update" != 1 ]; then
     abort "! Disable the installed android_vcam module and reboot before changing adapters"
 fi
 
@@ -75,15 +85,19 @@ mounted_hash="$(sha256sum "$HAL_PATH" | awk '{print $1}')"
 for unified_hal in \
     /data/adb/modules/android_vcam/vendor/lib64/hw/camera.qcom.so \
     /data/adb/modules/android_vcam/system/vendor/lib64/hw/camera.qcom.so; do
+    [ "$unified_global_update" != 1 ] || continue
     [ -f "$unified_hal" ] || continue
     [ "$mounted_hash" != "$(sha256sum "$unified_hal" | awk '{print $1}')" ] || \
         abort "! The disabled unified camera overlay is still mounted; reboot before installing"
 done
-if [ -f "$INSTALLED_MODULE/system/vendor/lib64/hw/camera.qcom.so" ]; then
+installed_hal_dir="$INSTALLED_MODULE/system/vendor/lib64/hw"
+[ ! -f "$INSTALLED_MODULE/vendor/lib64/hw/camera.qcom.so" ] || \
+    installed_hal_dir="$INSTALLED_MODULE/vendor/lib64/hw"
+if [ -f "$installed_hal_dir/camera.qcom.so" ]; then
     installed_shim_hash="$(sha256sum \
-        "$INSTALLED_MODULE/system/vendor/lib64/hw/camera.qcom.so" | awk '{print $1}')"
+        "$installed_hal_dir/camera.qcom.so" | awk '{print $1}')"
     if [ "$mounted_hash" = "$installed_shim_hash" ]; then
-        snapshot_source="$INSTALLED_MODULE/system/vendor/lib64/hw/local_time.default.so"
+        snapshot_source="$installed_hal_dir/local_time.default.so"
         require_arm64_hal "$snapshot_source"
         installed_profile="$INSTALLED_MODULE/oneplus-profile.conf"
         [ -r "$installed_profile" ] || abort "! Existing OEM snapshot profile is missing"
@@ -108,6 +122,7 @@ cat > "$PROFILE_FILE" <<EOF
 schema=1
 adapter=oneplus-qcom-global-shim
 route_scope=global
+provider_init_service=$detected_provider_service
 sdk=$sdk
 fingerprint=$fingerprint
 original_camera_hal_sha256=$snapshot_hash

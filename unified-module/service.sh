@@ -29,6 +29,9 @@ if [ -x "$MODDIR/device-probe.sh" ]; then
 fi
 
 case "$PROFILE" in
+    oneplus-qcom-global-shim)
+        sh "$MODDIR/global-service.sh"
+        ;;
     oneplus7pro-p202303230244)
         sh "$MODDIR/profile-service.sh"
         ;;

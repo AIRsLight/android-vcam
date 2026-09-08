@@ -55,9 +55,26 @@ case "$fingerprint" in
         mark_disabled_legacy_module_for_removal android_vcam_portable
         ;;
     *)
-        abort "! Unsupported device build: $fingerprint"
+        . "$PROFILE_ROOT/oneplus-qcom-global-shim/detect.sh"
+        detect_oneplus_global || abort "! Unsupported device build: $fingerprint"
+        profile=oneplus-qcom-global-shim
+        profile_name='OnePlus Qualcomm · Android 10–14 · experimental global'
         ;;
 esac
+
+# Retiring the standalone engineering adapter is allowed only after its overlay
+# has gone away. A disable marker alone is not evidence of a completed reboot.
+legacy_global=/data/adb/modules/android_vcam_oneplus_global
+if [ -d "$legacy_global" ]; then
+    [ -e "$legacy_global/disable" ] || abort "! Disable legacy OnePlus global module and reboot first"
+    current_hal_hash="$(sha256sum /vendor/lib64/hw/camera.qcom.so 2>/dev/null | awk '{print $1}')"
+    for legacy_hal in "$legacy_global/system/vendor/lib64/hw/camera.qcom.so" \
+                      "$legacy_global/vendor/lib64/hw/camera.qcom.so"; do
+        [ -f "$legacy_hal" ] || continue
+        [ "$current_hal_hash" != "$(sha256sum "$legacy_hal" | awk '{print $1}')" ] || \
+            abort "! Legacy OnePlus overlay is still mounted; reboot first"
+    done
+fi
 
 ui_print "- Root manager: $root_manager"
 ui_print "- Active MetaModule: $(sed -n 's/^name=//p' "$META_ROOT/module.prop" | head -n 1)"
@@ -68,6 +85,10 @@ rm -rf "$PROFILE_ROOT"
 printf '%s\n' "$profile" > "$MODPATH/profile.id"
 
 case "$profile" in
+    oneplus-qcom-global-shim)
+        VCAM_UNIFIED_GLOBAL=1
+        . "$MODPATH/install-global.sh"
+        ;;
     oneplus7pro-p202303230244)
         . "$MODPATH/install-profile.sh"
         proxy_slot="$MODPATH/vendor/lib64/hw/local_time.default.so"
@@ -87,13 +108,14 @@ case "$profile" in
         ;;
 esac
 
-for script in profile-service.sh provider-service.sh router-service.sh service.sh; do
+for script in profile-service.sh provider-service.sh router-service.sh global-service.sh service.sh; do
     [ -f "$MODPATH/$script" ] && set_perm "$MODPATH/$script" 0 0 0755
 done
 set_perm "$MODPATH/customize.sh" 0 0 0755
 set_perm "$MODPATH/profile.id" 0 0 0644
 rm -f "$MODPATH/install-profile.sh" "$MODPATH/install-provider.sh" \
-    "$MODPATH/install-router.sh"
+    "$MODPATH/install-router.sh" "$MODPATH/install-global.sh"
+mark_disabled_legacy_module_for_removal android_vcam_oneplus_global
 
 description="Auto-selected $profile_name profile via $root_manager MetaModule."
 sed -i "s|^description=.*|description=$description|" "$MODPATH/module.prop"

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "0.5.0-dev.43",
-    [int]$VersionCode = 63,
+    [string]$Version = "0.5.0-dev.44",
+    [int]$VersionCode = 64,
     [string]$CameraHal = "out\device\camera.qcom.vcam-proxy.so",
     [string]$AidlArtifactRoot = "out/android14-provider-probe",
     [string]$NativeArtifactRoot = "out/native/arm64-v8a",
@@ -52,6 +52,19 @@ Reset-WorkDirectory $workRoot
 New-Item -ItemType Directory -Force -Path $profileZipRoot, $extractRoot | Out-Null
 
 $relativeProfileZipRoot = [IO.Path]::GetRelativePath($repoRoot, $profileZipRoot)
+& (Join-Path $PSScriptRoot "package-oneplus-global-module.ps1") `
+    -Version $Version -VersionCode $VersionCode `
+    -NativeArtifactRoot $NativeArtifactRoot `
+    -OutputDirectory $relativeProfileZipRoot -Python $Python
+if ($LASTEXITCODE -ne 0) { throw "OnePlus global profile packaging failed" }
+$globalExtract = Join-Path $extractRoot "oneplus-global"
+Expand-Archive -LiteralPath (Join-Path $profileZipRoot "android-vcam-oneplus-global-v$Version.zip") `
+    -DestinationPath $globalExtract
+Move-Item -LiteralPath (Join-Path $globalExtract "customize.sh") `
+    -Destination (Join-Path $globalExtract "install-global.sh")
+Move-Item -LiteralPath (Join-Path $globalExtract "service.sh") `
+    -Destination (Join-Path $globalExtract "global-service.sh")
+Remove-ProfileMetadata $globalExtract
 & (Join-Path $PSScriptRoot "package-apmodule.ps1") `
     -CameraHal $CameraHal `
     -Version $Version `
@@ -130,6 +143,7 @@ Copy-DirectoryContents (Join-Path $repoRoot "unified-module") $stagingRoot
 Copy-Item -LiteralPath (Join-Path $repoRoot "THIRD_PARTY_NOTICES.md") `
     -Destination $stagingRoot
 $profilesRoot = Join-Path $stagingRoot "payload/profiles"
+Copy-DirectoryContents $globalExtract (Join-Path $profilesRoot "oneplus-qcom-global-shim")
 $oneplusProfile = Join-Path $profilesRoot "oneplus7pro-p202303230244"
 $nxProfile = Join-Path $profilesRoot "nx769j-ukq1-20240417"
 Copy-DirectoryContents $oneplusExtract $oneplusProfile

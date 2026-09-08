@@ -2,28 +2,28 @@
 
 Publication policy update: dev.42's separate community-kit release was withdrawn.
 Future public tests use ordinary dev releases built from `dev`: one installable
-module ZIP, manager APK, test APK and a manifest. The kit instructions below are
-retained for local engineering use only. See [release workflow](release-workflow.md).
+module ZIP, manager APK, test APK and a manifest. dev.44 includes the generic
+OnePlus adapter in that same module. See [release workflow](release-workflow.md).
 
 发布方式已调整：dev.42 独立测试套件已撤下，后续从 `dev` 分支发布常规 dev 版，
-测试通过后再同步到 `main`。下面的外层测试套件说明仅供本地开发使用。
+测试通过后再同步到 `main`。dev.44 已将 OnePlus 通用适配加入同一个模块 ZIP。
 
 OnePlus Qualcomm Android 10–14 global replacement is experimental. The five
 offline firmware samples are compatibility candidates, not device certifications.
-The currently qualified exact-device release is separate from this engineering kit.
+The two existing exact-device profiles take priority over the generic fallback.
 
 OnePlus 高通 Android 10–14 全局替换目前为实验功能。其他芯片、其他 HAL 布局以及同型号
 不同 ROM 不会因为这五套固件离线通过而自动获得认证。请能够自行禁用模块并恢复系统的用户参与。
 
-## Kit contents / 测试包内容
+## Release contents / 发布内容
 
-`android-vcam-oneplus-testkit-v0.5.0-dev.42.zip` is a desktop download bundle,
-not an installable root module. Extract it first. It contains one installable
-OnePlus global module ZIP, manager APK, test APK, this guide and a SHA-256 manifest.
-Do not install this engineering module alongside the qualified `android_vcam`
-module: disable the existing camera module and reboot before changing adapters.
+Install `android-vcam-module-v0.5.0-dev.44.zip` directly in KSU/APatch; install
+the two APKs normally. No outer archive or separate global module is needed.
+An existing unified generic profile can be upgraded in place on the same ROM.
+Disable and reboot first when switching from a standalone engineering module
+or an active different HAL adapter; firmware changes also require a stock reboot.
 
-外层测试包先解压，只有其中的模块 ZIP 交给 KSU/APatch 安装；两个 APK 常规安装。
+直接将统一模块 ZIP 交给 KSU/APatch 安装；两个 APK 常规安装，无需外层测试套件。
 管理器最低 Android 10，无需申请 root 或所有文件访问权限。模块需要当前 root 管理器支持的
 已启用 MetaModule。切换已有模块前，先禁用旧相机模块并重启。
 

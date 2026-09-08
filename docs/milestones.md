@@ -279,6 +279,16 @@ validation will be collected through user Issues and recorded per exact ROM;
 there are no community-qualified device results at this checkpoint. The OnePlus
 engineering test kit remains separate from the qualified unified release.
 
+The dev.44 checkpoint integrates that adapter into the normal single-module
+release as `oneplus-qcom-global-shim`, after both exact-profile selectors.
+Eligibility is read-only OnePlus/API/ABI/physical-provider-layout detection;
+hardware qualification is still pending. Shared native release components now
+target API 29. The offline suite passes 49 tests, including 27 installer and
+mount lifecycle cases covering unified selection, normalized vendor paths,
+same-ROM snapshot-preserving updates and safe standalone-module migration.
+The six release-policy tests also pass. No new hardware results or main
+promotion are implied by this integration.
+
 For every version, the build gate covers CameraService, the selected Provider,
 VINTF fragments, init service definitions and SELinux policy. The runtime gate
 covers enumeration, both target cameras, scoped and unscoped apps, Camera1,

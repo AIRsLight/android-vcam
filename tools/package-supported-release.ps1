@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "0.5.0-dev.43",
-    [int]$VersionCode = 63,
+    [string]$Version = "0.5.0-dev.44",
+    [int]$VersionCode = 64,
     [string]$OriginalCameraHal = "out\device\camera.qcom.original.so",
     [string]$PatchedCameraHal = "out\device\camera.qcom.vcam-proxy.so",
     [string]$AidlArtifactRoot = "out/android14-provider-probe",

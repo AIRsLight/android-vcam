@@ -9,6 +9,10 @@ TARGET_HAL=/vendor/lib64/hw/camera.qcom.so
 TARGET_SNAPSHOT=/vendor/lib64/hw/local_time.default.so
 MODULE_HAL="$MODDIR/system/vendor/lib64/hw/camera.qcom.so"
 MODULE_SNAPSHOT="$MODDIR/system/vendor/lib64/hw/local_time.default.so"
+if [ -f "$MODDIR/vendor/lib64/hw/camera.qcom.so" ]; then
+    MODULE_HAL="$MODDIR/vendor/lib64/hw/camera.qcom.so"
+    MODULE_SNAPSHOT="$MODDIR/vendor/lib64/hw/local_time.default.so"
+fi
 
 mkdir -p "$STATE_DIR"
 chmod 0700 "$STATE_DIR"

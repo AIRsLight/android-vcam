@@ -27,26 +27,29 @@ release has been withdrawn. See [release workflow](docs/release-workflow.md).
 | NX769J Android 14 scoped public 0/1 routing | Qualified on one exact firmware |
 | Root-free manager and manager-independent backend | Implemented |
 | Image, local video, HTTP/HTTPS/HLS and RTSP sources | Implemented |
-| Unified APatch/KernelSU module with automatic exact-profile selection | Implemented |
+| Unified APatch/KernelSU module with exact-profile priority and experimental fallback | Implemented in dev.44 |
 | Android 12 AOSP HIDL source integration | Build-validated, runtime qualification incomplete |
 | Android 13 AOSP HIDL/AIDL coexistence | Partial build integration |
 | Android 14 AOSP stable-AIDL v2 integration | Build-validated; AVD global route qualified under Enforcing |
 | Android 14 unknown-device read-only probe module | Implemented; routing always unauthorized |
-| OnePlus Qualcomm Android 10–14 global replacement adapter | dev.42 community test kit; five-firmware dependency audit and 32 offline tests pass; hardware qualification pending |
+| OnePlus Qualcomm Android 10–14 global replacement adapter | Included in the normal dev.44 unified module; offline validated; hardware qualification pending |
 | Manufacturer-neutral global replacement mode | Partial; OnePlus Qualcomm module family implemented first |
 | Android 10 and Android 11 app-scoped routing | Planned; global mode no longer depends on the 32-bit CameraService |
 
-Latest development checkpoint (2026-09-07): the common API 29 ARM64 OnePlus
+Latest development checkpoint (2026-09-08): the common API 29 ARM64 OnePlus
 shim has candidates for all six direct dependencies and all 107 strong imports
 in each of the five surveyed firmware samples. Executable installer fault tests
 now cover snapshot integrity, firmware changes and switching from a still-mounted
 adapter. See the [offline validation report](docs/firmware-reports/oneplus-offline-validation.md).
 Actual linker namespace resolution, HAL frame delivery and boot/recovery remain
 unqualified for this new adapter. The cohort does not establish support for
-every OnePlus chipset or ROM; dev.41 is an engineering package, not a new qualified release.
+every OnePlus chipset or ROM. dev.44 adds this experimental fallback to the normal
+single-module release, including safe unified upgrades and physical-provider detection.
 
-This is pre-release system software. Release modules accept only qualified
-fingerprints and camera-library identities and fail closed on unknown builds.
+This is pre-release system software. Exact profiles retain their firmware and
+camera-library checks. Other OnePlus API 29–34 ARM64 builds may select the
+experimental global profile when the expected Qualcomm HAL, snapshot slot and
+physical HIDL 2.4 service_64 layout are present. Other layouts are rejected.
 Unknown API 34 devices now receive a separate, machine-readable probe
 classification, but the evaluator cannot authorize routing or install a generic
 profile. See [Android 14 capability probing](docs/aosp14-capability-probe.md).
@@ -85,7 +88,8 @@ until the runtime evidence has been reviewed; the new global adapter is experime
   OnePlus 7 Pro Android 12 and NX769J Android 14. It cross-checks the backend
   device profile and Camera ABI hashes when active,
   reports router/provider/rollback state, and launches the ordinary test APK
-  against public cameras 0 or 1. Unknown builds remain configuration-only.
+  against public cameras 0 or 1. The installed OnePlus generic profile exposes
+  global routes only; unknown builds outside this adapter remain configuration-only.
 - A transport-neutral route resolver is shared by the OEM compatibility proxy
   and the standalone AOSP Camera3 module; unscoped standalone sessions fail
   closed.
@@ -259,16 +263,17 @@ licenses, and source locations.
 Outputs:
 
 ```text
-dist/android-vcam-manager-v0.5.0-dev.39-debug.apk
-dist/android-vcam-camera2-test-v0.5.0-dev.39-debug.apk
-dist/android-vcam-module-v0.5.0-dev.39.zip
-dist/android-vcam-supported-v0.5.0-dev.39.json
+dist/android-vcam-manager-v0.5.0-dev.44-debug.apk
+dist/android-vcam-camera2-test-v0.5.0-dev.44-debug.apk
+dist/android-vcam-module-v0.5.0-dev.44.zip
+dist/android-vcam-supported-v0.5.0-dev.44.json
 ```
 
 The release contains one `android_vcam` root module. Its installer requires the
-active MetaModule recommended by KernelSU or APatch, validates the exact device
-fingerprint and camera ABI, then installs only the matching OnePlus 7 Pro or
-NX769J runtime profile. Unknown builds fail closed. Device-specific packages
+active MetaModule recommended by KernelSU or APatch. It selects the exact
+OnePlus 7 Pro or NX769J profile first, otherwise an eligible experimental
+OnePlus Qualcomm global profile. It installs only the selected runtime;
+unsupported layouts are rejected. Device-specific packages
 can still be produced for engineering diagnostics, but are not release files:
 
 ```powershell
@@ -281,7 +286,8 @@ pwsh -File tools/build-testapp.ps1
 ```
 
 The current single-module artifact hashes and installation map are listed in
-[the dev.39 release snapshot](docs/releases/supported-dev39.md). The previous
+[the dev.44 release notes](docs/releases/supported-dev44.md) and generated release
+manifest. The previous
 read-path performance release is preserved in
 [the dev.38 release snapshot](docs/releases/supported-dev38.md). The first
 single-module qualification remains documented in
@@ -291,8 +297,8 @@ multi-module packaging remains documented in
 NX769J qualification boundary remains preserved in
 [the dev.29 integration snapshot](docs/releases/nx769j-dev29.md).
 
-The unified ZIP contains both qualified payload profiles before installation.
-The installer removes the unused profile and leaves one module tree. System
+The unified ZIP contains two exact profiles and one experimental global profile.
+The installer removes unused profiles and leaves one module tree. System
 files are mounted by the active SU-manager MetaModule; VCAM does not implement
 or bundle its own mount engine and never writes partition-resident files.
 

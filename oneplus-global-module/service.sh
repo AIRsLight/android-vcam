@@ -44,5 +44,12 @@ for provider in /data/adb/android_vcam/providers/*; do
 done
 
 echo "oneplus-global: restarting camera stack" >> "$LOG_FILE"
-setprop ctl.restart vendor.camera-provider-2-4
+. "$MODDIR/detect.sh"
+configured_provider="$(sed -n 's/^provider_init_service=//p' "$MODDIR/oneplus-profile.conf" | head -n 1)"
+if ! detect_oneplus_global || [ "$configured_provider" != "$detected_provider_service" ]; then
+    echo "oneplus-global: physical provider changed; refusing to restart" >> "$LOG_FILE"
+    touch "$MODDIR/disable"
+    exit 1
+fi
+setprop ctl.restart "$configured_provider"
 setprop ctl.restart cameraserver

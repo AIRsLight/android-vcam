@@ -7,8 +7,15 @@ import zipfile
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-DEFAULT_ZIP = ROOT / "dist" / "android-vcam-module-v0.5.0-dev.39.zip"
+DEFAULT_ZIP = ROOT / "dist" / "android-vcam-module-v0.5.0-dev.44.zip"
 PROFILES = {
+    "oneplus-qcom-global-shim": {
+        "device-probe.sh", "vcamctl", "detect.sh", "install-global.sh",
+        "global-service.sh", "post-mount.sh", "sepolicy.rule",
+        "system/vendor/lib64/hw/camera.qcom.so", "system/vendor/bin/vcam-publisher",
+        "system/bin/vcamd", "system/bin/vcam-streamer",
+        "system/framework/vcam-https-downloader.jar",
+    },
     "oneplus7pro-p202303230244": {
         "device-probe.sh",
         "vcamctl",
@@ -76,6 +83,14 @@ def main() -> None:
                 fail(f"{profile} controller does not refresh schema 7")
 
         oneplus = "payload/profiles/oneplus7pro-p202303230244/"
+        generic = "payload/profiles/oneplus-qcom-global-shim/"
+        if generic + "system/vendor/lib64/hw/local_time.default.so" in names:
+            fail("generic profile contains an OEM snapshot instead of taking a device-local copy")
+        installer = archive.read("customize.sh").decode("utf-8")
+        if installer.index('"$ONEPLUS_FINGERPRINT")') > installer.index("detect_oneplus_global ||"):
+            fail("generic fallback takes priority over exact device profiles")
+        if 'VCAM_UNIFIED_GLOBAL=1' not in installer:
+            fail("unified global profile lacks safe in-place update mode")
         proxy = archive.read(oneplus + "vendor/lib64/libvcam_proxy.so")
         proxy_slot = archive.read(oneplus + "vendor/lib64/hw/local_time.default.so")
         if hashlib.sha256(proxy).digest() != hashlib.sha256(proxy_slot).digest():

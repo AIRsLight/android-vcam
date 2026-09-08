@@ -37,9 +37,13 @@ class OnePlusModuleLifecycleTest(unittest.TestCase):
         self.write(self.slot, b"original local time library")
         self.write(self.shim, self.elf(b"new shim"))
         self.write(self.root / "data/adb/metamodule/module.prop", b"metamodule=true\n")
-        for name in ("customize.sh", "post-mount.sh"):
+        executable = self.root / "vendor/bin/hw/android.hardware.camera.provider@2.4-service_64"
+        self.write(executable, self.elf(b"physical provider"))
+        self.write(self.root / "vendor/etc/init/camera.rc",
+                   f"service vendor.physical-camera {executable}\n".encode())
+        for name in ("customize.sh", "post-mount.sh", "detect.sh"):
             source = (ROOT / "oneplus-global-module" / name).read_text()
-            source = re.sub(r"(?<![\w/])/(data/adb|vendor/lib64/hw)(?=[/\s\"])",
+            source = re.sub(r"(?<![\w/])/(data/adb|vendor/lib64/hw|vendor/bin/hw|vendor/etc/init|odm/etc/init)(?=[/\s\"])",
                             lambda m: self.root.as_posix() + m.group(0), source)
             self.write(self.module / name, source.encode())
         self.environment = dict(os.environ, MODPATH=str(self.module), KSU="true", APATCH="false",
@@ -118,6 +122,18 @@ getprop() {
         self.install()
         self.assertEqual(self.stock, self.snapshot.read_bytes())
 
+    def test_provider_detection_rejects_missing_or_ambiguous_service(self) -> None:
+        rc = self.root / "vendor/etc/init/camera.rc"
+        original = rc.read_bytes()
+        rc.write_bytes(b"service vendor.virtual-camera /vendor/bin/virtualcamera\n")
+        self.assertEqual(42, self.run_script("customize.sh").returncode)
+        rc.write_bytes(original + original.replace(b"vendor.physical-camera", b"vendor.another-camera"))
+        self.assertEqual(42, self.run_script("customize.sh").returncode)
+        rc.write_bytes(original)
+        self.install()
+        self.assertIn("provider_init_service=vendor.physical-camera\n",
+                      (self.module / "oneplus-profile.conf").read_text())
+
     def test_disabled_unified_module_must_be_unmounted_before_switch(self) -> None:
         unified = self.root / "data/adb/modules/android_vcam"
         patched = self.elf(b"unified patched HAL")
@@ -172,6 +188,72 @@ getprop() {
         self.environment["TEST_FINGERPRINT"] += "/ota"
         self.assertNotEqual(0, self.run_script("post-mount.sh").returncode)
         self.assertFalse(self.marker.exists())
+
+
+class UnifiedGlobalLifecycleTest(OnePlusModuleLifecycleTest):
+    """Exercise real unified selection and payload dispatch, including upgrades."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.installed = self.root / "data/adb/modules/android_vcam"
+        self.generic_installer = (self.module / "customize.sh").read_bytes()
+
+    def stage_old_install(self, *, snapshot: bytes | None = None) -> None:
+        super().stage_old_install(snapshot=snapshot)
+        self.write(self.installed / "profile.id", b"oneplus-qcom-global-shim\n")
+
+    def run_script(self, name: str) -> subprocess.CompletedProcess:
+        if name == "customize.sh":
+            profile = self.module / "payload/profiles/oneplus-qcom-global-shim"
+            self.write(profile / "install-global.sh", self.generic_installer)
+            self.write(profile / "detect.sh", (self.module / "detect.sh").read_bytes())
+            self.write(self.module / "module.prop", b"id=android_vcam\ndescription=test\n")
+            source = (ROOT / "unified-module/customize.sh").read_text()
+            source = re.sub(r"(?<![\w/])/(data/adb|vendor/lib64/hw)(?=[/\s\"])",
+                            lambda m: self.root.as_posix() + m.group(0), source)
+            self.write(self.module / name, source.encode())
+        return super().run_script(name)
+
+    def test_selected_profile_and_payload_cleanup(self) -> None:
+        self.install()
+        self.assertEqual("oneplus-qcom-global-shim\n", (self.module / "profile.id").read_text())
+        self.assertFalse((self.module / "payload/profiles").exists())
+        self.assertFalse((self.module / "install-global.sh").exists())
+
+    def test_exact_oneplus_takes_priority_without_generic_eligibility(self) -> None:
+        self.environment["TEST_FINGERPRINT"] = (
+            "OnePlus/OnePlus7Pro_CH/OnePlus7Pro:12/SKQ1.211113.001/P.202303230244:user/release-keys")
+        (self.root / "vendor/etc/init/camera.rc").unlink()
+        exact = self.module / "payload/profiles/oneplus7pro-p202303230244"
+        self.write(exact / "install-profile.sh", b":\n")
+        self.write(exact / "vendor/lib64/hw/local_time.default.so", b"proxy slot")
+        self.install()
+        self.assertEqual("oneplus7pro-p202303230244\n", (self.module / "profile.id").read_text())
+        self.assertFalse(self.snapshot.exists())
+
+    def test_active_exact_profile_requires_disable_and_reboot(self) -> None:
+        self.write(self.installed / "profile.id", b"oneplus7pro-p202303230244\n")
+        self.assertEqual(42, self.run_script("customize.sh").returncode)
+
+    def test_legacy_global_migration_requires_unmounted_overlay(self) -> None:
+        legacy = self.root / "data/adb/modules/android_vcam_oneplus_global"
+        old_shim = self.elf(b"legacy shim")
+        self.write(legacy / "system/vendor/lib64/hw/camera.qcom.so", old_shim)
+        self.assertEqual(42, self.run_script("customize.sh").returncode)
+        self.write(legacy / "disable", b"")
+        self.write(self.hal, old_shim)
+        self.assertEqual(42, self.run_script("customize.sh").returncode)
+        self.assertFalse((legacy / "remove").exists())
+        self.write(self.hal, self.stock)
+        self.install()
+        self.assertTrue((legacy / "remove").exists())
+        self.assertEqual(self.stock, self.snapshot.read_bytes())
+
+    def test_upgrade_normalized_vendor_layout(self) -> None:
+        self.stage_old_install(snapshot=self.stock)
+        (self.installed / "system/vendor").rename(self.installed / "vendor")
+        self.install()
+        self.assertEqual(self.stock, self.snapshot.read_bytes())
 
 
 if __name__ == "__main__":
